@@ -42,11 +42,19 @@ root must be `mypaste.plugin.json` plus the entry script.
 ## Install locally
 
 1. Open MyPaste Go -> Preferences -> Extensions -> Third-party.
-2. Choose "Install / Update plugin..." and select one `.mypaste-plugin`.
-3. Refresh the list, grant only the capability the package declares, then use
+2. Choose either:
+   - "Import entire folder..." and select the repository root. MyPaste
+     recursively discovers the packages in `dist/` and installs each one.
+   - "Install / update plugin..." and select one `.mypaste-plugin` file.
+3. Refresh the list, grant only the capability each package declares, then use
    the command from the clipboard command palette.
 4. For highlighting, select a code item and preview it. If no highlight plugin
    is granted, MyPaste uses its built-in highlighter.
+
+Folder import accepts nested package folders, skips hidden directories,
+`node_modules` and `.git`, ignores symbolic links, and reports each package
+separately. A partial failure does not roll back packages that were already
+installed successfully.
 
 ## Formatter dependencies
 
