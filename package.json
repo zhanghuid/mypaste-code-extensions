@@ -1,0 +1,10 @@
+{
+  "name": "mypaste-code-extensions",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "python3 -m unittest discover -s tests -v",
+    "build": "python3 scripts/package.py",
+    "check": "python3 -m unittest discover -s tests -v && python3 scripts/package.py"
+  }
+}

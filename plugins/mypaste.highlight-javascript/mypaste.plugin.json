@@ -1,0 +1,22 @@
+{
+  "manifestVersion": 1,
+  "id": "mypaste.highlight-javascript",
+  "name": "JavaScript Syntax Highlight",
+  "version": "1.0.0",
+  "description": "为 MyPaste 提供 JavaScript 的有界语法高亮 token，不写入剪贴板。",
+  "capabilities": ["selection.render"],
+  "runtime": {
+    "protocolVersion": 1,
+    "entrypoint": "run"
+  },
+  "commands": [
+    {
+      "id": "highlight",
+      "title": "高亮 JavaScript",
+      "description": "只读返回 JavaScript 语法 token；失败时 MyPaste 自动回退内置高亮。",
+      "input": ["text/plain"],
+      "output": ["application/vnd.mypaste.render+json"],
+      "capabilities": ["selection.render"]
+    }
+  ]
+}
