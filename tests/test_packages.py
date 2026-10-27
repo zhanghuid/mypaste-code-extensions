@@ -1,14 +1,27 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from pathlib import Path
+import re
 import subprocess
 import unittest
 import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGINS = ROOT / "plugins"
+DIST = ROOT / "dist"
+
+
+def build_packages() -> None:
+    subprocess.run(
+        ["python3", "scripts/package.py"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def invoke(package: Path, request: dict) -> dict:
@@ -155,13 +168,7 @@ class PackageTests(unittest.TestCase):
         self.assertNotIn("result", response)
 
     def test_archives_exclude_python_caches(self) -> None:
-        subprocess.run(
-            ["python3", "scripts/package.py"],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        build_packages()
         archives = sorted((ROOT / "dist").glob("*.mypaste-plugin"))
         self.assertGreaterEqual(len(archives), 16)
         for archive in archives:
@@ -171,6 +178,67 @@ class PackageTests(unittest.TestCase):
                 any("__pycache__" in name or name.endswith(".pyc") for name in names),
                 archive.name,
             )
+
+    def test_dist_index_covers_every_package_with_verified_digests(self) -> None:
+        build_packages()
+        index = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
+        self.assertEqual(index["version"], 1)
+        self.assertRegex(index["generated"], r"^\d{4}-\d{2}-\d{2}$")
+
+        manifests = [
+            (
+                json.loads((package / "mypaste.plugin.json").read_text()),
+                package,
+            )
+            for package in PLUGINS.iterdir()
+            if package.is_dir()
+        ]
+        manifests.sort(key=lambda item: item[0]["id"])
+        self.assertEqual(len(index["packages"]), len(manifests))
+        self.assertGreaterEqual(len(index["packages"]), 16)
+        by_id = {item["id"]: item for item in index["packages"]}
+        self.assertEqual(len(by_id), len(index["packages"]))
+        self.assertEqual(
+            set(by_id),
+            {manifest["id"] for manifest, _ in manifests},
+        )
+
+        for manifest, package in manifests:
+            entry = by_id[manifest["id"]]
+            archive = DIST / entry["fileName"]
+            self.assertEqual(
+                entry["fileName"],
+                f"{package.name}-{manifest['version']}.mypaste-plugin",
+            )
+            self.assertEqual(entry["name"], manifest["name"])
+            self.assertEqual(entry["version"], manifest["version"])
+            self.assertEqual(entry["description"], manifest.get("description", ""))
+            self.assertRegex(entry["sha256"], r"^[0-9a-f]{64}$")
+            self.assertEqual(
+                entry["sha256"],
+                hashlib.sha256(archive.read_bytes()).hexdigest(),
+            )
+            self.assertEqual(
+                (DIST / f"{entry['fileName']}.sha256").read_text(
+                    encoding="utf-8",
+                ),
+                f"{entry['sha256']}  {entry['fileName']}\n",
+            )
+            self.assertEqual(
+                set(entry),
+                {"id", "name", "version", "description", "fileName", "sha256"},
+            )
+            self.assertLessEqual(len(entry["id"]), 96)
+            self.assertLessEqual(len(entry["name"]), 72)
+            self.assertLessEqual(len(entry["description"]), 280)
+            self.assertRegex(entry["version"], r"^\d+\.\d+\.\d+$")
+            self.assertIsNone(re.search(r"[/\\\x00]", entry["fileName"]))
+
+    def test_dist_index_is_deterministic(self) -> None:
+        build_packages()
+        first = (DIST / "index.json").read_bytes()
+        build_packages()
+        self.assertEqual(first, (DIST / "index.json").read_bytes())
 
 
 if __name__ == "__main__":

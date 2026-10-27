@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build ZIP-root .mypaste-plugin archives without third-party dependencies."""
+"""Build ZIP-root packages and the deterministic repository index."""
 
 from __future__ import annotations
 
@@ -7,8 +7,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import sys
+from datetime import date
 import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -16,6 +18,13 @@ PLUGINS = ROOT / "plugins"
 DIST = ROOT / "dist"
 MAX_FILE = 16 * 1024 * 1024
 MAX_TOTAL = 64 * 1024 * 1024
+INDEX_VERSION = 1
+MAX_INDEX_NAME = 72
+MAX_INDEX_DESCRIPTION = 280
+MAX_INDEX_ID = 96
+MAX_INDEX_VERSION = 32
+PLUGIN_ID = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$")
+PLUGIN_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$")
 
 
 def fail(message: str) -> None:
@@ -79,10 +88,27 @@ def files_for(package: Path) -> list[Path]:
     return files
 
 
-def build(package: Path) -> Path:
+def build(package: Path) -> dict:
     manifest = validate(package)
     name = package.name
     version = manifest["version"]
+    plugin_id = manifest.get("id", "")
+    display_name = manifest.get("name", "")
+    description = manifest.get("description", "")
+    if not isinstance(plugin_id, str) or not PLUGIN_ID.match(plugin_id):
+        fail(f"{package.name}: invalid id")
+    if len(plugin_id) > MAX_INDEX_ID:
+        fail(f"{package.name}: id is too long")
+    if not isinstance(version, str) or len(version) > MAX_INDEX_VERSION or not PLUGIN_VERSION.match(version):
+        fail(f"{package.name}: invalid version")
+    if not isinstance(display_name, str) or not display_name.strip():
+        fail(f"{package.name}: missing name")
+    if len(display_name) > MAX_INDEX_NAME:
+        fail(f"{package.name}: name is too long")
+    if not isinstance(description, str) or len(description) > MAX_INDEX_DESCRIPTION:
+        fail(f"{package.name}: invalid description")
+    if "\x00" in display_name or "\x00" in description:
+        fail(f"{package.name}: metadata contains NUL")
     target = DIST / f"{name}-{version}.mypaste-plugin"
     with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for path in files_for(package):
@@ -96,6 +122,34 @@ def build(package: Path) -> Path:
             archive.writestr(info, path.read_bytes())
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
     target.with_suffix(target.suffix + ".sha256").write_text(f"{digest}  {target.name}\n", encoding="utf-8")
+    return {
+        "id": plugin_id,
+        "name": display_name,
+        "version": version,
+        "description": description,
+        "fileName": target.name,
+        "sha256": digest,
+    }
+
+
+def write_index(packages: list[dict]) -> Path:
+    seen: set[str] = set()
+    for package in packages:
+        plugin_id = package["id"]
+        if plugin_id in seen:
+            fail(f"duplicate plugin id: {plugin_id}")
+        seen.add(plugin_id)
+    packages.sort(key=lambda item: (item["name"], item["id"]))
+    index = {
+        "version": INDEX_VERSION,
+        "generated": date.today().isoformat(),
+        "packages": packages,
+    }
+    target = DIST / "index.json"
+    target.write_text(
+        json.dumps(index, ensure_ascii=False, indent=2, sort_keys=False) + "\n",
+        encoding="utf-8",
+    )
     return target
 
 
@@ -106,9 +160,12 @@ def main() -> None:
     built = []
     for package in plugin_dirs():
         built.append(build(package))
-    for path in built:
+    index = write_index(built)
+    for entry in built:
+        path = DIST / entry["fileName"]
         print(path.relative_to(ROOT))
         print(path.with_suffix(path.suffix + ".sha256").relative_to(ROOT))
+    print(index.relative_to(ROOT))
 
 
 if __name__ == "__main__":

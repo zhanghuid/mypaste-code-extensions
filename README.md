@@ -83,6 +83,24 @@ the language fixtures and the archive validator.
 - The app's plugin capability list is a grant ceiling, not an operating-system
   sandbox.
 
+The committed `dist/` directory is the fixed raw-GitHub feed used by MyPaste:
+
+```text
+dist/
+  index.json
+  mypaste.format-go-1.0.0.mypaste-plugin
+  mypaste.format-go-1.0.0.mypaste-plugin.sha256
+  ...
+```
+
+`index.json` is generated deterministically by `scripts/package.py`. It lists
+each package's ID, display name, version, description, archive file name and
+SHA-256. The app fetches only
+`https://raw.githubusercontent.com/zhanghuid/mypaste-code-extensions/main/dist/index.json`,
+then resolves packages inside that fixed directory; it never accepts a URL or
+filesystem path from the page. Commit `dist/` after every package change and
+publish it with the annotated repository tag.
+
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
 [../mypaste-go/docs/PLUGINS.md](../mypaste-go/docs/PLUGINS.md).
 

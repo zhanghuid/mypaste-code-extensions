@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "generated": "2026-10-27",
+  "packages": [
+    {
+      "id": "mypaste.format-go",
+      "name": "Go Format",
+      "version": "1.0.0",
+      "description": "使用本机可用工具格式化 Go；依赖缺失或语法错误时保留原文。",
+      "fileName": "mypaste.format-go-1.0.0.mypaste-plugin",
+      "sha256": "5e9aae3f7c29b72a859720772c9eb85de32faf2dfbd041fc1717d680adfa84ea"
+    },
+    {
+      "id": "mypaste.highlight-go",
+      "name": "Go Syntax Highlight",
+      "version": "1.0.0",
+      "description": "为 MyPaste 提供 Go 的有界语法高亮 token，不写入剪贴板。",
+      "fileName": "mypaste.highlight-go-1.0.0.mypaste-plugin",
+      "sha256": "0d3f320303c4a08da11b019ca4aff287535bedc87c7487f5e95a1f8a4f0c66b4"
+    },
+    {
+      "id": "mypaste.format-html",
+      "name": "Html Format",
+      "version": "1.0.0",
+      "description": "使用本机可用工具格式化 Html；依赖缺失或语法错误时保留原文。",
+      "fileName": "mypaste.format-html-1.0.0.mypaste-plugin",
+      "sha256": "98109fe3ae23efd0535bd2b466187e981c4d32cba2acedcc9fb7938be43281a6"
+    },
+    {
+      "id": "mypaste.highlight-html",
+      "name": "Html Syntax Highlight",
+      "version": "1.0.0",
+      "description": "为 MyPaste 提供 Html 的有界语法高亮 token，不写入剪贴板。",
+      "fileName": "mypaste.highlight-html-1.0.0.mypaste-plugin",
+      "sha256": "9ce12d37f060b4d40edcb79439284e02cbba6fb5b35a972310fc26b8ed7c74af"
+    },
+    {
+      "id": "mypaste.format-json",
+      "name": "JSON Format",
+      "version": "1.0.0",
+      "description": "使用本机 Python 标准库保守格式化 JSON；失败时保留原文。",
+      "fileName": "mypaste.format-json-1.0.0.mypaste-plugin",
+      "sha256": "851cc3cacb484748441ab2d86c4abf9e0a0d0dbb99ccd517529e73bbad497dcc"
+    },
+    {
+      "id": "mypaste.format-javascript",
+      "name": "JavaScript Format",
+      "version": "1.0.0",
+      "description": "使用本机可用工具格式化 JavaScript；依赖缺失或语法错误时保留原文。",
+      "fileName": "mypaste.format-javascript-1.0.0.mypaste-plugin",
+      "sha256": "17638f3df1e04f8faa22c59b62dae10128a9c44e7fe37be302959513aa6f5540"
+    },
+    {
+      "id": "mypaste.highlight-javascript",
+      "name": "JavaScript Syntax Highlight",
+      "version": "1.0.0",
+      "description": "为 MyPaste 提供 JavaScript 的有界语法高亮 token，不写入剪贴板。",
+      "fileName": "mypaste.highlight-javascript-1.0.0.mypaste-plugin",
+      "sha256": "f7be44b4dad7a88fee9fc2f89e33ddb2334c08bb4d559f81baa91d6032008ad5"
+    },
+    {
+      "id": "mypaste.highlight-json",
+      "name": "Json Syntax Highlight",
+      "version": "1.0.0",
+      "description": "为 MyPaste 提供 Json 的有界语法高亮 token，不写入剪贴板。",
+      "fileName": "mypaste.highlight-json-1.0.0.mypaste-plugin",
+      "sha256": "6e06090de7351d2e83ea1daf5b069683c75803725922791c294e4139de52b301"
+    },
+    {
+      "id": "mypaste.format-php",
+      "name": "Php Format",
+      "version": "1.0.0",
+      "description": "使用本机可用工具格式化 Php；依赖缺失或语法错误时保留原文。",
+      "fileName": "mypaste.format-php-1.0.0.mypaste-plugin",
+      "sha256": "deb9a05476c00fb5a470b37c624a64d77e218ea08b118d45e8164c904c62c537"
+    },
+    {
+      "id": "mypaste.highlight-php",
+      "name": "Php Syntax Highlight",
+      "version": "1.0.0",
+      "description": "为 MyPaste 提供 Php 的有界语法高亮 token，不写入剪贴板。",
+      "fileName": "mypaste.highlight-php-1.0.0.mypaste-plugin",
+      "sha256": "68ed3fc92f3184b72816659ec2d30292f729d37c54148c0457726670828245a3"
+    },
+    {
+      "id": "mypaste.format-python",
+      "name": "Python Format",
+      "version": "1.0.0",
+      "description": "使用本机可用工具格式化 Python；依赖缺失或语法错误时保留原文。",
+      "fileName": "mypaste.format-python-1.0.0.mypaste-plugin",
+      "sha256": "85ba6ddcf6223b346efd6bcb7a0d5373a38506d61b8354351d4100d355fe7c18"
+    },
+    {
+      "id": "mypaste.highlight-python",
+      "name": "Python Syntax Highlight",
+      "version": "1.0.0",
+      "description": "为 MyPaste 提供 Python 的有界语法高亮 token，不写入剪贴板。",
+      "fileName": "mypaste.highlight-python-1.0.0.mypaste-plugin",
+      "sha256": "bca6e13abef7e4f755659de8beeb78bb72a51b923f8db8f67e11bd9435d2b572"
+    },
+    {
+      "id": "mypaste.format-rust",
+      "name": "Rust Format",
+      "version": "1.0.0",
+      "description": "使用本机可用工具格式化 Rust；依赖缺失或语法错误时保留原文。",
+      "fileName": "mypaste.format-rust-1.0.0.mypaste-plugin",
+      "sha256": "3ec6ef46356c379a2697712ab6709e9b9a362711d09936ec679887033537ccfc"
+    },
+    {
+      "id": "mypaste.highlight-rust",
+      "name": "Rust Syntax Highlight",
+      "version": "1.0.0",
+      "description": "为 MyPaste 提供 Rust 的有界语法高亮 token，不写入剪贴板。",
+      "fileName": "mypaste.highlight-rust-1.0.0.mypaste-plugin",
+      "sha256": "1965f9d05505a200e8a1900bf21f46152507ca07e0d2f507e50bdd3d2648b160"
+    },
+    {
+      "id": "mypaste.format-typescript",
+      "name": "TypeScript Format",
+      "version": "1.0.0",
+      "description": "使用本机可用工具格式化 TypeScript；依赖缺失或语法错误时保留原文。",
+      "fileName": "mypaste.format-typescript-1.0.0.mypaste-plugin",
+      "sha256": "46ca67e9caebe7c0c9ca5a83297df7b673a7a4ae5d2b5f56b67a7319cd4dce0d"
+    },
+    {
+      "id": "mypaste.highlight-typescript",
+      "name": "TypeScript Syntax Highlight",
+      "version": "1.0.0",
+      "description": "为 MyPaste 提供 TypeScript 的有界语法高亮 token，不写入剪贴板。",
+      "fileName": "mypaste.highlight-typescript-1.0.0.mypaste-plugin",
+      "sha256": "d5bd81b2136db530565d41afe9e2d4d4ccd18ad3d5694927cdb1bbc6bb42a89b"
+    }
+  ]
+}

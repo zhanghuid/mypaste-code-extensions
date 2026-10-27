@@ -80,3 +80,22 @@ arguments. There is no shell interpolation of user clipboard text.
   unchanged.
 - Any future vendored dependency must include version, license and provenance
   in `THIRD_PARTY_NOTICES.md`.
+
+## Distribution
+
+The app reads one fixed index (shown with a placeholder host for portability):
+
+```text
+https://raw.githubusercontent.com/<owner>/mypaste-code-extensions/main/dist/index.json
+```
+
+The index is versioned repository metadata, not a dynamic marketplace API. It
+contains only package identity, display metadata, archive file names and
+SHA-256 digests. The app resolves package files relative to the same fixed
+directory and rejects redirects, path traversal and digest mismatches.
+
+`dist/index.json` and all referenced `.mypaste-plugin` / `.sha256` files are
+committed together. The packaging script writes reproducible ZIP timestamps and
+generates the index after every package has passed manifest and size checks.
+There is no auto-update path: downloading a package and granting capabilities
+remain separate user actions.

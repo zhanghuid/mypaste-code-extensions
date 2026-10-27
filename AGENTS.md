@@ -14,6 +14,9 @@ does not contain the MyPaste app or its database.
   packages without a new threat model and explicit maintainer review.
 - Use `bun test` and `bun run build` before committing.
 - Commit each language family or protocol change separately when practical.
-- Do not commit `dist/`, `node_modules/`, credentials, or generated archives.
+- Commit `dist/` because it is the fixed raw-GitHub feed consumed by MyPaste.
+  It must contain only verified packages, their `.sha256` files, and
+  `index.json`.
+- Do not commit `node_modules/`, credentials, or temporary build files.
 - English identifiers and commit subjects; user-facing plugin descriptions may
   be Chinese.
