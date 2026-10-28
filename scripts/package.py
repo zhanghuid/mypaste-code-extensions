@@ -25,6 +25,11 @@ MAX_INDEX_ID = 96
 MAX_INDEX_VERSION = 32
 PLUGIN_ID = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$")
 PLUGIN_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$")
+LANGUAGE = re.compile(r"^[a-z][a-z0-9+#-]*$")
+# The host owns the clipboard item kinds; a package may only declare kinds it
+# knows, and the host re-checks the declaration before running a command.
+TARGET_KINDS = {"text", "rich_text", "image", "link", "file", "color"}
+TEXT_KINDS = {"text", "rich_text"}
 
 
 def fail(message: str) -> None:
@@ -64,7 +69,37 @@ def validate(package: Path) -> dict:
         unknown = set(command.get("capabilities", [])) - allowed
         if unknown:
             fail(f"{package.name}: unsupported command capabilities {sorted(unknown)}")
+        validate_target(command, package.name)
     return manifest
+
+
+def validate_target(command: dict, package_name: str) -> None:
+    """Every command declares what it acts on and which languages it serves.
+
+    The declaration is the protocol contract with the host: the host filters
+    the command list by kind and binds the preview formatter and highlighter
+    by the declared language, so an undeclared command is unusable there.
+    """
+    applies_to = command.get("appliesTo")
+    if not isinstance(applies_to, list) or not applies_to:
+        fail(f"{package_name}: command {command.get('id')} must declare appliesTo")
+    if not all(isinstance(kind, str) for kind in applies_to):
+        fail(f"{package_name}: target kinds must be strings")
+    unknown = set(applies_to) - TARGET_KINDS
+    if unknown:
+        fail(f"{package_name}: unknown target kinds {sorted(unknown)}")
+    if len(set(applies_to)) != len(applies_to):
+        fail(f"{package_name}: duplicate target kind in {command.get('id')}")
+    languages = command.get("languages")
+    if not isinstance(languages, list) or not languages:
+        fail(f"{package_name}: command {command.get('id')} must declare languages")
+    for language in languages:
+        if not isinstance(language, str) or not LANGUAGE.match(language):
+            fail(f"{package_name}: invalid language {language!r}")
+    if len(set(languages)) != len(languages):
+        fail(f"{package_name}: duplicate language in {command.get('id')}")
+    if not set(applies_to) <= TEXT_KINDS:
+        fail(f"{package_name}: only text commands may declare languages")
 
 
 def files_for(package: Path) -> list[Path]:

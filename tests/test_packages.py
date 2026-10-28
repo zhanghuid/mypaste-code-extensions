@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import contextlib
+import importlib.util
+import io
 import json
 import hashlib
 import os
@@ -43,7 +46,39 @@ def invoke(package: Path, request: dict) -> dict:
     return json.loads(result.stdout)
 
 
+def load_packaging():
+    spec = importlib.util.spec_from_file_location(
+        "mypaste_packaging", ROOT / "scripts" / "package.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class PackageTests(unittest.TestCase):
+    def test_packaging_rejects_undeclared_commands(self) -> None:
+        packaging = load_packaging()
+        packaging.validate_target(
+            {"id": "format", "appliesTo": ["text", "rich_text"], "languages": ["json"]},
+            "mypaste.format-json",
+        )
+        invalid = [
+            {"id": "format", "languages": ["json"]},
+            {"id": "format", "appliesTo": [], "languages": ["json"]},
+            {"id": "format", "appliesTo": "text", "languages": ["json"]},
+            {"id": "format", "appliesTo": [["text"]], "languages": ["json"]},
+            {"id": "format", "appliesTo": ["pdf"], "languages": ["json"]},
+            {"id": "format", "appliesTo": ["text", "text"], "languages": ["json"]},
+            {"id": "format", "appliesTo": ["text"]},
+            {"id": "format", "appliesTo": ["text"], "languages": ["JSON"]},
+            {"id": "format", "appliesTo": ["text"], "languages": ["json", "json"]},
+            {"id": "format", "appliesTo": ["image"], "languages": ["json"]},
+        ]
+        stderr = io.StringIO()
+        for command in invalid:
+            with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit):
+                packaging.validate_target(command, "mypaste.format-json")
+
     def test_every_package_has_valid_manifest(self) -> None:
         packages = sorted(p for p in PLUGINS.iterdir() if p.is_dir())
         self.assertGreaterEqual(len(packages), 16)
@@ -53,10 +88,18 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(manifest["runtime"]["protocolVersion"], 1)
             self.assertTrue((package / manifest["runtime"]["entrypoint"]).is_file())
             capabilities = set(manifest.get("capabilities", []))
+            language = manifest["id"].rsplit("-", 1)[-1]
             if manifest["id"].startswith("mypaste.highlight-"):
                 self.assertEqual(capabilities, {"selection.render"})
             elif manifest["id"].startswith("mypaste.format-"):
                 self.assertEqual(capabilities, {"selection.read", "clipboard.write"})
+            # Every command declares what it acts on. MyPaste filters the
+            # command palette by these kinds and binds the preview formatter
+            # and highlighter by the declared language, so a package without
+            # the declaration silently stops being usable there.
+            command = manifest["commands"][0]
+            self.assertEqual(command["appliesTo"], ["text", "rich_text"])
+            self.assertEqual(command["languages"], [language])
 
     def test_highlighting_all_languages(self) -> None:
         fixtures = {

@@ -27,6 +27,30 @@ Formatting packages request `selection.read` and `clipboard.write`.
 Highlighting packages request only `selection.render`; they cannot write the
 clipboard, read history, use files, network, or spawn arbitrary commands.
 
+## Command declaration
+
+Every package declares what its command acts on:
+
+```json
+"commands": [{
+  "id": "format",
+  "appliesTo": ["text", "rich_text"],
+  "languages": ["go"],
+  "capabilities": ["selection.read", "clipboard.write"],
+  "...": "..."
+}]
+```
+
+`appliesTo` is a closed set — `text`, `rich_text`, `image`, `link`, `file`,
+`color` — and `languages` lists the code languages the command handles. Only
+text commands may declare languages. MyPaste offers the command in the Cmd+K
+command palette only for matching items, groups it under the declared language,
+and re-checks the declaration before running it. Without the declaration a
+package is discovered and can be installed, but its command is not offered.
+
+`scripts/package.py` rejects a package whose commands omit or misuse these
+fields, so an unreadable declaration fails the build instead of shipping.
+
 ## Build
 
 Requirements: Bun 1.2+ and Python 3.11+ for the packaging scripts.
@@ -88,8 +112,8 @@ The committed `dist/` directory is the fixed raw-GitHub feed used by MyPaste:
 ```text
 dist/
   index.json
-  mypaste.format-go-1.0.0.mypaste-plugin
-  mypaste.format-go-1.0.0.mypaste-plugin.sha256
+  mypaste.format-go-1.1.0.mypaste-plugin
+  mypaste.format-go-1.1.0.mypaste-plugin.sha256
   ...
 ```
 

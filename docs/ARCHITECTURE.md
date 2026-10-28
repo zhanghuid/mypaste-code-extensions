@@ -12,6 +12,37 @@ MyPaste has two different trust decisions:
 This split is deliberate. A highlighting plugin cannot silently acquire
 clipboard-write authority just because it is installed for preview.
 
+## What a command declares
+
+Every command in `mypaste.plugin.json` says what it acts on and which code
+languages it serves:
+
+```json
+"commands": [{
+  "id": "format",
+  "title": "格式化 JSON",
+  "description": "...",
+  "appliesTo": ["text", "rich_text"],
+  "languages": ["json"],
+  "input": ["text/plain"],
+  "output": ["text/plain"],
+  "capabilities": ["selection.read", "clipboard.write"]
+}]
+```
+
+- `appliesTo` is a closed set of clipboard item kinds: `text`, `rich_text`,
+  `image`, `link`, `file`, `color`. MyPaste only offers a command for an item
+  whose kind it declares, and it re-checks the declaration before running it.
+  A command that omits `appliesTo` is treated as kind-agnostic.
+- `languages` names the code languages the command handles. Only commands that
+  apply to text may declare languages. MyPaste groups the command palette by
+  this declaration and binds the preview formatter (`selection.read` +
+  `clipboard.write`) and highlighter (`selection.render`) by it. The plugin ID
+  is an identity, never a language: a package may be named anything.
+
+The name of the plugin package is therefore free. `mypaste.format-json` is a
+convention for readers, not something the host parses.
+
 ## Runtime protocol
 
 The host starts a short-lived child process for each invocation, sends one JSON

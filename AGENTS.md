@@ -10,6 +10,15 @@ does not contain the MyPaste app or its database.
 - Formatting packages may request only `selection.read` and `clipboard.write`.
   They must return the original input on failure and must never execute user
   code.
+- Every command must declare `appliesTo` (a non-empty subset of `text`,
+  `rich_text`, `image`, `link`, `file`, `color`) and `languages` (lowercase
+  tokens matching `^[a-z][a-z0-9+#-]*$`). Languages are allowed only for text
+  commands. The host filters the command palette and binds the preview
+  formatter/highlighter by this declaration; it never infers a language from the
+  plugin ID, so keep the IDs conventional for readers only.
+- Adding a command target, capability or runtime field means bumping the package
+  version and rebuilding `dist/`, because grants bind to the manifest digest:
+  existing installs keep working until the user installs the new package.
 - Do not add network, file, process, history or secret capabilities to these
   packages without a new threat model and explicit maintainer review.
 - Use `bun test` and `bun run build` before committing.
