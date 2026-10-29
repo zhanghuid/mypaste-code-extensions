@@ -6,6 +6,24 @@ from __future__ import annotations
 import json
 import sys
 
+DEFAULT_INDENT = 2
+MIN_INDENT = 1
+MAX_INDENT = 8
+
+
+def indent_width(request: dict) -> int:
+    """Read the declared indent, falling back to the manifest default.
+
+    The host validates before launching, so this is a second boundary rather
+    than the first one: a host that sends nothing, or a value outside the
+    declared range, still formats instead of failing the command.
+    """
+    settings = request.get("settings")
+    value = settings.get("indent") if isinstance(settings, dict) else None
+    if isinstance(value, bool) or not isinstance(value, int):
+        return DEFAULT_INDENT
+    return value if MIN_INDENT <= value <= MAX_INDENT else DEFAULT_INDENT
+
 
 def main() -> int:
     try:
@@ -31,7 +49,9 @@ def main() -> int:
             "message": f"invalid JSON at line {error.lineno}, column {error.colno}",
         }}))
         return 0
-    formatted = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+    formatted = json.dumps(
+        value, ensure_ascii=False, indent=indent_width(request)
+    ) + "\n"
     print(json.dumps({
         "id": request_id,
         "ok": True,

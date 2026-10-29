@@ -98,6 +98,43 @@ The host's `clipboard.write` boundary performs the actual write. The adapter
 must not create a second history entry and must not claim success when no
 formatter is available.
 
+## Declared settings
+
+A plugin may declare up to eight parameters the user can change without
+reinstalling. The host renders them on the plugin card; the plugin only reads
+the resolved values from the request.
+
+```json
+"settings": [{
+  "key": "indent",
+  "type": "integer",
+  "title": "缩进空格",
+  "description": "格式化结果的每级缩进宽度。",
+  "min": 1,
+  "max": 8,
+  "default": 2
+}]
+```
+
+The declaration is closed: `boolean`, `enum` (2–16 `values`), `integer`
+(`min`/`max`) and `string` (`maxLength`). Keys are lowercase names such as
+`indent`. There is no nested object, free-form JSON Schema, HTML or path — a
+settings block is not a second UI language.
+
+The host stores values against the exact manifest digest. Replacing a package
+starts the new manifest from its own defaults, so a value never carries over
+into a declaration it was not chosen for. A resolved request carries them as
+one object:
+
+```json
+{"id": "…", "method": "invoke", "commandId": "format",
+ "settings": {"indent": 6}}
+```
+
+A plugin that declares nothing sees no `settings` field at all. Read it
+defensively anyway: the host validates first, but an adapter that receives no
+settings should apply its manifest default rather than fail.
+
 ## Adapter execution
 
 The host provides a minimal environment (`HOME`, `TMPDIR`, `PATH`, `LANG`,

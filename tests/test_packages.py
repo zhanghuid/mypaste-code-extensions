@@ -210,6 +210,28 @@ class PackageTests(unittest.TestCase):
         self.assertFalse(response["ok"])
         self.assertNotIn("result", response)
 
+    def test_formatting_json_applies_the_declared_indent(self) -> None:
+        package = PLUGINS / "mypaste.format-json"
+        source = '{"a":1,"b":[true,null]}'
+        request = {
+            "protocolVersion": 1,
+            "id": "test-id",
+            "method": "invoke",
+            "commandId": "format",
+            "capabilities": ["selection.read", "clipboard.write"],
+            "selection": {"id": 1, "kind": "text", "title": "x", "text": source},
+        }
+        wide = invoke(package, {**request, "settings": {"indent": 6}})
+        self.assertTrue(wide["ok"], wide)
+        self.assertIn('      "a": 1', wide["result"]["output"])
+        # A host that sends nothing, or a value outside the declared range,
+        # still formats: the manifest default is the fallback, not an error.
+        self.assertIn('  "a": 1', invoke(package, request)["result"]["output"])
+        self.assertIn(
+            '  "a": 1',
+            invoke(package, {**request, "settings": {"indent": 12}})["result"]["output"],
+        )
+
     def test_formatting_accepts_text_above_the_former_32kib_wall(self) -> None:
         # The host bounds extension text at extension.MaxTextBytes (256 KiB).
         # A formatter that invents a smaller ceiling rejects text the host has

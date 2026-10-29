@@ -37,10 +37,10 @@
     {
       "id": "mypaste.format-json",
       "name": "JSON Format",
-      "version": "1.1.1",
-      "description": "使用本机 Python 标准库保守格式化 JSON；失败时保留原文。",
-      "fileName": "mypaste.format-json-1.1.1.mypaste-plugin",
-      "sha256": "2621d11d5f9667cabe700c6a805a7b7fa9418cea9d79761cbc6c630d0186dda2"
+      "version": "1.2.0",
+      "description": "使用本机 Python 标准库保守格式化 JSON；缩进可在扩展设置里调整，失败时保留原文。",
+      "fileName": "mypaste.format-json-1.2.0.mypaste-plugin",
+      "sha256": "7330473dc7f0f0e49aad78cae81212a18bf3f16e4121a6ef39233d9f4ed9932d"
     },
     {
       "id": "mypaste.format-javascript",
