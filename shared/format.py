@@ -32,11 +32,6 @@ def main() -> int:
         }}))
         return 0
     formatted = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
-    if len(formatted.encode()) > 32 * 1024:
-        print(json.dumps({"id": request_id, "ok": False, "error": {
-            "code": "too-large", "message": "formatted JSON exceeds 32 KiB",
-        }}))
-        return 0
     print(json.dumps({
         "id": request_id,
         "ok": True,

@@ -145,6 +145,9 @@ def build(package: Path) -> dict:
     if "\x00" in display_name or "\x00" in description:
         fail(f"{package.name}: metadata contains NUL")
     target = DIST / f"{name}-{version}.mypaste-plugin"
+    # Earlier versions go only after this manifest validated, so a broken
+    # package never destroys the last good archive.
+    prune_stale(name, version)
     with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for path in files_for(package):
             relative = path.relative_to(package).as_posix()
@@ -165,6 +168,22 @@ def build(package: Path) -> dict:
         "fileName": target.name,
         "sha256": digest,
     }
+
+
+def prune_stale(package_name: str, version: str) -> None:
+    """Remove archives this script built for earlier versions of one package.
+
+    Without this, every version bump leaves its predecessor in `dist/`, and a
+    directory scan of the repository finds two packages for one plugin id. The
+    delete is bounded: only `<package>-<other version>.mypaste-plugin` files and
+    their `.sha256` companions, which this script is the only writer of.
+    """
+    keep = f"{package_name}-{version}.mypaste-plugin"
+    for stale in sorted(DIST.glob(f"{package_name}-*.mypaste-plugin")):
+        if stale.name == keep:
+            continue
+        stale.unlink()
+        stale.with_suffix(stale.suffix + ".sha256").unlink(missing_ok=True)
 
 
 def write_index(packages: list[dict]) -> Path:

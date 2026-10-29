@@ -11,7 +11,8 @@ const id = typeof request.id === "string" ? request.id : "";
 const source = request.selection && typeof request.selection.text === "string"
   ? request.selection.text : "";
 if (!source.trim()) fail("selected text is empty");
-if (Buffer.byteLength(source) > 32 * 1024) fail("source exceeds 32 KiB");
+// The host owns the text ceiling (extension.MaxTextBytes, 256 KiB) for the
+// request and for the response it accepts, so this adapter adds no bound.
 
 const tokens = [];
 let i = 0;
@@ -76,7 +77,6 @@ for (const raw of lines) {
   depth = Math.max(0, depth + opens - closes);
 }
 const formatted = output.join("\n").replace(/\n+$/, "") + "\n";
-if (Buffer.byteLength(formatted) > 32 * 1024) fail("formatted output exceeds 32 KiB");
 process.stdout.write(JSON.stringify({
   id,
   ok: true,

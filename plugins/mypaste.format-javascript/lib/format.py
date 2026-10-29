@@ -251,14 +251,13 @@ def main() -> int:
     source = selection.get("text") if isinstance(selection, dict) else None
     if not isinstance(source, str) or not source.strip():
         return fail(request_id, "selected text is empty")
-    if len(source.encode()) > 32 * 1024:
-        return fail(request_id, "source exceeds 32 KiB")
+    # The host owns the text ceiling (extension.MaxTextBytes, 256 KiB) for the
+    # request and for the response it accepts. A second, smaller bound here
+    # rejects text the host already delivered, so this adapter keeps none.
     try:
         output = FORMATTERS[language](source)
     except Exception as error:
         return fail(request_id, str(error))
-    if len(output.encode()) > 32 * 1024:
-        return fail(request_id, "formatted output exceeds 32 KiB")
     if not output.strip():
         return fail(request_id, "formatter returned empty output")
     respond(request_id, True, output)

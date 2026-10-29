@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "generated": "2026-10-28",
+  "generated": "2026-10-29",
   "packages": [
     {
       "id": "mypaste.format-go",
       "name": "Go Format",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "使用本机可用工具格式化 Go；依赖缺失或语法错误时保留原文。",
-      "fileName": "mypaste.format-go-1.1.0.mypaste-plugin",
-      "sha256": "8a299d6abf99dd912d7f82116b108d7d374ecd57cd3155cc362a8ecb46a0aa28"
+      "fileName": "mypaste.format-go-1.1.1.mypaste-plugin",
+      "sha256": "49d217571a3efc54f7b3ad1a1c88d47cc8a65eb6d0758633e6b3fcf66ea6667c"
     },
     {
       "id": "mypaste.highlight-go",
@@ -21,10 +21,10 @@
     {
       "id": "mypaste.format-html",
       "name": "Html Format",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "使用本机可用工具格式化 Html；依赖缺失或语法错误时保留原文。",
-      "fileName": "mypaste.format-html-1.1.0.mypaste-plugin",
-      "sha256": "c169bdac3c010681c966d5101eb871937871af2ae7c746ac135200baa956196b"
+      "fileName": "mypaste.format-html-1.1.1.mypaste-plugin",
+      "sha256": "5c2402be81f30599c862f0a410ba90989b5187902f1ec9ed0a4f0de07d7f5b90"
     },
     {
       "id": "mypaste.highlight-html",
@@ -37,18 +37,18 @@
     {
       "id": "mypaste.format-json",
       "name": "JSON Format",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "使用本机 Python 标准库保守格式化 JSON；失败时保留原文。",
-      "fileName": "mypaste.format-json-1.1.0.mypaste-plugin",
-      "sha256": "6db75020d21e70518db0c52796694cc2e5ed35cd550689ff0c3a0cb4035a155e"
+      "fileName": "mypaste.format-json-1.1.1.mypaste-plugin",
+      "sha256": "2621d11d5f9667cabe700c6a805a7b7fa9418cea9d79761cbc6c630d0186dda2"
     },
     {
       "id": "mypaste.format-javascript",
       "name": "JavaScript Format",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "使用本机可用工具格式化 JavaScript；依赖缺失或语法错误时保留原文。",
-      "fileName": "mypaste.format-javascript-1.1.0.mypaste-plugin",
-      "sha256": "863e5133fb3243aea788fc0735d0d6b738611643e8ba98dd6fe6656a2cbc4233"
+      "fileName": "mypaste.format-javascript-1.1.1.mypaste-plugin",
+      "sha256": "c847a0aa5abada9f6152fec7c15225221cf90544753f4edafac9bfda5aed1ceb"
     },
     {
       "id": "mypaste.highlight-javascript",
@@ -69,10 +69,10 @@
     {
       "id": "mypaste.format-php",
       "name": "Php Format",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "使用本机可用工具格式化 Php；依赖缺失或语法错误时保留原文。",
-      "fileName": "mypaste.format-php-1.1.0.mypaste-plugin",
-      "sha256": "4133bc1eb58b11b3ff4e191b274335277db951b8b661d8ffc491d6c677693177"
+      "fileName": "mypaste.format-php-1.1.1.mypaste-plugin",
+      "sha256": "fa4ba71a4a1ad64e75efd007ce454f9adabe82aa1e334a3a3f105d550c64829d"
     },
     {
       "id": "mypaste.highlight-php",
@@ -85,10 +85,10 @@
     {
       "id": "mypaste.format-python",
       "name": "Python Format",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "使用本机可用工具格式化 Python；依赖缺失或语法错误时保留原文。",
-      "fileName": "mypaste.format-python-1.1.0.mypaste-plugin",
-      "sha256": "0942e51ad06e70c800db1dad8a3feaa4b5fd3af4fdbfcd91a71e3234e049d2ee"
+      "fileName": "mypaste.format-python-1.1.1.mypaste-plugin",
+      "sha256": "31b9a660ee53915dc7035a99683fa90b04e18bb1a328da62548470a4c50897a5"
     },
     {
       "id": "mypaste.highlight-python",
@@ -101,10 +101,10 @@
     {
       "id": "mypaste.format-rust",
       "name": "Rust Format",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "使用本机可用工具格式化 Rust；依赖缺失或语法错误时保留原文。",
-      "fileName": "mypaste.format-rust-1.1.0.mypaste-plugin",
-      "sha256": "8da49aa791bf09b6377b855be5946e88da37d9e3253e4d941107a58b33c27c3a"
+      "fileName": "mypaste.format-rust-1.1.1.mypaste-plugin",
+      "sha256": "4cbec36d623a8f4a5f83e6e58333b5c60fec75cbab993616a17d08cf7120e12d"
     },
     {
       "id": "mypaste.highlight-rust",
@@ -117,10 +117,10 @@
     {
       "id": "mypaste.format-typescript",
       "name": "TypeScript Format",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "使用本机可用工具格式化 TypeScript；依赖缺失或语法错误时保留原文。",
-      "fileName": "mypaste.format-typescript-1.1.0.mypaste-plugin",
-      "sha256": "d05f86ee93ea412ad8e992f8637f8181474e0ec5af080994da99f21e4feafeb7"
+      "fileName": "mypaste.format-typescript-1.1.1.mypaste-plugin",
+      "sha256": "4a6e368fbbd19bd461dc586f2369c66d9fb3b7c31c16084ccff8a1412b70b713"
     },
     {
       "id": "mypaste.highlight-typescript",

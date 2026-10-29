@@ -210,6 +210,30 @@ class PackageTests(unittest.TestCase):
         self.assertFalse(response["ok"])
         self.assertNotIn("result", response)
 
+    def test_formatting_accepts_text_above_the_former_32kib_wall(self) -> None:
+        # The host bounds extension text at extension.MaxTextBytes (256 KiB).
+        # A formatter that invents a smaller ceiling rejects text the host has
+        # already delivered, so every adapter must accept what it receives.
+        pad = "a" * (64 * 1024)
+        cases = {
+            "go": "package main\n\nvar pad = \"" + pad + "\"\n",
+            "javascript": "const pad = \"" + pad + "\";\n",
+            "json": '{"pad":"' + pad + '"}',
+            "python": "pad = \"" + pad + "\"\n",
+        }
+        for language, source in cases.items():
+            package = PLUGINS / f"mypaste.format-{language}"
+            response = invoke(package, {
+                "protocolVersion": 1,
+                "id": "test-id",
+                "method": "invoke",
+                "commandId": "format",
+                "capabilities": ["selection.read", "clipboard.write"],
+                "selection": {"id": 1, "kind": "text", "title": "x", "text": source},
+            })
+            self.assertTrue(response["ok"], (language, response))
+            self.assertGreater(len(response["result"]["output"]), 0)
+
     def test_archives_exclude_python_caches(self) -> None:
         build_packages()
         archives = sorted((ROOT / "dist").glob("*.mypaste-plugin"))
@@ -276,6 +300,18 @@ class PackageTests(unittest.TestCase):
             self.assertLessEqual(len(entry["description"]), 280)
             self.assertRegex(entry["version"], r"^\d+\.\d+\.\d+$")
             self.assertIsNone(re.search(r"[/\\\x00]", entry["fileName"]))
+
+        # `dist/` holds exactly what the index lists. A leftover archive from an
+        # earlier version looks like a second package for the same plugin id to
+        # anything that scans the directory instead of reading the index.
+        self.assertEqual(
+            {path.name for path in DIST.glob("*.mypaste-plugin")},
+            {entry["fileName"] for entry in index["packages"]},
+        )
+        self.assertEqual(
+            {path.name for path in DIST.glob("*.mypaste-plugin.sha256")},
+            {f"{entry['fileName']}.sha256" for entry in index["packages"]},
+        )
 
     def test_dist_index_is_deterministic(self) -> None:
         build_packages()

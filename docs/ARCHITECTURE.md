@@ -74,7 +74,10 @@ Allowed languages: `go`, `html`, `javascript`, `json`, `php`, `python`, `rust`,
 Allowed token kinds: empty string, `keyword`, `string`, `comment`, `number`,
 `literal`, `property`, `function`, `tag`, `type`.
 
-Limits: 4000 tokens and 64 KiB total text. MyPaste validates the result twice:
+Limits: 40 000 tokens and 256 KiB total text (`extension.MaxRenderTokens`
+and `extension.MaxTextBytes`). The host owns that ceiling for every
+extension text path; an adapter must not enforce a smaller one, or it
+rejects text the host has already delivered. MyPaste validates the result twice:
 once in Go before it crosses the host boundary, and once in TypeScript before
 turning tokens into escaped spans.
 

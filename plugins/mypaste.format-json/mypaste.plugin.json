@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "mypaste.format-json",
   "name": "JSON Format",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "使用本机 Python 标准库保守格式化 JSON；失败时保留原文。",
   "capabilities": ["selection.read", "clipboard.write"],
   "runtime": {"protocolVersion": 1, "entrypoint": "run"},
