@@ -50,6 +50,12 @@ object on stdin and reads one JSON object from stdout. The adapter reads the
 entire request before writing exactly one response. Diagnostics go to stderr
 only for the local developer; the host never displays raw stderr.
 
+Every manifest declares `"runtime": {"protocolVersion": 2, ...}`. MyPaste
+accepts only protocol 2 (D-1012); a package that still declares 1 is rejected
+when the host validates its manifest. The request and response shapes in this
+repository are unchanged from the v1 field set — only the declared version and
+the adapters' version check moved to 2.
+
 ### Highlight response
 
 ```json

@@ -149,7 +149,7 @@ def main() -> int:
         fail("", "invalid JSON request")
         return 0
     request_id = request.get("id", "")
-    if request.get("protocolVersion") != 1 or request.get("render") is not True:
+    if request.get("protocolVersion") != 2 or request.get("render") is not True:
         fail(request_id, "selection.render is required")
         return 0
     selection = request.get("selection")

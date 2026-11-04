@@ -85,7 +85,7 @@ class PackageTests(unittest.TestCase):
         for package in packages:
             manifest = json.loads((package / "mypaste.plugin.json").read_text())
             self.assertEqual(manifest["manifestVersion"], 1)
-            self.assertEqual(manifest["runtime"]["protocolVersion"], 1)
+            self.assertEqual(manifest["runtime"]["protocolVersion"], 2)
             self.assertTrue((package / manifest["runtime"]["entrypoint"]).is_file())
             capabilities = set(manifest.get("capabilities", []))
             language = manifest["id"].rsplit("-", 1)[-1]
@@ -115,7 +115,7 @@ class PackageTests(unittest.TestCase):
         for language, source in fixtures.items():
             package = PLUGINS / f"mypaste.highlight-{language}"
             response = invoke(package, {
-                "protocolVersion": 1,
+                "protocolVersion": 2,
                 "id": "test-id",
                 "method": "invoke",
                 "commandId": "highlight",
@@ -147,7 +147,7 @@ class PackageTests(unittest.TestCase):
         for language, (source, expected) in fixtures.items():
             package = PLUGINS / f"mypaste.format-{language}"
             response = invoke(package, {
-                "protocolVersion": 1,
+                "protocolVersion": 2,
                 "id": "test-id",
                 "method": "invoke",
                 "commandId": "format",
@@ -172,7 +172,7 @@ class PackageTests(unittest.TestCase):
         for language, source in fixtures.items():
             package = PLUGINS / f"mypaste.format-{language}"
             response = invoke(package, {
-                "protocolVersion": 1,
+                "protocolVersion": 2,
                 "id": "test-id",
                 "method": "invoke",
                 "commandId": "format",
@@ -186,7 +186,7 @@ class PackageTests(unittest.TestCase):
         package = PLUGINS / "mypaste.format-json"
         source = '{"a":1,"b":[true,null]}'
         response = invoke(package, {
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "id": "test-id",
             "method": "invoke",
             "commandId": "format",
@@ -200,7 +200,7 @@ class PackageTests(unittest.TestCase):
     def test_formatting_rejects_invalid_source_without_partial_output(self) -> None:
         package = PLUGINS / "mypaste.format-json"
         response = invoke(package, {
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "id": "test-id",
             "method": "invoke",
             "commandId": "format",
@@ -214,7 +214,7 @@ class PackageTests(unittest.TestCase):
         package = PLUGINS / "mypaste.format-json"
         source = '{"a":1,"b":[true,null]}'
         request = {
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "id": "test-id",
             "method": "invoke",
             "commandId": "format",
@@ -246,7 +246,7 @@ class PackageTests(unittest.TestCase):
         for language, source in cases.items():
             package = PLUGINS / f"mypaste.format-{language}"
             response = invoke(package, {
-                "protocolVersion": 1,
+                "protocolVersion": 2,
                 "id": "test-id",
                 "method": "invoke",
                 "commandId": "format",

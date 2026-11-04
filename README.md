@@ -112,8 +112,8 @@ The committed `dist/` directory is the fixed raw-GitHub feed used by MyPaste:
 ```text
 dist/
   index.json
-  mypaste.format-go-1.1.0.mypaste-plugin
-  mypaste.format-go-1.1.0.mypaste-plugin.sha256
+  mypaste.format-go-2.0.0.mypaste-plugin
+  mypaste.format-go-2.0.0.mypaste-plugin.sha256
   ...
 ```
 

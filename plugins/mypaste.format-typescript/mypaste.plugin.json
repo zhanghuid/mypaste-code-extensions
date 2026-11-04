@@ -2,10 +2,10 @@
   "manifestVersion": 1,
   "id": "mypaste.format-typescript",
   "name": "TypeScript Format",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "description": "使用本机可用工具格式化 TypeScript；依赖缺失或语法错误时保留原文。",
   "capabilities": ["selection.read", "clipboard.write"],
-  "runtime": {"protocolVersion": 1, "entrypoint": "run"},
+  "runtime": {"protocolVersion": 2, "entrypoint": "run"},
   "commands": [{
     "id": "format",
     "title": "格式化 TypeScript",

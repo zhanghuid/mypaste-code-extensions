@@ -49,8 +49,8 @@ def validate(package: Path) -> dict:
     if manifest.get("manifestVersion") != 1:
         fail(f"{package.name}: manifestVersion must be 1")
     runtime = manifest.get("runtime")
-    if not runtime or runtime.get("protocolVersion") != 1:
-        fail(f"{package.name}: runtime protocolVersion must be 1")
+    if not runtime or runtime.get("protocolVersion") != 2:
+        fail(f"{package.name}: runtime protocolVersion must be 2")
     entrypoint = runtime.get("entrypoint", "")
     if not entrypoint or entrypoint.startswith("/") or ".." in Path(entrypoint).parts:
         fail(f"{package.name}: invalid entrypoint")
