@@ -101,6 +101,21 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(command["appliesTo"], ["text", "rich_text"])
             self.assertEqual(command["languages"], [language])
 
+    def test_index_declares_each_package_runtime_protocol(self) -> None:
+        # The host filters catalog entries by this field before listing them,
+        # so a package built for another protocol never reaches the install
+        # offer and the manifest rejection never has to happen at install time.
+        index = json.loads((DIST / "index.json").read_text())
+        self.assertGreaterEqual(len(index["packages"]), 16)
+        for entry in index["packages"]:
+            manifest = json.loads(
+                (PLUGINS / entry["id"] / "mypaste.plugin.json").read_text()
+            )
+            self.assertEqual(
+                entry["runtimeProtocol"],
+                manifest["runtime"]["protocolVersion"],
+            )
+
     def test_highlighting_all_languages(self) -> None:
         fixtures = {
             "go": "package main\n\nfunc main() { println(\"hi\") }\n",
@@ -315,7 +330,7 @@ class PackageTests(unittest.TestCase):
             )
             self.assertEqual(
                 set(entry),
-                {"id", "name", "version", "description", "fileName", "sha256"},
+                {"id", "name", "version", "description", "fileName", "sha256", "runtimeProtocol"},
             )
             self.assertLessEqual(len(entry["id"]), 96)
             self.assertLessEqual(len(entry["name"]), 72)

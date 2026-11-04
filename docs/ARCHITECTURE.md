@@ -167,9 +167,15 @@ https://raw.githubusercontent.com/<owner>/mypaste-code-extensions/main/dist/inde
 ```
 
 The index is versioned repository metadata, not a dynamic marketplace API. It
-contains only package identity, display metadata, archive file names and
-SHA-256 digests. The app resolves package files relative to the same fixed
-directory and rejects redirects, path traversal and digest mismatches.
+contains only package identity, display metadata, archive file names, SHA-256
+digests and each package's declared `runtimeProtocol` (copied from the
+manifest by the packager). The app resolves package files relative to the
+same fixed directory and rejects redirects, path traversal and digest
+mismatches. A host drops catalog entries whose `runtimeProtocol` names a
+protocol it does not support before listing them, so the marketplace only
+offers packages the scanning host can actually install; entries without the
+field (an index that predates it) stay listed and are judged by the manifest
+inside the archive at install time.
 
 `dist/index.json` and all referenced `.mypaste-plugin` / `.sha256` files are
 committed together. The packaging script writes reproducible ZIP timestamps and

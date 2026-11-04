@@ -130,6 +130,9 @@ def build(package: Path) -> dict:
     plugin_id = manifest.get("id", "")
     display_name = manifest.get("name", "")
     description = manifest.get("description", "")
+    runtime_protocol = manifest["runtime"].get("protocolVersion", 0)
+    if not isinstance(runtime_protocol, int) or runtime_protocol < 1:
+        fail(f"{package.name}: invalid runtime protocolVersion")
     if not isinstance(plugin_id, str) or not PLUGIN_ID.match(plugin_id):
         fail(f"{package.name}: invalid id")
     if len(plugin_id) > MAX_INDEX_ID:
@@ -167,6 +170,7 @@ def build(package: Path) -> dict:
         "description": description,
         "fileName": target.name,
         "sha256": digest,
+        "runtimeProtocol": runtime_protocol,
     }
 
 
@@ -199,6 +203,8 @@ def write_index(packages: list[dict]) -> Path:
         "generated": date.today().isoformat(),
         "packages": packages,
     }
+    # Every entry carries the protocol its manifest declares, so a host can
+    # drop packages it cannot run before offering them to the user.
     target = DIST / "index.json"
     target.write_text(
         json.dumps(index, ensure_ascii=False, indent=2, sort_keys=False) + "\n",
