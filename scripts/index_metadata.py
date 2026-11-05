@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 # it in the user's browser, so it must be the repository root rather than one
 # package's directory: a reader wants the sources, the issues and the release
 # notes in one place.
-REPOSITORY = "https://github.com/zhang152603/mypaste-code-extensions"
+REPOSITORY = "https://github.com/zhanghuid/mypaste-code-extensions"
 
 # The host refuses an entry whose address is longer than this.
 MAX_REPOSITORY = 300

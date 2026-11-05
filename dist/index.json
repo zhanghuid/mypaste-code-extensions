@@ -10,7 +10,7 @@
       "fileName": "mypaste.format-go-2.0.0.mypaste-plugin",
       "sha256": "de6d866cc10f17360f84aa5d9f829e633a3a3ad3379ae6a381fddc7fd3ccf20a",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.highlight-go",
@@ -20,7 +20,7 @@
       "fileName": "mypaste.highlight-go-2.0.0.mypaste-plugin",
       "sha256": "0457ea7fd8817b8bc3ada84c1a8e08bf2dced37835b089fc533c483edfa440d5",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.format-html",
@@ -30,7 +30,7 @@
       "fileName": "mypaste.format-html-2.0.0.mypaste-plugin",
       "sha256": "0371d9e5a03c2cb5f01841bd7bdb4ab0b36c2fa722dd272f780753859214d17f",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.highlight-html",
@@ -40,7 +40,7 @@
       "fileName": "mypaste.highlight-html-2.0.0.mypaste-plugin",
       "sha256": "1ec9a6687db5bc6773aecba30b1ce6a81706bdec71a82f093814f4b5e2ade034",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.format-json",
@@ -50,7 +50,7 @@
       "fileName": "mypaste.format-json-2.0.0.mypaste-plugin",
       "sha256": "76d6931c15bd4b8955c1ca6c01e17c4b984455662be7ec1becf3c1aff2f356a7",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.format-javascript",
@@ -60,7 +60,7 @@
       "fileName": "mypaste.format-javascript-2.0.0.mypaste-plugin",
       "sha256": "cfb0ab2ee27e87082688d56d334376dd01cb2ad4dae80b62ffdb0f6d8051c592",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.highlight-javascript",
@@ -70,7 +70,7 @@
       "fileName": "mypaste.highlight-javascript-2.0.0.mypaste-plugin",
       "sha256": "b393e39f50b61f742f209238ca28eb1415e1ff70beca65efc97e674a0f419540",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.highlight-json",
@@ -80,7 +80,7 @@
       "fileName": "mypaste.highlight-json-2.0.0.mypaste-plugin",
       "sha256": "842ab79ede5c8a1ce66440a45f10b7e487cbaba5508eb9f31f5a5464904e973f",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.format-php",
@@ -90,7 +90,7 @@
       "fileName": "mypaste.format-php-2.0.0.mypaste-plugin",
       "sha256": "469bedf3924fa4007dca4b7b64d102359a61ede5a8f0818d7f679f3e61b6ffbf",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.highlight-php",
@@ -100,7 +100,7 @@
       "fileName": "mypaste.highlight-php-2.0.0.mypaste-plugin",
       "sha256": "8897f8cff95e34495149dcee97a4356ab26b7218d8a89ab6900e0f62798473a1",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.format-python",
@@ -110,7 +110,7 @@
       "fileName": "mypaste.format-python-2.0.0.mypaste-plugin",
       "sha256": "09ad43cb219a54f91a9f2ac0b91941191a2143a6bc7d53916bfe94e5bba9cf58",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.highlight-python",
@@ -120,7 +120,7 @@
       "fileName": "mypaste.highlight-python-2.0.0.mypaste-plugin",
       "sha256": "24a6bd942a6ea2d3827f44c8153fb3269b43b0a5047592cf0d1ee30e4aec94bb",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.format-rust",
@@ -130,7 +130,7 @@
       "fileName": "mypaste.format-rust-2.0.0.mypaste-plugin",
       "sha256": "445cf21f29349d0e0a3b105b1032364563b6247cfc3fa7840b5c06ef3e21e04b",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.highlight-rust",
@@ -140,7 +140,7 @@
       "fileName": "mypaste.highlight-rust-2.0.0.mypaste-plugin",
       "sha256": "87aea763c40203d494530b79a136fefbd1aa12dc6af09cc9756b4ff343c330d6",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.format-typescript",
@@ -150,7 +150,7 @@
       "fileName": "mypaste.format-typescript-2.0.0.mypaste-plugin",
       "sha256": "f398c1b750f3da41cea450ec3e6d63ca90951a439174a8ac75d1b0af3ec163a7",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "mypaste.highlight-typescript",
@@ -160,7 +160,7 @@
       "fileName": "mypaste.highlight-typescript-2.0.0.mypaste-plugin",
       "sha256": "28c1941ccb255990fb470a389e77670def34eb2b7fa34f5b5b2d8874b3f492ce",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "com.mypaste.code-card",
@@ -170,7 +170,7 @@
       "fileName": "com.mypaste.code-card-2.0.0.mypaste-plugin",
       "sha256": "d1ecfe20676518bda0382499eb9d49875d6108b1210b45de093b191e65f24cf1",
       "runtimeProtocol": 0,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "com.mypaste.image-edit",
@@ -180,7 +180,7 @@
       "fileName": "com.mypaste.image-edit-2.0.0.mypaste-plugin",
       "sha256": "d9d552ff5a0d5ff1207eb655f70da6263ef7088c72e914c353fc94f39a0c9f8f",
       "runtimeProtocol": 0,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "com.mypaste.ferry",
@@ -188,9 +188,9 @@
       "version": "1.0.0",
       "description": "在已配对的 Mac 之间同步文本、图片与文件条目：端到端加密、离线排队、经你自己的中继转发；文件与目录由你在落盘前确认。中继只能看到设备 ID、消息大小与时间，看不到正文；扩展密钥由扩展私有目录的文件权限保护；自建中继的 TLS 证书由你负责；接收的文件不做病毒扫描。交互思路参考 PasteFerry（AGPL-3.0），未使用其源码或协议实现。",
       "fileName": "com.mypaste.ferry-1.0.0.mypaste-plugin",
-      "sha256": "7b35b0123a3f2bce22ad9a844980e48094365fecf932b2387b662f0748911b85",
+      "sha256": "29dbd013a6b6c4caa6b09cf245c5cdec63939d9b5d020cc17d7b6222cfe796f3",
       "runtimeProtocol": 2,
-      "repository": "https://github.com/zhang152603/mypaste-code-extensions"
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     }
   ]
 }
