@@ -137,9 +137,11 @@ CSS custom property names without `--`. Both documents mirror each value as
 for an older host. The host resends the whole pair when the reader changes the
 appearance or theme while the document is open.
 
-The comparison document edits in place: one click on either side's text opens
-that side's editor with the caret where the reader clicked, and a drag that
-selects text stays a selection. While typing, only the other column is
+The comparison document edits in place: one click anywhere in either pane —
+its text, its gutter, its head, or the space below the last line — opens that
+side's editor, with the caret under the pointer when the click lands on a
+rendered line and at the side's end otherwise; a drag that selects text stays
+a selection. While typing, only the other column is
 repainted, at most every 150 ms (backing off further when a repaint of a long
 text is itself slow), so the editor never waits for the diff. Both panes are a
 two-column grid; each side owns its own line numbers.

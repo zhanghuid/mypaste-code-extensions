@@ -3,10 +3,11 @@
  * （D-1040）。两份文本的逐行对齐与词级标记由本包自带的 diff 引擎完成；
  * 文档不联网、不读取其它条目，也不调用宿主的扩展。
  *
- * 单击任一侧的文本即进入该侧编辑，光标落在点击处：该侧换成整列一个
- * textarea，另一侧继续显示高亮行并随输入重算；编辑中单击另一侧即切换编辑
- * 对象。Esc 先退出编辑，再按一次才关闭文档。关闭本身由宿主卡片负责，文档
- * 不再画第二个关闭按钮。
+ * 单击任一侧的面板即进入该侧编辑，光标落在点击处：该侧换成整列一个
+ * textarea，另一侧继续显示高亮行并随输入重算。点标题、行号或最后一行以下
+ * 的空白同样算作这一侧的编辑，只把光标放到该侧末尾；编辑中单击另一侧即
+ * 切换编辑对象。Esc 先退出编辑，再按一次才关闭文档。关闭本身由宿主卡片
+ * 负责，文档不再画第二个关闭按钮。
  */
 
 import { connectWorkbench, type WorkbenchDelivery } from "./bridge";
@@ -441,25 +442,74 @@ function copy(): Promise<void> {
   });
 }
 
-// One click on a line opens that side's editor with the caret where the
-// pointer landed; with an editor open, a click on the read-only column moves
-// the editor to that side. A drag that selected text stays a selection, so
-// the pointer's travel from mouse-down decides.
+/** The side a point falls in. Both the view and the editors split evenly. */
+function sideAt(x: number): Side {
+  const bounds = rows.getBoundingClientRect();
+  return x < bounds.left + bounds.width / 2 ? "before" : "after";
+}
+
+/**
+ * What a click asks for: the side it lands on and, when it lands on a rendered
+ * line, the caret under the pointer. A click on the pane head, the gutter or
+ * the empty area below the last line carries no caret, so that side opens at
+ * its end. Returns null for clicks that belong to something else: the editor
+ * itself, the footer, or a scrollbar drag.
+ */
+function editRequest(
+  event: MouseEvent,
+): { side: Side; caret?: number } | null {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return null;
+  if (target.closest('[data-role="editor"]') || target.closest("footer")) {
+    return null;
+  }
+  const head = target.closest<HTMLElement>(".pane-head");
+  if (head) {
+    const side = head.dataset.side;
+    return side === "before" || side === "after" ? { side } : null;
+  }
+  const line = target.closest<HTMLElement>(".line");
+  if (line) {
+    const side = line.dataset.side;
+    if (side === "before" || side === "after") {
+      return { side, caret: caretOffsetFor(side, line, event) };
+    }
+  }
+  if (editing !== null) {
+    // In edit mode the read-only column scrolls on its own; its scrollbar is
+    // not an edit request either.
+    const column = target.closest<HTMLElement>(".diff-column");
+    if (column) {
+      const bounds = column.getBoundingClientRect();
+      if (event.clientX > bounds.right - 14) return null;
+    }
+    return { side: sideAt(event.clientX) };
+  }
+  // The vertical scrollbar belongs to the scroller; pressing it scrolls.
+  const bounds = scroller.getBoundingClientRect();
+  if (event.clientX > bounds.right - 14) return null;
+  return { side: sideAt(event.clientX) };
+}
+
+// A click anywhere in a pane opens that side's editor: on a line it keeps the
+// caret where the pointer landed, elsewhere it opens at the end. With an
+// editor open, a click on the read-only column moves the editor to the side
+// clicked. A drag that selected text stays a selection, so the pointer's
+// travel from mouse-down decides.
 let downX = 0;
 let downY = 0;
-rows.addEventListener("mousedown", (event) => {
+document.addEventListener("mousedown", (event) => {
   downX = event.clientX;
   downY = event.clientY;
 });
-rows.addEventListener("click", (event) => {
-  const target = event.target instanceof Element ? event.target : null;
-  const line = target?.closest<HTMLElement>(".line");
-  const side = line?.dataset.side;
-  if (!line || (side !== "before" && side !== "after")) return;
-  if (Math.abs(event.clientX - downX) + Math.abs(event.clientY - downY) > 4) return;
-  const caret = caretOffsetFor(side, line, event);
+document.addEventListener("click", (event) => {
+  if (Math.abs(event.clientX - downX) + Math.abs(event.clientY - downY) > 4) {
+    return;
+  }
+  const request = editRequest(event);
+  if (!request) return;
   event.preventDefault();
-  beginEdit(side, caret);
+  beginEdit(request.side, request.caret);
 });
 // A fast second click is still an edit request, never a word selection — but
 // inside the editor a double-click keeps selecting a word.

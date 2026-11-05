@@ -205,10 +205,10 @@
     {
       "id": "com.mypaste.diff-view",
       "name": "高亮对比",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "description": "把这条文本与屏幕上相邻的一条文本逐行对照：先对齐整行，再只标出真正改动的词。对比在本机完成，不联网；除本次条目外只读相邻的一条文本。",
-      "fileName": "com.mypaste.diff-view-1.0.3.mypaste-plugin",
-      "sha256": "019d2b89e304bde64c7772a567ab00c92b07f5893f9f9d01f2408b23bfc95214",
+      "fileName": "com.mypaste.diff-view-1.0.4.mypaste-plugin",
+      "sha256": "528f879c39a0d3b4456ec191b3b97d838bd258073adcb937521a0a3fc389c6c2",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     }

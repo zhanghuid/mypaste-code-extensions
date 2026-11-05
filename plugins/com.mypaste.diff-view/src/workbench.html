@@ -99,6 +99,7 @@
     font-size: 11px;
     white-space: nowrap;
     overflow: hidden;
+    cursor: text;
   }
   .pane-head:last-child { border-right: 0; }
   .pane-head strong {
@@ -111,6 +112,8 @@
   }
 
   .scroller { min-height: 0; overflow: auto; background: var(--surface); }
+  /* A click anywhere in a pane opens its editor, not only on the text. */
+  .scroller:not(.editing) { cursor: text; }
   .rows {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -238,8 +241,8 @@
     <span class="metric" id="diff-language"></span>
   </header>
   <div class="pane-heads">
-    <div class="pane-head before">对照 · <strong id="companion-title">—</strong></div>
-    <div class="pane-head after">当前 · <strong id="current-title">—</strong></div>
+    <div class="pane-head before" data-side="before">对照 · <strong id="companion-title">—</strong></div>
+    <div class="pane-head after" data-side="after">当前 · <strong id="current-title">—</strong></div>
   </div>
   <div class="scroller" id="diff-scroller">
     <div class="rows" id="diff-rows"></div>
