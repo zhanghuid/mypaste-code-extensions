@@ -125,9 +125,11 @@ class PackageTests(unittest.TestCase):
             manifest = json.loads(
                 (PLUGINS / entry["id"] / "mypaste.plugin.json").read_text()
             )
+            # A workbench package runs no process and declares no runtime;
+            # the index says exactly that with zero.
             self.assertEqual(
                 entry["runtimeProtocol"],
-                manifest["runtime"]["protocolVersion"],
+                manifest.get("runtime", {}).get("protocolVersion", 0),
             )
 
     def test_highlighting_all_languages(self) -> None:
@@ -369,6 +371,47 @@ class PackageTests(unittest.TestCase):
             {path.name for path in DIST.glob("*.mypaste-plugin.sha256")},
             {f"{entry['fileName']}.sha256" for entry in index["packages"]},
         )
+
+    def test_workbench_packages_ship_one_document_and_no_binary(self) -> None:
+        build_packages()
+        index = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
+        by_id = {entry["id"]: entry for entry in index["packages"]}
+        for plugin_id in ("com.mypaste.code-card", "com.mypaste.image-edit"):
+            package = PLUGINS / plugin_id
+            manifest = json.loads(
+                (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
+            workbench = manifest.get("workbench")
+            self.assertIsNotNone(workbench, plugin_id)
+            self.assertNotIn("runtime", manifest, plugin_id)
+            self.assertTrue(manifest["commands"], plugin_id)
+            for command in manifest["commands"]:
+                self.assertTrue(command.get("workbench"), plugin_id)
+                self.assertTrue(command.get("appliesTo"), plugin_id)
+                self.assertNotIn("capabilities", command, plugin_id)
+                self.assertNotIn("pageAction", command, plugin_id)
+
+            document = workbench["document"]
+            archive = DIST / f"{plugin_id}-{manifest['version']}.mypaste-plugin"
+            with zipfile.ZipFile(archive) as bundle:
+                self.assertEqual(
+                    sorted(bundle.namelist()),
+                    sorted(["mypaste.plugin.json", document]),
+                    plugin_id,
+                )
+                fragment = bundle.read(document)
+            # The host serves the document as a fragment it wraps itself: it
+            # must not carry a document skeleton, and its script must already
+            # be bundled in.
+            text = fragment.decode("utf-8")
+            head = text.lstrip().lower()
+            self.assertFalse(head.startswith("<!doctype"), plugin_id)
+            self.assertFalse(head.startswith("<html"), plugin_id)
+            self.assertNotIn("<!--bundle-->", text, plugin_id)
+            self.assertIn("<script>", text, plugin_id)
+            self.assertLessEqual(len(fragment), 1 << 20, plugin_id)
+
+            entry = by_id[plugin_id]
+            self.assertEqual(entry["runtimeProtocol"], 0, plugin_id)
 
     def test_dist_index_is_deterministic(self) -> None:
         build_packages()

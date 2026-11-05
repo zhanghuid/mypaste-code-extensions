@@ -5,6 +5,12 @@
   "scripts": {
     "test": "python3 -m unittest discover -s tests -v",
     "build": "python3 scripts/package.py",
-    "check": "python3 -m unittest discover -s tests -v && python3 scripts/package.py"
+    "check": "python3 -m unittest discover -s tests -v && tsc -p tsconfig.json && python3 scripts/package.py",
+    "build:workbenches": "node scripts/build-workbenches.mjs --all",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "typescript": "5.9.3"
   }
 }

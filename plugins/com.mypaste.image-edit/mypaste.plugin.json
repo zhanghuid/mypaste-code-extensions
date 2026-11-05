@@ -1,0 +1,20 @@
+{
+  "manifestVersion": 1,
+  "id": "com.mypaste.image-edit",
+  "name": "图片编辑",
+  "version": "2.0.0",
+  "description": "在本地裁剪、旋转、翻转、标注与马赛克，另存为新的图片条目或复制到剪贴板；原图保持不变。编辑只作用于宿主交给本次命令的那一张图片。",
+  "workbench": {
+    "title": "图片编辑",
+    "document": "workbench.html"
+  },
+  "commands": [
+    {
+      "id": "clipboard.image-edit",
+      "title": "编辑图片",
+      "description": "裁剪、标注、马赛克，另存为新条目",
+      "appliesTo": ["image"],
+      "workbench": true
+    }
+  ]
+}

@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """Build, sign and publish the official extension packages.
 
-The packages under plugins/*/ that this script owns (OFFICIAL below) are
-compiled Go programs: the shipped archive contains the manifest, the menu page
-and one built binary — never the source tree. The signature is over the
-canonical content digest of the staged directory, so the host re-verifies the
-installed bytes against it at every listing (D-1036 in the MyPaste host
-repository). The signing key stays offline; pass it with --key-file.
+The packages under plugins/*/ that this script owns (OFFICIAL below) come in
+two shapes, and the shipped archive never contains the source tree:
+
+- a compiled Go program (manifest, menu page, one built binary);
+- a workbench document (manifest plus the one HTML fragment the host serves,
+  bundled from src/ by scripts/build-workbenches.mjs). A workbench package
+  runs no process, so it carries no binary at all.
+
+The signature is over the canonical content digest of the staged directory, so
+the host re-verifies the installed bytes against it at every listing (D-1036 in
+the MyPaste host repository). The signing key stays offline; pass it with
+--key-file.
 
     python3 scripts/build-official.py --key-file ~/.mypaste/official-signing.key
     python3 scripts/build-official.py --skip-sign   # unsigned dry run
@@ -57,6 +63,15 @@ def build_binary(spec: dict, staging: Path) -> None:
         fail(f"go build failed:\n{done.stderr.strip()}")
 
 
+def build_workbench(plugin_id: str, output: Path) -> None:
+    done = subprocess.run(
+        ["node", "scripts/build-workbenches.mjs", "--package", plugin_id,
+         "--out", str(output)],
+        cwd=ROOT, capture_output=True, text=True)
+    if done.returncode != 0:
+        fail(f"workbench build failed:\n{done.stderr.strip()}")
+
+
 def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
     source = ROOT / "plugins" / plugin_id
     manifest_path = source / "mypaste.plugin.json"
@@ -66,6 +81,14 @@ def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
     if manifest.get("id") != plugin_id:
         fail(f"{plugin_id}: manifest id does not match the directory")
     shutil.copyfile(manifest_path, staging / "mypaste.plugin.json")
+    if spec.get("workbench"):
+        # The document's own path comes from the manifest: the host reads it
+        # from there, so staging and serving cannot disagree about the name.
+        document = manifest.get("workbench", {}).get("document", "")
+        if not document:
+            fail(f"{plugin_id}: spec declares a workbench but the manifest has none")
+        build_workbench(plugin_id, staging / document)
+        return manifest
     for asset in spec["assets"]:
         asset_path = source / asset
         if not asset_path.is_file():
@@ -152,7 +175,10 @@ def main() -> None:
                 "fileName": target.name,
                 "sha256": sha256,
                 "signature": signature,
-                "runtimeProtocol": manifest["runtime"]["protocolVersion"],
+                # A workbench package declares no runtime; zero says exactly
+                # that, and the host keeps such entries.
+                "runtimeProtocol": manifest.get("runtime", {}).get(
+                    "protocolVersion", 0),
             })
             print(target.relative_to(ROOT))
 
