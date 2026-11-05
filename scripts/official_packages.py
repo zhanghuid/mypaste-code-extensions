@@ -13,7 +13,13 @@ manifest and the one document the host serves, and no process runs at all.
 """
 
 OFFICIAL = {
+    "com.mypaste.code-edit": {
+        "workbench": True,
+    },
     "com.mypaste.code-card": {
+        "workbench": True,
+    },
+    "com.mypaste.diff-view": {
         "workbench": True,
     },
     "com.mypaste.image-edit": {

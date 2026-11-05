@@ -380,13 +380,23 @@ class PackageTests(unittest.TestCase):
         build_packages()
         index = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
         by_id = {entry["id"]: entry for entry in index["packages"]}
-        for plugin_id in ("com.mypaste.code-card", "com.mypaste.image-edit"):
+        for plugin_id in (
+            "com.mypaste.code-card",
+            "com.mypaste.code-edit",
+            "com.mypaste.diff-view",
+            "com.mypaste.image-edit",
+        ):
             package = PLUGINS / plugin_id
             manifest = json.loads(
                 (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
             workbench = manifest.get("workbench")
             self.assertIsNotNone(workbench, plugin_id)
             self.assertNotIn("runtime", manifest, plugin_id)
+            # D-1040: a document asks for a second text with the one word the
+            # host knows; anything else fails installation on the host side.
+            companion = workbench.get("companion")
+            if companion is not None:
+                self.assertEqual(companion, "previous-text", plugin_id)
             self.assertTrue(manifest["commands"], plugin_id)
             for command in manifest["commands"]:
                 self.assertTrue(command.get("workbench"), plugin_id)

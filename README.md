@@ -15,6 +15,7 @@ This repository holds three kinds of packages:
 - **Script packages** (`plugins/mypaste.*`) — run-script extensions packaged by
   `scripts/package.py` from plain source; see the language table below.
 - **Workbench packages** (`plugins/com.mypaste.code-card`,
+  `plugins/com.mypaste.code-edit`, `plugins/com.mypaste.diff-view`,
   `plugins/com.mypaste.image-edit`) — one HTML document that MyPaste shows in
   its workbench card. They run no process and declare no capabilities; see
   "Workbench packages" below.
@@ -69,12 +70,12 @@ fields, so an unreadable declaration fails the build instead of shipping.
 
 ## Workbench packages
 
-`com.mypaste.code-card` and `com.mypaste.image-edit` ship a document instead of
-a process. MyPaste reads the manifest's `workbench.document`, wraps it in its
-own CSP and shows it in a sandboxed frame; the document can only read the item
-the command was invoked on, save an image as a new history item, copy an image,
-and close. Nothing else reaches it — no host binding, no asset path, no other
-item.
+`com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view` and
+`com.mypaste.image-edit` ship a document instead of a process. MyPaste reads
+the manifest's `workbench.document`, wraps it in its own CSP and shows it in a
+sandboxed frame; the document can only read the item the command was invoked
+on, save text or an image as a new history item, copy text or an image, and
+close. Nothing else reaches it — no host binding, no asset path, no other item.
 
 ```json
 "workbench": {"title": "代码卡片", "document": "workbench.html"},
@@ -86,8 +87,31 @@ item.
 }]
 ```
 
-Each package keeps its own `src/` and shares no code with the other; the two
-packages declare the bridge protocol from their own side.
+A document that needs a second text to work on declares it in the workbench
+block, and the host delivers the neighbour itself:
+
+```json
+"workbench": {
+  "title": "高亮对比",
+  "document": "workbench.html",
+  "companion": "previous-text"
+}
+```
+
+`"previous-text"` is the only accepted word (D-1040). The host picks the
+adjacent item from the visible list — one that has text, is not an image and is
+not the invoked item — preferring the previous item and otherwise the next, and
+delivers it in the same `item` message as `companion`; it never hands the
+document a way to browse history. With no such neighbour the host refuses to
+open the document and says so. A companion over 1 MiB is skipped.
+
+Each package keeps its own `src/` and shares no code with the others; every
+package declares the bridge protocol and its own highlighting or diff engine
+from its own side. Text save and copy cross the bridge as exact-key messages
+(`{v: 1, type: "save", requestId, text, title}` and
+`{v: 1, type: "copy", requestId, text}`); the host validates the text again —
+1 MiB, UTF-8, no control characters — and reports the result back per
+`requestId`. Saving writes a new history item; it never replaces the original.
 
 Sources:
 
@@ -100,6 +124,11 @@ plugins/com.mypaste.code-card/
   src/tokenize.ts      the card's own tokenizer and language table
   src/workbench.html   markup, styles and the <!--bundle--> placeholder
   workbench.html       GENERATED: the document the archive ships
+
+plugins/com.mypaste.code-edit/   the overlay editor (its own tokenizer,
+                                 language table and bridge)
+plugins/com.mypaste.diff-view/   the comparison document (its own diff engine
+                                 and language table; declares a companion)
 ```
 
 Build one document with `bun run build:workbenches` (esbuild bundles
