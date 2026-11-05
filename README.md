@@ -226,8 +226,29 @@ script-package entries and carries official entries over, and
 `scripts/build-official.py` writes (or refreshes) the signed official entries.
 Each entry lists the package's ID, display name, version, description, archive
 file name, SHA-256 and runtime protocol; official entries additionally carry
-the 128-hex `signature` over the package's canonical content digest. The app
-fetches only
+the 128-hex `signature` over the package's canonical content digest, and every
+entry carries the project's `repository` address
+(`https://github.com/zhanghuid/mypaste-code-extensions`, owned by
+`scripts/index_metadata.py`) so the marketplace detail page can link back to the
+sources. `repository` lives in the index only, never in a package manifest: a
+host validates manifests strictly, so a manifest field an older host does not
+know would make the whole package invalid there. For the same reason hosts
+ignore index fields they do not know — an older MyPaste simply does not show
+the repository link.
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `id` | yes | Plugin ID the host installs under. |
+| `name` | yes | Display name. |
+| `version` | yes | Package version. |
+| `description` | yes | One-line description. |
+| `fileName` | yes | Archive name inside `dist/`. |
+| `sha256` | yes | Digest of the archive the host verifies before installing. |
+| `runtimeProtocol` | yes | Runtime protocol the package speaks (`2`). |
+| `signature` | official only | ed25519 signature over the canonical content digest; its presence and validity is what makes a package `official`. |
+| `repository` | no | Project address, HTTPS, shown on the marketplace detail page. The host opens it only after resolving the address from its own copy of this index, keyed by plugin ID — the page never supplies a URL. |
+
+The app fetches only
 `https://raw.githubusercontent.com/zhanghuid/mypaste-code-extensions/main/dist/index.json`,
 then resolves packages inside that fixed directory; it never accepts a URL or
 filesystem path from the page. Commit `dist/` after every package change and

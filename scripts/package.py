@@ -169,6 +169,7 @@ def build(package: Path) -> dict:
             archive.writestr(info, path.read_bytes())
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
     target.with_suffix(target.suffix + ".sha256").write_text(f"{digest}  {target.name}\n", encoding="utf-8")
+    from index_metadata import repository
     return {
         "id": plugin_id,
         "name": display_name,
@@ -177,6 +178,7 @@ def build(package: Path) -> dict:
         "fileName": target.name,
         "sha256": digest,
         "runtimeProtocol": runtime_protocol,
+        "repository": repository(),
     }
 
 
@@ -205,13 +207,19 @@ def write_index(packages: list[dict]) -> Path:
         seen.add(plugin_id)
     # Official packages are not built here, but their signed entries (with
     # signatures this script cannot produce) still belong in the index. Carry
-    # them over untouched; a stale entry for an id this run did build is
-    # replaced by the fresh one.
+    # them over; only the feed's own metadata is restamped. A stale entry for an
+    # id this run did build is replaced by the fresh one.
     from official_packages import OFFICIAL
     if (DIST / "index.json").is_file():
         previous = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
+        from index_metadata import repository
         for entry in previous.get("packages", []):
             if entry.get("id") not in seen and entry.get("id") in OFFICIAL:
+                # The project address belongs to the feed, not to the signed
+                # package, so an entry carried over from an older run is
+                # stamped here too — the signature still covers the archive
+                # alone.
+                entry["repository"] = repository()
                 packages.append(entry)
     packages.sort(key=lambda item: (item["name"], item["id"]))
     index = {

@@ -9,12 +9,16 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import unittest
 import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGINS = ROOT / "plugins"
 DIST = ROOT / "dist"
+
+sys.path.insert(0, str(ROOT / "scripts"))
+import index_metadata  # noqa: E402
 
 
 def official_ids() -> set[str]:
@@ -348,7 +352,13 @@ class PackageTests(unittest.TestCase):
             # Official entries carry the offline ed25519 signature over the
             # package's canonical content digest; run-script entries carry
             # no signature at all.
-            base_keys = {"id", "name", "version", "description", "fileName", "sha256", "runtimeProtocol"}
+            base_keys = {
+                "id", "name", "version", "description", "fileName", "sha256",
+                "runtimeProtocol", "repository",
+            }
+            # The project address belongs to the feed, not to any package: one
+            # module owns it, and every entry must declare the same one.
+            self.assertEqual(entry["repository"], index_metadata.repository())
             if entry["id"] in official:
                 self.assertEqual(set(entry), base_keys | {"signature"})
                 self.assertRegex(entry["signature"], r"^[0-9a-f]{128}$")
@@ -422,3 +432,34 @@ class PackageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IndexMetadataTests(unittest.TestCase):
+    """The feed's own metadata has one owner and one shape.
+
+    The host rejects the entire feed over one malformed repository address, so
+    a bad value must fail here rather than at every user's marketplace page.
+    """
+
+    def test_repository_is_the_project_root(self) -> None:
+        value = index_metadata.repository()
+        self.assertTrue(value.startswith("https://"))
+        self.assertFalse(value.endswith("/"))
+        self.assertLessEqual(len(value), index_metadata.MAX_REPOSITORY)
+
+    def test_repository_refuses_what_the_host_refuses(self) -> None:
+        original = index_metadata.REPOSITORY
+        try:
+            for bad in (
+                "http://github.com/example/extensions",
+                "https://user:pass@github.com/example/extensions",
+                "https://github.com/example/extensions?ref=main",
+                "https://github.com/example/extensions#readme",
+                "ftp://github.com/example/extensions",
+                "https://" + "a" * 300 + ".test",
+            ):
+                index_metadata.REPOSITORY = bad
+                with self.assertRaises(ValueError, msg=bad):
+                    index_metadata.repository()
+        finally:
+            index_metadata.REPOSITORY = original

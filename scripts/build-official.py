@@ -39,6 +39,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 import sign  # noqa: E402
+from index_metadata import repository  # noqa: E402
 from official_packages import OFFICIAL  # noqa: E402
 
 DIST = ROOT / "dist"
@@ -179,6 +180,10 @@ def main() -> None:
                 # that, and the host keeps such entries.
                 "runtimeProtocol": manifest.get("runtime", {}).get(
                     "protocolVersion", 0),
+                # The project address the marketplace detail page shows. It is
+                # feed metadata: the manifest never carries it, so older hosts
+                # keep installing the same package.
+                "repository": repository(),
             })
             print(target.relative_to(ROOT))
 
