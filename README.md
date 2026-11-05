@@ -105,6 +105,17 @@ delivers it in the same `item` message as `companion`; it never hands the
 document a way to browse history. With no such neighbour the host refuses to
 open the document and says so. A companion over 1 MiB is skipped.
 
+A document that edits its item declares `"editor": true` (D-1041). MyPaste
+opens only such a workbench on a preview double-click, for the kinds its
+command declares; export cards and comparisons stay on the command palette:
+
+```json
+"workbench": {"title": "代码编辑", "document": "workbench.html", "editor": true}
+```
+
+`com.mypaste.code-edit` and `com.mypaste.image-edit` declare it;
+`com.mypaste.code-card` and `com.mypaste.diff-view` deliberately do not.
+
 Each package keeps its own `src/` and shares no code with the others; every
 package declares the bridge protocol and its own highlighting or diff engine
 from its own side. Text save and copy cross the bridge as exact-key messages

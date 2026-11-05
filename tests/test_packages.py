@@ -392,6 +392,13 @@ class PackageTests(unittest.TestCase):
             workbench = manifest.get("workbench")
             self.assertIsNotNone(workbench, plugin_id)
             self.assertNotIn("runtime", manifest, plugin_id)
+            # D-1041: only the two editing documents answer a preview
+            # double-click; the export card and the comparison stay on the
+            # command panel.
+            if plugin_id in ("com.mypaste.code-edit", "com.mypaste.image-edit"):
+                self.assertIs(workbench.get("editor"), True, plugin_id)
+            else:
+                self.assertNotIn("editor", workbench, plugin_id)
             # D-1040: a document asks for a second text with the one word the
             # host knows; anything else fails installation on the host side.
             companion = workbench.get("companion")

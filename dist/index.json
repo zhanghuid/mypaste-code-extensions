@@ -175,20 +175,20 @@
     {
       "id": "com.mypaste.code-edit",
       "name": "代码编辑",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "在本地编辑代码或纯文本：行号、语法高亮与语言识别都随包提供，可另存为新的历史条目或复制到剪贴板；原条目保持不变，不联网、不读取其它条目。",
-      "fileName": "com.mypaste.code-edit-1.0.0.mypaste-plugin",
-      "sha256": "e349cf3f0863124e9e235df74ee1c0c8b5458537ba8f0709e474d29c4c3db611",
+      "fileName": "com.mypaste.code-edit-1.0.1.mypaste-plugin",
+      "sha256": "a4bf79ae7880da2aa4073ba80bacd17ad7640030484f4fa209e4b9c0c6ab20ab",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "com.mypaste.image-edit",
       "name": "图片编辑",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "description": "在本地裁剪、旋转、翻转、标注与马赛克，另存为新的图片条目或复制到剪贴板；原图保持不变。编辑只作用于宿主交给本次命令的那一张图片。",
-      "fileName": "com.mypaste.image-edit-2.0.0.mypaste-plugin",
-      "sha256": "d9d552ff5a0d5ff1207eb655f70da6263ef7088c72e914c353fc94f39a0c9f8f",
+      "fileName": "com.mypaste.image-edit-2.0.1.mypaste-plugin",
+      "sha256": "db936beb3e0702a46213d3b0cbbfff64f89134e702695210bd6bdb926d6f65cb",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
