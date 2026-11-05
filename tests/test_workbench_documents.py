@@ -88,12 +88,15 @@ def matches(selector: str, elements: list[Element]) -> bool:
 
 
 class WorkbenchDocumentTests(unittest.TestCase):
-    def test_every_selector_a_workbench_queries_exists_in_its_document(self) -> None:
-        packages = sorted(
+    def workbench_packages(self) -> list[Path]:
+        return sorted(
             path for path in PLUGINS.iterdir()
             if (path / "src" / "main.ts").is_file()
             and (path / "src" / "workbench.html").is_file()
         )
+
+    def test_every_selector_a_workbench_queries_exists_in_its_document(self) -> None:
+        packages = self.workbench_packages()
         # Four documents ship today; fewer means discovery broke, not that the
         # rule stopped applying.
         self.assertGreaterEqual(len(packages), 4)
@@ -122,6 +125,37 @@ class WorkbenchDocumentTests(unittest.TestCase):
                     f"{package.name} 的 workbench.html 缺少脚本查询的元素："
                     + "、".join(missing),
                 )
+
+    def test_closing_belongs_to_the_host_card(self) -> None:
+        # The studio card already draws a close control. A second one inside the
+        # document duplicated it and sat beside it in the same corner. Escape
+        # still reaches the bridge; that is not a second control. The two
+        # editing documents are the ones this contract covers today.
+        for plugin_id in ("com.mypaste.diff-view", "com.mypaste.code-edit"):
+            with self.subTest(package=plugin_id):
+                package = PLUGINS / plugin_id
+                elements = elements_in(
+                    (package / "workbench.html").read_text(encoding="utf-8"))
+                self.assertFalse(
+                    matches("[data-action=close]", elements),
+                    f"{plugin_id} 画了第二个关闭按钮；关闭由宿主卡片负责",
+                )
+                self.assertFalse(
+                    matches("#doc-close", elements),
+                    f"{plugin_id} 的文档里还留着 #doc-close",
+                )
+
+    def test_bridges_mirror_host_tokens_as_mp_variables(self) -> None:
+        # The two documents that paint a full surface consume the tokens; the
+        # export card and the image editor keep their own fixed palettes.
+        for plugin_id in ("com.mypaste.diff-view", "com.mypaste.code-edit"):
+            bridge = PLUGINS / plugin_id / "src" / "bridge.ts"
+            with self.subTest(package=plugin_id):
+                self.assertTrue(bridge.is_file(), plugin_id)
+                script = bridge.read_text(encoding="utf-8")
+                self.assertIn('setProperty(`--mp-${name}`', script)
+                self.assertIn("data.tokens", script)
+                self.assertIn('typeof value === "string"', script)
 
 
 if __name__ == "__main__":

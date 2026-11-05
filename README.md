@@ -125,12 +125,22 @@ from its own side. Text save and copy cross the bridge as exact-key messages
 `requestId`. Saving writes a new history item; it never replaces the original.
 
 The host answers `ready` with the `item` (carrying `companion` when declared)
-and immediately after with `{v: 1, type: "theme", scheme: "light" | "dark"}`
-(D-1042). That scheme is the one MyPaste resolved from its own appearance
-setting, which the sandboxed frame's `prefers-color-scheme` cannot see, so a
-document paints by `:root[data-scheme]` and uses the media query only as the
-value shown before the message arrives. The host resends it when the reader
-changes the appearance while the document is open.
+and immediately after with
+`{v: 1, type: "theme", scheme: "light" | "dark", tokens: {"surface": "…"}}`
+(D-1042, D-1043). That scheme is the one MyPaste resolved from its own
+appearance setting, which the sandboxed frame's `prefers-color-scheme` cannot
+see, so a document paints by `:root[data-scheme]` and uses the media query only
+as the value shown before the message arrives. `tokens` carries the values that
+scheme resolved to — colours and the two font stacks — keyed by the host's own
+CSS custom property names without `--`. Both documents mirror each value as
+`--mp-<name>` and prefer it in CSS, keeping their own palette as the fallback
+for an older host. The host resends the whole pair when the reader changes the
+appearance or theme while the document is open.
+
+Closing belongs to the host card. MyPaste draws one close control in the
+workbench chrome, and a document must not draw a second one; a document may
+still ask the bridge to close for its Escape key, but Escape first leaves an
+editing mode (the comparison document uses it for that).
 
 Sources:
 

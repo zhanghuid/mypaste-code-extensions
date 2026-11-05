@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "com.mypaste.code-edit",
   "name": "代码编辑",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "在本地编辑代码或纯文本：行号、语法高亮与语言识别都随包提供，可另存为新的历史条目或复制到剪贴板；原条目保持不变，不联网、不读取其它条目。",
   "workbench": {
     "title": "代码编辑",

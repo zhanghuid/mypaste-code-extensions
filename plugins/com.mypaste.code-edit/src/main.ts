@@ -34,7 +34,6 @@ const highlight = one<HTMLElement>("#editor-highlight");
 const input = one<HTMLTextAreaElement>("#editor-input");
 const saveButton = one<HTMLButtonElement>("[data-action=save]");
 const copyButton = one<HTMLButtonElement>("[data-action=copy]");
-const closeButton = one<HTMLButtonElement>("[data-action=close]");
 const status = one<HTMLElement>("#doc-status");
 
 let originalText = "";
@@ -198,7 +197,6 @@ input.addEventListener("keydown", (event) => {
 
 saveButton.addEventListener("click", () => void save());
 copyButton.addEventListener("click", () => void copy());
-closeButton.addEventListener("click", () => bridge.close());
 
 bridge.onItem((item) => {
   originalText = item.text;

@@ -6,17 +6,23 @@
 <style>
   :root {
     color-scheme: light;
-    --bg: #f3ece1;
-    --surface: #fbf7f0;
-    --ink: #2f261e;
-    --muted: #8b7c6a;
-    --line: rgba(70, 48, 26, 0.14);
-    --accent: #a65d2e;
-    --accent-ink: #fff8ef;
-    --focus: rgba(166, 93, 46, 0.35);
-    --added: rgba(63, 107, 58, 0.12);
-    --removed: rgba(180, 71, 44, 0.1);
-    --mark: rgba(166, 93, 46, 0.28);
+    /*
+     * The host's resolved tokens arrive as --mp-* (D-1043); every value below
+     * prefers them and keeps this document's own palette as the fallback for
+     * an older host or a local preview. The host owns the theme, so there is
+     * no second copy to drift.
+     */
+    --bg: var(--mp-surface-solid, #f3ece1);
+    --surface: var(--mp-surface-raised, #fbf7f0);
+    --ink: var(--mp-ink, #2f261e);
+    --muted: var(--mp-ink-soft, #8b7c6a);
+    --line: var(--mp-line, rgba(70, 48, 26, 0.14));
+    --accent: var(--mp-accent, #a65d2e);
+    --accent-ink: var(--mp-accent-ink, #fff8ef);
+    --focus: color-mix(in srgb, var(--mp-accent, #a65d2e) 35%, transparent);
+    --added: color-mix(in srgb, var(--mp-success, #3f6b3a) 12%, transparent);
+    --removed: color-mix(in srgb, var(--mp-danger, #b4472c) 10%, transparent);
+    --mark: color-mix(in srgb, var(--mp-accent, #a65d2e) 28%, transparent);
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   }
   /*
@@ -26,17 +32,17 @@
    */
   :root[data-scheme="dark"] {
     color-scheme: dark;
-    --bg: #171412;
-    --surface: #201c18;
-    --ink: #f0e6d9;
-    --muted: #9a8c7b;
-    --line: rgba(255, 236, 214, 0.12);
-    --accent: #e2955f;
-    --accent-ink: #241a12;
-    --focus: rgba(226, 149, 95, 0.35);
-    --added: rgba(168, 196, 138, 0.14);
-    --removed: rgba(231, 160, 122, 0.12);
-    --mark: rgba(226, 149, 95, 0.34);
+    --bg: var(--mp-surface-solid, #171412);
+    --surface: var(--mp-surface-raised, #201c18);
+    --ink: var(--mp-ink, #f0e6d9);
+    --muted: var(--mp-ink-soft, #9a8c7b);
+    --line: var(--mp-line, rgba(255, 236, 214, 0.12));
+    --accent: var(--mp-accent, #e2955f);
+    --accent-ink: var(--mp-accent-ink, #241a12);
+    --focus: color-mix(in srgb, var(--mp-accent, #e2955f) 35%, transparent);
+    --added: color-mix(in srgb, var(--mp-success, #93b277) 14%, transparent);
+    --removed: color-mix(in srgb, var(--mp-danger, #d58a68) 12%, transparent);
+    --mark: color-mix(in srgb, var(--mp-accent, #e2955f) 34%, transparent);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
@@ -45,7 +51,7 @@
     grid-template-rows: auto auto minmax(0, 1fr) auto;
     background: var(--bg);
     color: var(--ink);
-    font: 13px/1.5 -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif;
+    font: 13px/1.5 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
   }
 
   header {
@@ -58,6 +64,7 @@
   }
   .kicker {
     color: var(--muted);
+    font-family: var(--mp-font-display, "New York", "Songti SC", Georgia, serif);
     font-size: 11px;
     letter-spacing: 0.08em;
     white-space: nowrap;
@@ -76,19 +83,6 @@
     font: 11px/1 var(--mono);
     white-space: nowrap;
   }
-  #doc-close {
-    width: 28px;
-    height: 28px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: transparent;
-    color: var(--muted);
-    font-size: 16px;
-    line-height: 1;
-    cursor: pointer;
-  }
-  #doc-close:hover { color: var(--ink); border-color: var(--accent); }
-
   .pane-heads {
     display: grid;
     grid-template-columns: 44px minmax(0, 1fr) 44px minmax(0, 1fr);
@@ -112,7 +106,9 @@
   .pane-head strong {
     overflow: hidden;
     color: var(--ink);
-    font: 500 12px/1.4 -apple-system, "PingFang SC", sans-serif;
+    font-family: var(--mp-font-display, "New York", "Songti SC", Georgia, serif);
+    font-size: 12px;
+    font-weight: 600;
     text-overflow: ellipsis;
   }
 
@@ -157,6 +153,51 @@
     font-size: 12px;
   }
 
+  /*
+   * Edit mode (double-click either side). The edited side becomes one
+   * textarea spanning the column, kept alive while the other side re-renders
+   * against it; the two panes scroll independently.
+   */
+  .scroller.editing { overflow: hidden; }
+  .rows.editing {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-auto-rows: minmax(0, 1fr);
+    height: 100%;
+    align-content: stretch;
+    align-items: stretch;
+  }
+  .rows.editing .diff-row { display: block; }
+  .rows.editing .line { border-right: 0; }
+  .edit-side {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .edit-side[data-side="before"],
+  .diff-column[data-side="before"] { border-right: 1px solid var(--line); }
+  .edit-input {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 10px 12px;
+    border: 0;
+    outline: none;
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+    color: var(--ink);
+    font: 12.5px/1.65 var(--mono);
+    resize: none;
+    tab-size: 2;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .edit-input::selection { background: var(--mark); }
+  .diff-column { min-width: 0; min-height: 0; overflow: auto; }
+  body.editing .pane-heads { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  body.editing .pane-head.before,
+  body.editing .pane-head.after { grid-column: auto; }
+
   footer {
     display: flex;
     align-items: center;
@@ -174,7 +215,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  #diff-status[data-tone="error"] { color: #b4472c; }
+  #diff-status[data-tone="error"] { color: var(--mp-danger-ink, #b4472c); }
   #diff-status[hidden] { display: none; }
   footer button {
     padding: 6px 14px;
@@ -200,13 +241,12 @@
     <span class="kicker">高亮对比</span>
     <span id="diff-stats">等待宿主交付文本…</span>
     <span class="metric" id="diff-language"></span>
-    <button id="doc-close" type="button" data-action="close" aria-label="关闭高亮对比">×</button>
   </header>
   <div class="pane-heads">
     <div class="pane-head before">对照 · <strong id="companion-title">—</strong></div>
     <div class="pane-head after">当前 · <strong id="current-title">—</strong></div>
   </div>
-  <div class="scroller">
+  <div class="scroller" id="diff-scroller">
     <div class="rows" id="diff-rows"></div>
     <p class="empty-state" id="diff-empty" hidden>等一等，宿主正在交付两条文本。</p>
   </div>

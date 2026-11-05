@@ -9,8 +9,9 @@
  * comparison item the manifest declared; the host chooses the neighbour and
  * the document never learns where it came from.
  *
- * D-1042: the host also sends the application's resolved colour scheme;
- * the document paints by it instead of by the system's appearance.
+ * D-1042/D-1043: the host also sends the application's resolved colour scheme
+ * and the design tokens that scheme resolved to; the document paints by them
+ * instead of by the system's appearance or a palette of its own.
  */
 
 export type WorkbenchTextItem = { kind: "text"; title: string; text: string };
@@ -48,14 +49,51 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** The application's resolved colour scheme (D-1042). */
 type WorkbenchScheme = "light" | "dark";
 
+/** Resolved host tokens; keys are the host's CSS names without `--` (D-1043). */
+type WorkbenchTokens = Record<string, string>;
+
+interface ParsedTheme {
+  scheme: WorkbenchScheme;
+  tokens: WorkbenchTokens;
+}
+
+/** The only shape a token name may take once it is prefixed with `--mp-`. */
+const TOKEN_NAME = /^[a-z][a-z0-9-]*$/;
+
 /**
  * parseTheme reads the scheme the host resolved from the application's
  * appearance. The frame's own prefers-color-scheme follows the system, so it
  * cannot answer this question on its own.
  */
-function parseTheme(data: unknown): WorkbenchScheme | null {
+function parseTheme(data: unknown): ParsedTheme | null {
   if (!isRecord(data) || data.v !== 1 || data.type !== "theme") return null;
-  return data.scheme === "light" || data.scheme === "dark" ? data.scheme : null;
+  if (data.scheme !== "light" && data.scheme !== "dark") return null;
+  const tokens: WorkbenchTokens = {};
+  // Unknown keys are ignored: the document has no registry of the host's
+  // theme, and a value it has no rule for sets a variable nothing reads. Only
+  // non-empty strings reach CSS.
+  if (isRecord(data.tokens)) {
+    for (const [name, value] of Object.entries(data.tokens)) {
+      if (typeof value === "string" && value !== "" && TOKEN_NAME.test(name)) {
+        tokens[name] = value;
+      }
+    }
+  }
+  return { scheme: data.scheme, tokens };
+}
+
+/**
+ * applyTheme writes the host's resolved values onto this document's root as
+ * `--mp-<name>` (D-1043). The stylesheet prefers those variables and keeps
+ * its own palette as the fallback, so an older host that sends no tokens still
+ * paints, and a new host repaints whenever the pair changes.
+ */
+function applyTheme(theme: ParsedTheme): void {
+  const root = document.documentElement;
+  root.dataset.scheme = theme.scheme;
+  for (const [name, value] of Object.entries(theme.tokens)) {
+    root.style.setProperty(`--mp-${name}`, value);
+  }
 }
 
 function parseTextItem(value: unknown): WorkbenchTextItem | null {
@@ -115,9 +153,9 @@ export function connectWorkbench(): WorkbenchBridge {
       for (const listener of listeners.splice(0)) listener(delivered);
       return;
     }
-    const scheme = parseTheme(data);
-    if (scheme) {
-      document.documentElement.dataset.scheme = scheme;
+    const theme = parseTheme(data);
+    if (theme) {
+      applyTheme(theme);
       return;
     }
     if (!isRecord(data) || data.v !== 1 || data.type !== "result") return;

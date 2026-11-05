@@ -175,10 +175,10 @@
     {
       "id": "com.mypaste.code-edit",
       "name": "代码编辑",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "description": "在本地编辑代码或纯文本：行号、语法高亮与语言识别都随包提供，可另存为新的历史条目或复制到剪贴板；原条目保持不变，不联网、不读取其它条目。",
-      "fileName": "com.mypaste.code-edit-1.0.2.mypaste-plugin",
-      "sha256": "231ff726a693ed3df7f2a8ef4474046ce12a28bec506c33086b3a33b38e5001b",
+      "fileName": "com.mypaste.code-edit-1.0.3.mypaste-plugin",
+      "sha256": "92cecb89b8f418f1debae85c46952bc073ed62dfe451c74a1bee9a86b44461cd",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -205,10 +205,10 @@
     {
       "id": "com.mypaste.diff-view",
       "name": "高亮对比",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "把这条文本与屏幕上相邻的一条文本逐行对照：先对齐整行，再只标出真正改动的词。对比在本机完成，不联网；除本次条目外只读相邻的一条文本。",
-      "fileName": "com.mypaste.diff-view-1.0.1.mypaste-plugin",
-      "sha256": "570a25d1199d78ceadaf64397071e4b70c0a1989c52997374eb054f6b2940c87",
+      "fileName": "com.mypaste.diff-view-1.0.2.mypaste-plugin",
+      "sha256": "bc39ac60ad09e781ad74d1764122c233a8a64db6f040bba5dcc844a81e09915b",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     }
