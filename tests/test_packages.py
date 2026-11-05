@@ -17,6 +17,15 @@ PLUGINS = ROOT / "plugins"
 DIST = ROOT / "dist"
 
 
+def official_ids() -> set[str]:
+    spec = importlib.util.spec_from_file_location(
+        "official_packages", ROOT / "scripts" / "official_packages.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+    return set(module.OFFICIAL)
+
+
 def build_packages() -> None:
     subprocess.run(
         ["python3", "scripts/package.py"],
@@ -80,7 +89,12 @@ class PackageTests(unittest.TestCase):
                 packaging.validate_target(command, "mypaste.format-json")
 
     def test_every_package_has_valid_manifest(self) -> None:
-        packages = sorted(p for p in PLUGINS.iterdir() if p.is_dir())
+        official = official_ids()
+        # Official packages are compiled by build-official.py; their source
+        # tree holds no entrypoint binary and their capability model is the
+        # official one, not the run-script allowlist.
+        packages = sorted(p for p in PLUGINS.iterdir()
+                          if p.is_dir() and p.name not in official)
         self.assertGreaterEqual(len(packages), 16)
         for package in packages:
             manifest = json.loads((package / "mypaste.plugin.json").read_text())
@@ -285,6 +299,7 @@ class PackageTests(unittest.TestCase):
 
     def test_dist_index_covers_every_package_with_verified_digests(self) -> None:
         build_packages()
+        official = official_ids()
         index = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
         self.assertEqual(index["version"], 1)
         self.assertRegex(index["generated"], r"^\d{4}-\d{2}-\d{2}$")
@@ -328,10 +343,15 @@ class PackageTests(unittest.TestCase):
                 ),
                 f"{entry['sha256']}  {entry['fileName']}\n",
             )
-            self.assertEqual(
-                set(entry),
-                {"id", "name", "version", "description", "fileName", "sha256", "runtimeProtocol"},
-            )
+            # Official entries carry the offline ed25519 signature over the
+            # package's canonical content digest; run-script entries carry
+            # no signature at all.
+            base_keys = {"id", "name", "version", "description", "fileName", "sha256", "runtimeProtocol"}
+            if entry["id"] in official:
+                self.assertEqual(set(entry), base_keys | {"signature"})
+                self.assertRegex(entry["signature"], r"^[0-9a-f]{128}$")
+            else:
+                self.assertEqual(set(entry), base_keys)
             self.assertLessEqual(len(entry["id"]), 96)
             self.assertLessEqual(len(entry["name"]), 72)
             self.assertLessEqual(len(entry["description"]), 280)

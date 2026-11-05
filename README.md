@@ -1,6 +1,6 @@
 # MyPaste Code Extensions
 
-Third-party code formatting and syntax-highlighting extensions for
+Independent code formatting, syntax-highlighting and sync extensions for
 [MyPaste](https://github.com/zhanghuid/mypaste-go).
 
 This repository is intentionally separate from the MyPaste app. Extensions are
@@ -9,6 +9,17 @@ capabilities to one manifest digest at a time. Nothing here auto-updates,
 auto-runs, downloads code at runtime, or writes the clipboard directly.
 
 ## Packages
+
+This repository holds two kinds of packages:
+
+- **Script packages** (`plugins/mypaste.*`) — run-script extensions packaged by
+  `scripts/package.py` from plain source; see the language table below.
+- **Official packages** (`plugins/com.mypaste.*`) — compiled Go binaries with
+  broader capabilities, built and signed by `scripts/build-official.py`; see
+  "Official packages" below. `scripts/official_packages.py` is the single
+  owner of the list; `scripts/package.py` never packages or validates them.
+
+### Script packages
 
 Each language has two independently installable packages:
 
@@ -51,13 +62,54 @@ package is discovered and can be installed, but its command is not offered.
 `scripts/package.py` rejects a package whose commands omit or misuse these
 fields, so an unreadable declaration fails the build instead of shipping.
 
+## Official packages
+
+`com.mypaste.ferry` — the cross-device sync extension — ships from this
+repository as a compiled, signed binary instead of a run script. Its Go source
+lives in `plugins/com.mypaste.ferry/src/` (own `go.mod`); the archive contains
+only the manifest, `menu.html` and the built `ferry` binary, never the source
+tree. The relay service it talks to lives in `servers/mypaste-relay/` (own
+`go.mod`); it is a standalone HTTPS server, not a plugin package, and is
+deployed separately. Ferry needs capabilities outside the run-script allowlist
+(`entry.payload`, `network.outbound` with configured hosts, `storage.plugin`,
+triggers), which MyPaste grants only to trusted provenance: embedded
+first-party packages, or packages whose signature verifies against the ed25519
+public key embedded in the host.
+
+Signing is local and offline:
+
+```sh
+python3 scripts/build-official.py --key-file ~/.mypaste/official-signing.key
+python3 scripts/build-official.py --skip-sign   # unsigned dry run
+```
+
+The signature covers the canonical content digest of the staged package
+directory — the same algorithm (`extension.DirectoryContentDigest`) MyPaste
+uses for first-party provenance — so the published archive and the installed
+directory verify against one signature. The signing key is a 32-byte ed25519
+seed in a 0600 file outside every repository; it never enters this repo, the
+host repo, or CI. `scripts/sign.py` implements the digest, the pure-Python
+ed25519 signer and offline verification against the public key:
+
+```sh
+python3 scripts/sign.py --package plugins/com.mypaste.ferry \
+    --public-key <64-hex> --verify <128-hex>
+```
+
+Official binaries are built for macOS arm64 (`CGO_ENABLED=0`, `-trimpath`),
+matching the app's first shipping platform. Additional targets are added to
+`scripts/official_packages.py` when the app ships them.
+
 ## Build
 
-Requirements: Bun 1.2+ and Python 3.11+ for the packaging scripts.
+Requirements: Bun 1.2+ and Python 3.11+ for the packaging scripts; Go 1.27+
+for the official packages.
 
 ```sh
 bun test
-bun run build
+bun run build                                              # script packages
+python3 scripts/build-official.py --skip-sign              # official dry run
+python3 scripts/build-official.py --key-file <offline-key> # official release
 ```
 
 `dist/` will contain one ZIP-root `.mypaste-plugin` per package. The archive
@@ -103,7 +155,10 @@ the language fixtures and the archive validator.
 - MyPaste validates language and token-kind allowlists, token count and total
   bytes again at the host boundary.
 - Formatting failures preserve the original text; partial output is rejected.
-- No plugin in this repository requests network, file, or process capabilities.
+- No script package in this repository requests network, file, or process
+  capabilities. The official sync package does request `network.outbound`
+  (HTTPS, configured hosts) and `storage.plugin`; MyPaste gates both behind
+  trusted provenance and shows them in the install dialog.
 - The app's plugin capability list is a grant ceiling, not an operating-system
   sandbox.
 
@@ -117,9 +172,13 @@ dist/
   ...
 ```
 
-`index.json` is generated deterministically by `scripts/package.py`. It lists
-each package's ID, display name, version, description, archive file name and
-SHA-256. The app fetches only
+`index.json` is generated deterministically: `scripts/package.py` writes the
+script-package entries and carries official entries over, and
+`scripts/build-official.py` writes (or refreshes) the signed official entries.
+Each entry lists the package's ID, display name, version, description, archive
+file name, SHA-256 and runtime protocol; official entries additionally carry
+the 128-hex `signature` over the package's canonical content digest. The app
+fetches only
 `https://raw.githubusercontent.com/zhanghuid/mypaste-code-extensions/main/dist/index.json`,
 then resolves packages inside that fixed directory; it never accepts a URL or
 filesystem path from the page. Commit `dist/` after every package change and

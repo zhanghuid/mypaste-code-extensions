@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:">
+<title>跨设备同步</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px 24px; background: #fff; color: #1f2328;
+    font: 13px/1.7 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  }
+  h1 { margin: 0 0 2px; font-size: 15px; font-weight: 600; }
+  .lede { margin: 0 0 18px; color: #667085; }
+  .facts { display: grid; gap: 8px; margin: 0 0 20px; }
+  .fact {
+    display: flex; justify-content: space-between; gap: 16px;
+    padding: 9px 12px; border: 1px solid #e6e8ee; border-radius: 8px;
+  }
+  .fact span:first-child { color: #475467; }
+  .value { margin: 0; font-variant-numeric: tabular-nums; }
+  h2 { margin: 0 0 8px; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: #667085; }
+  ul { display: grid; gap: 8px; margin: 0 0 20px; padding: 0; list-style: none; }
+  li {
+    display: flex; justify-content: space-between; gap: 16px; align-items: baseline;
+    padding: 9px 12px; border: 1px solid #e6e8ee; border-radius: 8px;
+  }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .muted { color: #667085; }
+  .empty { margin: 0 0 20px; color: #667085; }
+  .code {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    background: #f2f4f7; font: 600 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .12em;
+  }
+  .privacy {
+    margin: 0 0 20px; padding: 10px 12px; border-radius: 8px;
+    background: #f2f4f7; color: #475467; font-size: 12px; line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+<script type="application/json" id="mypaste-state">{}</script>
+<h1 id="title">跨设备同步</h1>
+<p class="lede" id="lede">正在读取状态…</p>
+
+<div class="facts">
+  <div class="fact"><span>中继</span><span class="value" id="relay">—</span></div>
+  <div class="fact"><span>自动同步</span><span class="value" id="autosync">—</span></div>
+  <div class="fact"><span>等待发送</span><span class="value" id="queue">—</span></div>
+  <div class="fact"><span>本机</span><span class="value" id="device">—</span></div>
+</div>
+
+<div id="pairing-block" hidden>
+  <h2>配对码</h2>
+  <p class="value" id="pairing"></p>
+</div>
+
+<h2>已配对的设备</h2>
+<p class="empty" id="peers-empty" hidden>还没有已配对的设备。</p>
+<ul id="peers"></ul>
+
+<h2>传输中的组</h2>
+<p class="empty" id="transfers-empty" hidden>没有正在传输的组。</p>
+<ul id="transfers"></ul>
+
+<h2>最近传输</h2>
+<p class="empty" id="recent-empty" hidden>还没有传输记录。</p>
+<ul id="recent"></ul>
+
+<h2>隐私与残余风险</h2>
+<div class="privacy">
+  <p style="margin:0 0 6px">中继只看得到设备 ID、消息大小与时间，看不到任何正文；内容全程端到端加密。</p>
+  <p style="margin:0 0 6px">扩展的配对密钥保存在它的私有目录里，靠文件权限（0600）保护；本机账户被攻破时密钥同样暴露。</p>
+  <p style="margin:0 0 6px">自建中继的 TLS 证书由你自己负责，扩展只接受 HTTPS；公网部署请限制中继的可达性。</p>
+  <p style="margin:0">接收的文件由宿主落盘，不做病毒扫描——只接收你核对过来源的文件。</p>
+</div>
+
+<script>
+(function () {
+  var state = {};
+  try {
+    state = JSON.parse(document.getElementById('mypaste-state').textContent) || {};
+  } catch (error) {
+    state = {};
+  }
+  var text = function (id, value) {
+    document.getElementById(id).textContent = value;
+  };
+  var kindLabel = function (kind) {
+    if (kind === 'rich_text') return '富文本';
+    if (kind === 'image') return '图片';
+    if (kind === 'file' || kind === 'files') return '文件';
+    return '文本';
+  };
+  var clock = function (at) {
+    return at ? new Date(at * 1000).toLocaleTimeString([],
+      { hour: '2-digit', minute: '2-digit' }) : '';
+  };
+  var device = state.device || {};
+  var relay = state.relay || {};
+  var queue = state.queue || {};
+  var peers = state.peers || [];
+  var recent = state.recent || [];
+  var transfers = state.transfers || {};
+
+  text('title', device.name ? '跨设备同步 · ' + device.name : '跨设备同步');
+  text('lede', device.paired
+    ? '内容只在你已核对的设备之间加密传输。'
+    : '先配对一台设备，内容才会开始同步。');
+  if (!relay.configured) {
+    text('relay', '未配置');
+  } else if (relay.reachable) {
+    text('relay', '已连接 · ' + (relay.host || ''));
+  } else {
+    text('relay', relay.lastError ? '不可达 · ' + relay.lastError : '不可达');
+  }
+  text('autosync', state.autoSyncPaused ? '已暂停（队列保留）' : '开启');
+  text('queue', (queue.pending || 0) + ' 条 · ' + Math.ceil((queue.bytes || 0) / 1024) + ' KiB' +
+    (queue.dropped ? ' · 已丢弃 ' + queue.dropped : ''));
+  text('device', device.id ? device.name + ' · ' + device.id.slice(0, 8) : '尚未创建');
+
+  if (state.pairing && state.pairing.code) {
+    document.getElementById('pairing-block').hidden = false;
+    text('pairing', state.pairing.code + ' · 有效至 ' + clock(state.pairing.expiresAt));
+  }
+
+  if (!peers.length) {
+    document.getElementById('peers-empty').hidden = false;
+  } else {
+    document.getElementById('peers').replaceChildren.apply(
+      document.getElementById('peers'), peers.map(function (peer) {
+        var row = document.createElement('li');
+        var name = document.createElement('span');
+        name.textContent = (peer.name || '未命名设备') + ' · ' + (peer.id || '').slice(0, 8);
+        var meta = document.createElement('span');
+        meta.className = peer.trusted ? 'mono muted' : 'mono';
+        meta.textContent = peer.trusted ? peer.fingerprint : '等待确认 · ' + peer.fingerprint;
+        row.append(name, meta);
+        return row;
+      }));
+  }
+
+  var groups = (transfers.outbound || []).map(function (group) {
+    return {
+      label: '发送 · ' + kindLabel(group.kind),
+      name: group.name,
+      meta: '缺 ' + group.pending + '/' + group.total + ' 块 · ' + clock(group.queuedAt),
+      waiting: false,
+    };
+  }).concat((transfers.inbound || []).map(function (group) {
+    var files = group.pendingFiles ? ' · 待确认文件 ' + group.pendingFiles : '';
+    return {
+      label: '接收 · ' + kindLabel(group.kind),
+      name: group.name,
+      meta: (group.complete ? '等待写入' : '缺 ' + (group.total - group.received) + '/' + group.total + ' 块') +
+        ' · 来自 ' + (group.peer || '未知设备') + files + ' · ' + clock(group.firstSeen),
+      waiting: true,
+    };
+  }));
+  if (!groups.length) {
+    document.getElementById('transfers-empty').hidden = false;
+  } else {
+    document.getElementById('transfers').replaceChildren.apply(
+      document.getElementById('transfers'), groups.map(function (group) {
+        var row = document.createElement('li');
+        var what = document.createElement('span');
+        what.textContent = group.label + (group.name ? ' · ' + group.name : '');
+        var meta = document.createElement('span');
+        meta.className = group.waiting ? 'mono' : 'mono muted';
+        meta.textContent = group.meta;
+        row.append(what, meta);
+        return row;
+      }));
+  }
+
+  if (!recent.length) {
+    document.getElementById('recent-empty').hidden = false;
+  } else {
+    var resultLabel = function (result) {
+      if (result === 'ok') return '';
+      if (result === 'pairing') return ' · 配对';
+      if (result === 'unbound') return ' · 已解绑';
+      if (result === 'unsupported') return ' · 不支持';
+      if (result === 'dropped') return ' · 已丢弃';
+      return ' · 失败';
+    };
+    document.getElementById('recent').replaceChildren.apply(
+      document.getElementById('recent'), recent.slice(0, 10).map(function (entry) {
+        var row = document.createElement('li');
+        var what = document.createElement('span');
+        var label = entry.direction === 'out' ? '发送' : '接收';
+        var result = entry.result || 'failed';
+        what.textContent = result === 'pairing' || result === 'unbound' || !entry.kind
+          ? resultLabel(result).replace(/^ · /, '') + (entry.peer ? ' · ' + entry.peer : '')
+          : label + ' · ' + kindLabel(entry.kind) +
+            (entry.peer ? ' · ' + entry.peer : '');
+        var meta = document.createElement('span');
+        meta.className = 'mono muted';
+        meta.textContent = clock(entry.at) + resultLabel(entry.result);
+        row.append(what, meta);
+        return row;
+      }));
+  }
+})();
+</script>
+</body>
+</html>

@@ -38,7 +38,13 @@ def fail(message: str) -> None:
 
 
 def plugin_dirs() -> list[Path]:
-    return sorted(p for p in PLUGINS.iterdir() if p.is_dir() and not p.name.startswith("."))
+    # Official packages are compiled binaries owned by build-official.py with
+    # their own capability model and signing pipeline; this script would
+    # reject their manifests, so it never looks at them.
+    from official_packages import OFFICIAL
+    return sorted(p for p in PLUGINS.iterdir()
+                  if p.is_dir() and not p.name.startswith(".")
+                  and p.name not in OFFICIAL)
 
 
 def validate(package: Path) -> dict:
@@ -197,6 +203,16 @@ def write_index(packages: list[dict]) -> Path:
         if plugin_id in seen:
             fail(f"duplicate plugin id: {plugin_id}")
         seen.add(plugin_id)
+    # Official packages are not built here, but their signed entries (with
+    # signatures this script cannot produce) still belong in the index. Carry
+    # them over untouched; a stale entry for an id this run did build is
+    # replaced by the fresh one.
+    from official_packages import OFFICIAL
+    if (DIST / "index.json").is_file():
+        previous = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
+        for entry in previous.get("packages", []):
+            if entry.get("id") not in seen and entry.get("id") in OFFICIAL:
+                packages.append(entry)
     packages.sort(key=lambda item: (item["name"], item["id"]))
     index = {
         "version": INDEX_VERSION,
