@@ -188,7 +188,7 @@
       "version": "1.0.0",
       "description": "在已配对的 Mac 之间同步文本、图片与文件条目：端到端加密、离线排队、经你自己的中继转发；文件与目录由你在落盘前确认。中继只能看到设备 ID、消息大小与时间，看不到正文；扩展密钥由扩展私有目录的文件权限保护；自建中继的 TLS 证书由你负责；接收的文件不做病毒扫描。交互思路参考 PasteFerry（AGPL-3.0），未使用其源码或协议实现。",
       "fileName": "com.mypaste.ferry-1.0.0.mypaste-plugin",
-      "sha256": "29dbd013a6b6c4caa6b09cf245c5cdec63939d9b5d020cc17d7b6222cfe796f3",
+      "sha256": "c8b43156ceb0e4a57b343301ecae1391b40c4487afb142979a5a5cf0ba4e9e70",
       "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     }

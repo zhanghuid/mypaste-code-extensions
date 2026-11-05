@@ -55,8 +55,12 @@ def build_binary(spec: dict, staging: Path) -> None:
     output = staging / spec["entrypoint"]
     environment = dict(os.environ,
                        CGO_ENABLED="0", GOOS=spec["goos"], GOARCH=spec["goarch"])
+    # -buildvcs=false keeps the binary out of the commit history: without it Go
+    # stamps the repository revision into the executable, so every rebuild of an
+    # unchanged package produced a new archive under the same version.
     done = subprocess.run(
-        ["go", "build", "-trimpath", "-o", str(output), spec["package"]],
+        ["go", "build", "-trimpath", "-buildvcs=false", "-o", str(output),
+         spec["package"]],
         cwd=module, env=environment, capture_output=True, text=True)
     if done.returncode != 0:
         fail(f"go build failed:\n{done.stderr.strip()}")
