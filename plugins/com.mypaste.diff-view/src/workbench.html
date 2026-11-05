@@ -85,7 +85,7 @@
   }
   .pane-heads {
     display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) 44px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     border-bottom: 1px solid var(--line);
     background: var(--surface);
   }
@@ -101,8 +101,6 @@
     overflow: hidden;
   }
   .pane-head:last-child { border-right: 0; }
-  .pane-head.before { grid-column: 1 / 3; }
-  .pane-head.after { grid-column: 3 / 5; }
   .pane-head strong {
     overflow: hidden;
     color: var(--ink);
@@ -115,7 +113,7 @@
   .scroller { min-height: 0; overflow: auto; background: var(--surface); }
   .rows {
     display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) 44px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-content: start;
   }
   .diff-row { display: contents; }
@@ -154,7 +152,7 @@
   }
 
   /*
-   * Edit mode (double-click either side). The edited side becomes one
+   * Edit mode (one click on either side). The edited side becomes one
    * textarea spanning the column, kept alive while the other side re-renders
    * against it; the two panes scroll independently.
    */
@@ -194,9 +192,6 @@
   }
   .edit-input::selection { background: var(--mark); }
   .diff-column { min-width: 0; min-height: 0; overflow: auto; }
-  body.editing .pane-heads { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  body.editing .pane-head.before,
-  body.editing .pane-head.after { grid-column: auto; }
 
   footer {
     display: flex;

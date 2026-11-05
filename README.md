@@ -137,6 +137,13 @@ CSS custom property names without `--`. Both documents mirror each value as
 for an older host. The host resends the whole pair when the reader changes the
 appearance or theme while the document is open.
 
+The comparison document edits in place: one click on either side's text opens
+that side's editor with the caret where the reader clicked, and a drag that
+selects text stays a selection. While typing, only the other column is
+repainted, at most every 150 ms (backing off further when a repaint of a long
+text is itself slow), so the editor never waits for the diff. Both panes are a
+two-column grid; each side owns its own line numbers.
+
 Closing belongs to the host card. MyPaste draws one close control in the
 workbench chrome, and a document must not draw a second one; a document may
 still ask the bridge to close for its Escape key, but Escape first leaves an
