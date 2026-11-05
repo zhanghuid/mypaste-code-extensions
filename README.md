@@ -124,6 +124,14 @@ from its own side. Text save and copy cross the bridge as exact-key messages
 1 MiB, UTF-8, no control characters — and reports the result back per
 `requestId`. Saving writes a new history item; it never replaces the original.
 
+The host answers `ready` with the `item` (carrying `companion` when declared)
+and immediately after with `{v: 1, type: "theme", scheme: "light" | "dark"}`
+(D-1042). That scheme is the one MyPaste resolved from its own appearance
+setting, which the sandboxed frame's `prefers-color-scheme` cannot see, so a
+document paints by `:root[data-scheme]` and uses the media query only as the
+value shown before the message arrives. The host resends it when the reader
+changes the appearance while the document is open.
+
 Sources:
 
 ```

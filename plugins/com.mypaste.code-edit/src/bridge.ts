@@ -7,6 +7,9 @@
  *
  * D-1040: this document writes text. It never writes HTML, never runs a
  * process, and never asks for a file.
+ *
+ * D-1042: the host also sends the application's resolved colour scheme;
+ * the document paints by it instead of by the system's appearance.
  */
 
 export type WorkbenchTextItem = { kind: "text"; title: string; text: string };
@@ -34,6 +37,19 @@ export interface WorkbenchBridge {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+/** The application's resolved colour scheme (D-1042). */
+type WorkbenchScheme = "light" | "dark";
+
+/**
+ * parseTheme reads the scheme the host resolved from the application's
+ * appearance. The frame's own prefers-color-scheme follows the system, so it
+ * cannot answer this question on its own.
+ */
+function parseTheme(data: unknown): WorkbenchScheme | null {
+  if (!isRecord(data) || data.v !== 1 || data.type !== "theme") return null;
+  return data.scheme === "light" || data.scheme === "dark" ? data.scheme : null;
 }
 
 function parseItem(data: unknown): WorkbenchTextItem | null {
@@ -69,6 +85,11 @@ export function connectWorkbench(): WorkbenchBridge {
     });
   }
 
+  // The system appearance only covers the moment before the host speaks: the
+  // host sends the scheme the application actually resolved (D-1042).
+  document.documentElement.dataset.scheme =
+    matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+
   window.addEventListener("message", (event) => {
     if (event.source !== parent) return;
     const data = event.data;
@@ -76,6 +97,11 @@ export function connectWorkbench(): WorkbenchBridge {
     if (delivered) {
       item = delivered;
       for (const listener of listeners.splice(0)) listener(delivered);
+      return;
+    }
+    const scheme = parseTheme(data);
+    if (scheme) {
+      document.documentElement.dataset.scheme = scheme;
       return;
     }
     if (!isRecord(data) || data.v !== 1 || data.type !== "result") return;

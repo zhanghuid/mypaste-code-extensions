@@ -26,28 +26,31 @@
     --tok-tag: #9a3f1d;
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      color-scheme: dark;
-      --bg: #171412;
-      --surface: #201c18;
-      --ink: #f0e6d9;
-      --muted: #9a8c7b;
-      --line: rgba(255, 236, 214, 0.12);
-      --accent: #e2955f;
-      --accent-ink: #241a12;
-      --focus: rgba(226, 149, 95, 0.35);
-      --selection: rgba(226, 149, 95, 0.26);
-      --tok-keyword: #e7a07a;
-      --tok-string: #a8c48a;
-      --tok-number: #c8a6e0;
-      --tok-comment: #8f8272;
-      --tok-type: #8fc0e0;
-      --tok-function: #8fd0c8;
-      --tok-literal: #d9b46a;
-      --tok-property: #d9b48c;
-      --tok-tag: #e7a07a;
-    }
+  /*
+   * The scheme comes from the host's theme message (D-1042): the frame's own
+   * prefers-color-scheme follows the system, not the appearance chosen in
+   * MyPaste. Until the message arrives the document uses its light palette.
+   */
+  :root[data-scheme="dark"] {
+    color-scheme: dark;
+    --bg: #171412;
+    --surface: #201c18;
+    --ink: #f0e6d9;
+    --muted: #9a8c7b;
+    --line: rgba(255, 236, 214, 0.12);
+    --accent: #e2955f;
+    --accent-ink: #241a12;
+    --focus: rgba(226, 149, 95, 0.35);
+    --selection: rgba(226, 149, 95, 0.26);
+    --tok-keyword: #e7a07a;
+    --tok-string: #a8c48a;
+    --tok-number: #c8a6e0;
+    --tok-comment: #8f8272;
+    --tok-type: #8fc0e0;
+    --tok-function: #8fd0c8;
+    --tok-literal: #d9b46a;
+    --tok-property: #d9b48c;
+    --tok-tag: #e7a07a;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
@@ -229,7 +232,7 @@
     <span class="metric" id="doc-caret">行 1，列 1</span>
     <span id="doc-dirty" hidden>未保存</span>
     <select id="doc-language" aria-label="语言"></select>
-    <button id="doc-close" type="button" aria-label="关闭代码编辑">×</button>
+    <button id="doc-close" type="button" data-action="close" aria-label="关闭代码编辑">×</button>
   </header>
   <div class="editor">
     <pre id="editor-gutter" aria-hidden="true"></pre>

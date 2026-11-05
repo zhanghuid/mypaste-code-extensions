@@ -19,21 +19,24 @@
     --mark: rgba(166, 93, 46, 0.28);
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      color-scheme: dark;
-      --bg: #171412;
-      --surface: #201c18;
-      --ink: #f0e6d9;
-      --muted: #9a8c7b;
-      --line: rgba(255, 236, 214, 0.12);
-      --accent: #e2955f;
-      --accent-ink: #241a12;
-      --focus: rgba(226, 149, 95, 0.35);
-      --added: rgba(168, 196, 138, 0.14);
-      --removed: rgba(231, 160, 122, 0.12);
-      --mark: rgba(226, 149, 95, 0.34);
-    }
+  /*
+   * The scheme comes from the host's theme message (D-1042): the frame's own
+   * prefers-color-scheme follows the system, not the appearance chosen in
+   * MyPaste. Until the message arrives the document uses its light palette.
+   */
+  :root[data-scheme="dark"] {
+    color-scheme: dark;
+    --bg: #171412;
+    --surface: #201c18;
+    --ink: #f0e6d9;
+    --muted: #9a8c7b;
+    --line: rgba(255, 236, 214, 0.12);
+    --accent: #e2955f;
+    --accent-ink: #241a12;
+    --focus: rgba(226, 149, 95, 0.35);
+    --added: rgba(168, 196, 138, 0.14);
+    --removed: rgba(231, 160, 122, 0.12);
+    --mark: rgba(226, 149, 95, 0.34);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
@@ -197,7 +200,7 @@
     <span class="kicker">高亮对比</span>
     <span id="diff-stats">等待宿主交付文本…</span>
     <span class="metric" id="diff-language"></span>
-    <button id="doc-close" type="button" aria-label="关闭高亮对比">×</button>
+    <button id="doc-close" type="button" data-action="close" aria-label="关闭高亮对比">×</button>
   </header>
   <div class="pane-heads">
     <div class="pane-head before">对照 · <strong id="companion-title">—</strong></div>
