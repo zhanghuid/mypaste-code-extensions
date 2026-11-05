@@ -128,6 +128,9 @@ python3 scripts/build-official.py --key-file ~/.mypaste/official-signing.key
 python3 scripts/build-official.py --skip-sign   # unsigned dry run
 ```
 
+To sign, test and publish in one step, use `sh scripts/release.sh <key>`
+(see [Release](#release)).
+
 The signature covers the canonical content digest of the staged package
 directory — the same algorithm (`extension.DirectoryContentDigest`) MyPaste
 uses for first-party provenance — so the published archive and the installed
@@ -157,12 +160,35 @@ bun run typecheck                                          # both packages' TS
 bun run build:workbenches                                  # both documents
 bun run build                                              # script packages
 python3 scripts/build-official.py --skip-sign              # official dry run
-python3 scripts/build-official.py --key-file <offline-key> # official release
+sh scripts/release.sh <offline-key>                        # official release
 ```
 
 `dist/` will contain one ZIP-root `.mypaste-plugin` per package. The archive
 root must be `mypaste.plugin.json` plus the entry script, or — for a workbench
 package — the manifest plus the one document it declares.
+
+## Release
+
+Official packages need the offline signing key, so a release runs on the
+machine that holds it:
+
+```sh
+sh scripts/release.sh ~/.mypaste/official-signing.key
+```
+
+It signs the official packages, runs `bun run test` against the signed feed,
+folds `dist/` into the current commit, fast-forwards `main`, and pushes it —
+the feed MyPaste reads is `main/dist/index.json`. Add `--no-push` to stop
+before publishing, or pass the key through `MYPASTE_SIGNING_KEY`.
+
+The script refuses to start unless the key is a 0600 file outside the
+repository and the work tree is clean on a branch that descends from `main`.
+It stops at the first failure, so a failing test leaves the signed `dist/` in
+the tree but commits and pushes nothing. Commit the package, document and
+manifest changes first: the script amends the current commit, so it becomes
+the release commit. Unsigned packages still install as third-party; the
+signature only decides which packages count as official and may use
+trusted-only surfaces such as the workbench.
 
 ## Install locally
 
