@@ -39,8 +39,8 @@ def fail(message: str) -> None:
 
 def plugin_dirs() -> list[Path]:
     # Official packages are compiled binaries owned by build-official.py with
-    # their own capability model and signing pipeline; this script would
-    # reject their manifests, so it never looks at them.
+    # their own capability model; this script would reject their manifests, so
+    # it never looks at them.
     from official_packages import OFFICIAL
     return sorted(p for p in PLUGINS.iterdir()
                   if p.is_dir() and not p.name.startswith(".")
@@ -205,20 +205,17 @@ def write_index(packages: list[dict]) -> Path:
         if plugin_id in seen:
             fail(f"duplicate plugin id: {plugin_id}")
         seen.add(plugin_id)
-    # Official packages are not built here, but their signed entries (with
-    # signatures this script cannot produce) still belong in the index. Carry
-    # them over; only the feed's own metadata is restamped. A stale entry for an
-    # id this run did build is replaced by the fresh one.
+    # Official packages are not built here, so their entries still belong in
+    # the index. Carry them over; only the feed's own metadata is restamped. A
+    # stale entry for an id this run did build is replaced by the fresh one.
     from official_packages import OFFICIAL
     if (DIST / "index.json").is_file():
         previous = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
         from index_metadata import repository
         for entry in previous.get("packages", []):
             if entry.get("id") not in seen and entry.get("id") in OFFICIAL:
-                # The project address belongs to the feed, not to the signed
-                # package, so an entry carried over from an older run is
-                # stamped here too — the signature still covers the archive
-                # alone.
+                # The project address belongs to the feed, not to the package,
+                # so an entry carried over from an older run is stamped here.
                 entry["repository"] = repository()
                 packages.append(entry)
     packages.sort(key=lambda item: (item["name"], item["id"]))

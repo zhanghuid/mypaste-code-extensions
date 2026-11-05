@@ -1,47 +1,36 @@
 #!/bin/sh
 # Publish the official packages and the marketplace feed in one step.
 #
-# Signing needs the offline key, so this runs on the machine that holds it and
-# nowhere else (D-1036 in the host repository). Everything else — testing the
-# signed feed, folding dist/ into the release commit, publishing — follows from
-# that one signature, which is why it lives behind one command.
+# Installation is the trust decision (D-1039 in the host repository), so there
+# is no signing key: the script builds the deterministic archives, tests the
+# feed, folds dist/ into the release commit and publishes it.
 #
-#   sh scripts/release.sh ~/.mypaste/official-signing.key
-#   sh scripts/release.sh ~/.mypaste/official-signing.key --no-push
+#   sh scripts/release.sh
+#   sh scripts/release.sh --no-push
 #
 # The script refuses to start unless the work tree is clean and the current
 # branch is a release branch ahead of main. It stops at the first failure: a
-# test failure leaves the signed dist/ in place but commits and pushes nothing.
+# test failure leaves the rebuilt dist/ in place but commits and pushes
+# nothing.
 set -eu
 
 usage() {
-  printf 'usage: sh scripts/release.sh <signing-key> [--no-push]\n' >&2
-  printf '   or: MYPASTE_SIGNING_KEY=<key> sh scripts/release.sh [--no-push]\n' >&2
+  printf 'usage: sh scripts/release.sh [--no-push]\n' >&2
   exit 2
 }
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-KEY=
 PUSH=1
 for argument in "$@"; do
   case "$argument" in
     --no-push) PUSH=0 ;;
     -h|--help) usage ;;
-    -*)
+    *)
       printf 'error: unknown option %s\n' "$argument" >&2
       usage
       ;;
-    *)
-      if [ -n "$KEY" ]; then
-        printf 'error: only one signing key may be given\n' >&2
-        usage
-      fi
-      KEY=$argument
-      ;;
   esac
 done
-[ -n "$KEY" ] || KEY=${MYPASTE_SIGNING_KEY:-}
-[ -n "$KEY" ] || usage
 
 fail() {
   printf 'error: %s\n' "$*" >&2
@@ -49,16 +38,6 @@ fail() {
 }
 
 cd "$ROOT"
-
-# The key is a 32-byte ed25519 seed. Check it is a file, outside the repository
-# (so it can never be staged) and not readable by anyone else.
-[ -f "$KEY" ] || fail "signing key not found: $KEY"
-KEY_PATH=$(cd "$(dirname "$KEY")" && pwd)/$(basename "$KEY")
-case "$KEY_PATH" in
-  "$ROOT"/*) fail "signing key is inside the repository: $KEY_PATH" ;;
-esac
-KEY_MODE=$(stat -f '%Lp' "$KEY_PATH" 2>/dev/null || stat -c '%a' "$KEY_PATH" 2>/dev/null || true)
-[ "$KEY_MODE" = "600" ] || fail "signing key must be mode 0600, found ${KEY_MODE:-unknown}"
 
 # The release commit is the current tip: dist/ is folded into it, so anything
 # else in the tree would ride along and any branch state would be rewritten.
@@ -72,8 +51,8 @@ trap restore_branch EXIT
 git rev-parse --verify --quiet main >/dev/null || fail "no local main branch"
 git merge-base --is-ancestor main HEAD || fail "main is not an ancestor of $BRANCH"
 
-printf '==> signing official packages with %s\n' "$KEY_PATH"
-python3 scripts/build-official.py --key-file "$KEY_PATH"
+printf '==> building official packages\n'
+python3 scripts/build-official.py
 
 printf '==> running the package tests\n'
 bun run test

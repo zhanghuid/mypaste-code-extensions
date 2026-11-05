@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build, sign and publish the official extension packages.
+"""Build and publish the official extension packages.
 
 The packages under plugins/*/ that this script owns (OFFICIAL below) come in
 two shapes, and the shipped archive never contains the source tree:
@@ -9,16 +9,15 @@ two shapes, and the shipped archive never contains the source tree:
   bundled from src/ by scripts/build-workbenches.mjs). A workbench package
   runs no process, so it carries no binary at all.
 
-The signature is over the canonical content digest of the staged directory, so
-the host re-verifies the installed bytes against it at every listing (D-1036 in
-the MyPaste host repository). The signing key stays offline; pass it with
---key-file.
+Installation is the trust decision (D-1039 in the MyPaste host repository):
+the feed carries no signature, and the host does not read one. Publishing is
+therefore just the deterministic build below plus the package digest.
 
-    python3 scripts/build-official.py --key-file ~/.mypaste/official-signing.key
-    python3 scripts/build-official.py --skip-sign   # unsigned dry run
+    python3 scripts/build-official.py
+    python3 scripts/build-official.py --only com.mypaste.ferry
 
 Everything is deterministic for review: fixed Go build flags, fixed zip
-timestamps, one entry per package in dist/index.json with its signature.
+timestamps, one entry per package in dist/index.json with its SHA-256.
 """
 
 from __future__ import annotations
@@ -38,7 +37,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-import sign  # noqa: E402
 from index_metadata import repository  # noqa: E402
 from official_packages import OFFICIAL  # noqa: E402
 
@@ -141,14 +139,9 @@ def update_index(entry: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--key-file", type=Path)
-    parser.add_argument("--skip-sign", action="store_true",
-                        help="build and package without a signature (dry run)")
     parser.add_argument("--only", choices=sorted(OFFICIAL),
                         help="build one official package instead of all")
     args = parser.parse_args()
-    if not args.skip_sign and not args.key_file:
-        parser.error("--key-file is required without --skip-sign")
 
     DIST.mkdir(exist_ok=True)
     for plugin_id, spec in sorted(OFFICIAL.items()):
@@ -158,14 +151,6 @@ def main() -> None:
             staging = Path(temp) / plugin_id
             staging.mkdir()
             manifest = stage_package(plugin_id, spec, staging)
-            if args.skip_sign:
-                signature = ""
-            else:
-                digest = sign.content_digest(staging)
-                seed = sign.load_seed(args.key_file)
-                signature = sign.ed25519_sign(
-                    seed, digest.encode("ascii")).hex()
-                print(f"{plugin_id}: content digest {digest}")
             target = write_archive(plugin_id, manifest, staging)
             sha256 = record_digest(target)
             update_index({
@@ -175,7 +160,6 @@ def main() -> None:
                 "description": manifest.get("description", ""),
                 "fileName": target.name,
                 "sha256": sha256,
-                "signature": signature,
                 # A workbench package declares no runtime; zero says exactly
                 # that, and the host keeps such entries.
                 "runtimeProtocol": manifest.get("runtime", {}).get(

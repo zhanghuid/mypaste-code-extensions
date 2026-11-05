@@ -19,7 +19,7 @@ This repository holds three kinds of packages:
   its workbench card. They run no process and declare no capabilities; see
   "Workbench packages" below.
 - **Official packages** (`plugins/com.mypaste.*`) — compiled Go binaries and
-  workbench documents with broader capabilities, built and signed by
+  workbench documents with broader capabilities, built by
   `scripts/build-official.py`; see "Official packages" below.
   `scripts/official_packages.py` is the single owner of the list;
   `scripts/package.py` never packages or validates them.
@@ -110,39 +110,31 @@ build into the staging directory, so an archive never contains stale output.
 
 
 `com.mypaste.ferry` — the cross-device sync extension — ships from this
-repository as a compiled, signed binary instead of a run script. Its Go source
-lives in `plugins/com.mypaste.ferry/src/` (own `go.mod`); the archive contains
-only the manifest, `menu.html` and the built `ferry` binary, never the source
-tree. The relay service it talks to lives in `servers/mypaste-relay/` (own
+repository as a compiled binary instead of a run script. Its Go source lives
+in `plugins/com.mypaste.ferry/src/` (own `go.mod`); the archive contains only
+the manifest, `menu.html` and the built `ferry` binary, never the source tree.
+The relay service it talks to lives in `servers/mypaste-relay/` (own
 `go.mod`); it is a standalone HTTPS server, not a plugin package, and is
 deployed separately. Ferry needs capabilities outside the run-script allowlist
 (`entry.payload`, `network.outbound` with configured hosts, `storage.plugin`,
-triggers), which MyPaste grants only to trusted provenance: embedded
-first-party packages, or packages whose signature verifies against the ed25519
-public key embedded in the host.
+triggers); MyPaste lists them in the install confirmation, and the single
+enable switch is the whole permission decision (D-1039 in the host
+repository). There is no signature or trusted tier to obtain.
 
-Signing is local and offline:
+Build the official packages locally:
 
 ```sh
-python3 scripts/build-official.py --key-file ~/.mypaste/official-signing.key
-python3 scripts/build-official.py --skip-sign   # unsigned dry run
+python3 scripts/build-official.py
+python3 scripts/build-official.py --only com.mypaste.ferry
 ```
 
-To sign, test and publish in one step, use `sh scripts/release.sh <key>`
+To build, test and publish in one step, use `sh scripts/release.sh`
 (see [Release](#release)).
 
-The signature covers the canonical content digest of the staged package
-directory — the same algorithm (`extension.DirectoryContentDigest`) MyPaste
-uses for first-party provenance — so the published archive and the installed
-directory verify against one signature. The signing key is a 32-byte ed25519
-seed in a 0600 file outside every repository; it never enters this repo, the
-host repo, or CI. `scripts/sign.py` implements the digest, the pure-Python
-ed25519 signer and offline verification against the public key:
-
-```sh
-python3 scripts/sign.py --package plugins/com.mypaste.ferry \
-    --public-key <64-hex> --verify <128-hex>
-```
+The build is deterministic — fixed Go flags, fixed zip timestamps, one entry
+per package — so the same source produces the same archive and the same
+SHA-256 for review. The feed carries that digest; it does not carry a
+signature, and MyPaste ignores one if an older feed still has it.
 
 Official binaries are built for macOS arm64 (`CGO_ENABLED=0`, `-trimpath`),
 matching the app's first shipping platform. Additional targets are added to
@@ -159,8 +151,8 @@ bun run test                                               # Python suite
 bun run typecheck                                          # both packages' TS
 bun run build:workbenches                                  # both documents
 bun run build                                              # script packages
-python3 scripts/build-official.py --skip-sign              # official dry run
-sh scripts/release.sh <offline-key>                        # official release
+python3 scripts/build-official.py                          # official packages
+sh scripts/release.sh                                      # build, test, publish
 ```
 
 `dist/` will contain one ZIP-root `.mypaste-plugin` per package. The archive
@@ -169,26 +161,26 @@ package — the manifest plus the one document it declares.
 
 ## Release
 
-Official packages need the offline signing key, so a release runs on the
-machine that holds it:
+There is no signing key: installation is the trust decision, and MyPaste
+grants the capabilities listed in the install confirmation until the extension
+is disabled (D-1039 in the host repository). Publishing is one command:
 
 ```sh
-sh scripts/release.sh ~/.mypaste/official-signing.key
+sh scripts/release.sh
 ```
 
-It signs the official packages, runs `bun run test` against the signed feed,
-folds `dist/` into the current commit, fast-forwards `main`, and pushes it —
-the feed MyPaste reads is `main/dist/index.json`. Add `--no-push` to stop
-before publishing, or pass the key through `MYPASTE_SIGNING_KEY`.
+It builds the official packages, runs `bun run test` against the feed, folds
+`dist/` into the current commit, fast-forwards `main`, and pushes it — the
+feed MyPaste reads is `main/dist/index.json`. Add `--no-push` to stop before
+publishing.
 
-The script refuses to start unless the key is a 0600 file outside the
-repository and the work tree is clean on a branch that descends from `main`.
-It stops at the first failure, so a failing test leaves the signed `dist/` in
-the tree but commits and pushes nothing. Commit the package, document and
-manifest changes first: the script amends the current commit, so it becomes
-the release commit. Unsigned packages still install as third-party; the
-signature only decides which packages count as official and may use
-trusted-only surfaces such as the workbench.
+The script refuses to start unless the work tree is clean on a branch that
+descends from `main`. It stops at the first failure, so a failing test leaves
+the rebuilt `dist/` in the tree but commits and pushes nothing. Commit the
+package, document and manifest changes first: the script amends the current
+commit, so it becomes the release commit. A workbench package still needs the
+host's install confirmation before it can run, exactly like every other
+package.
 
 ## Install locally
 
@@ -249,18 +241,17 @@ dist/
 
 `index.json` is generated deterministically: `scripts/package.py` writes the
 script-package entries and carries official entries over, and
-`scripts/build-official.py` writes (or refreshes) the signed official entries.
+`scripts/build-official.py` writes (or refreshes) the official entries.
 Each entry lists the package's ID, display name, version, description, archive
-file name, SHA-256 and runtime protocol; official entries additionally carry
-the 128-hex `signature` over the package's canonical content digest, and every
-entry carries the project's `repository` address
+file name, SHA-256 and runtime protocol, and every entry carries the project's
+`repository` address
 (`https://github.com/zhanghuid/mypaste-code-extensions`, owned by
 `scripts/index_metadata.py`) so the marketplace detail page can link back to the
-sources. `repository` lives in the index only, never in a package manifest: a
-host validates manifests strictly, so a manifest field an older host does not
-know would make the whole package invalid there. For the same reason hosts
-ignore index fields they do not know — an older MyPaste simply does not show
-the repository link.
+sources. The feed carries no signature (D-1039). `repository` lives in the
+index only, never in a package manifest: a host validates manifests strictly,
+so a manifest field an older host does not know would make the whole package
+invalid there. For the same reason hosts ignore index fields they do not
+know — an older MyPaste simply does not show the repository link.
 
 | Field | Required | Meaning |
 | --- | --- | --- |
@@ -270,8 +261,7 @@ the repository link.
 | `description` | yes | One-line description. |
 | `fileName` | yes | Archive name inside `dist/`. |
 | `sha256` | yes | Digest of the archive the host verifies before installing. |
-| `runtimeProtocol` | yes | Runtime protocol the package speaks (`2`). |
-| `signature` | official only | ed25519 signature over the canonical content digest; its presence and validity is what makes a package `official`. |
+| `runtimeProtocol` | yes | Runtime protocol the package speaks (`2`, or `0` for a workbench package with no runtime). |
 | `repository` | no | Project address, HTTPS, shown on the marketplace detail page. The host opens it only after resolving the address from its own copy of this index, keyed by plugin ID — the page never supplies a URL. |
 
 The app fetches only

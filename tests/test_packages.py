@@ -305,7 +305,6 @@ class PackageTests(unittest.TestCase):
 
     def test_dist_index_covers_every_package_with_verified_digests(self) -> None:
         build_packages()
-        official = official_ids()
         index = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
         self.assertEqual(index["version"], 1)
         self.assertRegex(index["generated"], r"^\d{4}-\d{2}-\d{2}$")
@@ -349,21 +348,16 @@ class PackageTests(unittest.TestCase):
                 ),
                 f"{entry['sha256']}  {entry['fileName']}\n",
             )
-            # Official entries carry the offline ed25519 signature over the
-            # package's canonical content digest; run-script entries carry
-            # no signature at all.
-            base_keys = {
+            # D-1039: installation is the trust decision, so the feed carries
+            # no signature and every entry has the same field set.
+            entry_keys = {
                 "id", "name", "version", "description", "fileName", "sha256",
                 "runtimeProtocol", "repository",
             }
             # The project address belongs to the feed, not to any package: one
             # module owns it, and every entry must declare the same one.
             self.assertEqual(entry["repository"], index_metadata.repository())
-            if entry["id"] in official:
-                self.assertEqual(set(entry), base_keys | {"signature"})
-                self.assertRegex(entry["signature"], r"^[0-9a-f]{128}$")
-            else:
-                self.assertEqual(set(entry), base_keys)
+            self.assertEqual(set(entry), entry_keys)
             self.assertLessEqual(len(entry["id"]), 96)
             self.assertLessEqual(len(entry["name"]), 72)
             self.assertLessEqual(len(entry["description"]), 280)
