@@ -1,5 +1,7 @@
 # MyPaste Code Extensions
 
+English · [简体中文](README.zh-CN.md)
+
 Independent code formatting, syntax-highlighting and sync extensions for
 [MyPaste](https://github.com/zhanghuid/mypaste-go).
 
@@ -198,7 +200,7 @@ diagnostics and formatting for seven dialects, lexed by
 too. Its Go source lives in `plugins/com.mypaste.sql/src/` (own `go.mod`);
 the archive contains only the manifest and the built binaries, never the
 source tree. Its spec declares a `targets` list, so the archive nests one
-binary per platform under `bin/<goos>-<goarch>/` (`.exe` on windows); the
+binary per platform under `bin/<goos>/<goarch>/` (`.exe` on windows); the
 host resolves the declared entrypoint through that layout (D-1057 in the
 host repository).
 
