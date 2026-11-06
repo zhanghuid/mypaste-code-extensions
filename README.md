@@ -77,6 +77,10 @@ sandboxed frame; the document can only read the item the command was invoked
 on, save text or an image as a new history item, copy text or an image, and
 close. Nothing else reaches it — no host binding, no asset path, no other item.
 
+The documents follow the host's visual rule (host D-1045): no rounded boxes.
+Cards, panels, buttons and tool chips are square; a circle is allowed only
+where roundness is the shape's meaning, such as a status dot.
+
 ```json
 "workbench": {"title": "代码卡片", "document": "workbench.html"},
 "commands": [{
