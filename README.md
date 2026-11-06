@@ -106,6 +106,14 @@ sandboxed frame; the document can only read the item the command was invoked
 on, save text or an image as a new history item, copy text or an image, and
 close. Nothing else reaches it — no host binding, no asset path, no other item.
 
+An `editor` workbench (`editor: true`) may also advertise
+`features: ["buffer"]` in its `ready` message (host D-1065). The host then draws
+its own toolbar of the matching `editor` commands above the document and asks
+for the current buffer; a command runs on that buffer and the result comes back
+as one `replace` message tagged with the revision it was read at. The document
+still never runs, names or discovers a command: it only answers `buffer-request`
+and applies `replace` when its revision is unchanged.
+
 The documents follow the host's visual rule (host D-1045): no rounded boxes.
 Cards, panels, buttons and tool chips are square; a circle is allowed only
 where roundness is the shape's meaning, such as a status dot.

@@ -11,6 +11,12 @@
  * D-1042/D-1043: the host also sends the application's resolved colour scheme
  * and the design tokens that scheme resolved to; the document paints by them
  * instead of by the system's appearance or a palette of its own.
+ *
+ * D-1065: the document advertises the optional `buffer` feature, answers the
+ * host's `buffer-request` with its whole buffer and revision, and applies a
+ * host `replace` as one edit when that revision is still current. The host
+ * draws the editor toolbar; this document never asks for or names a command,
+ * and it still never calls the host's format or highlight extensions.
  */
 
 export type WorkbenchTextItem = { kind: "text"; title: string; text: string };
@@ -34,10 +40,106 @@ export interface WorkbenchBridge {
   save(text: string, title: string): Promise<BridgeResult>;
   copy(text: string): Promise<BridgeResult>;
   close(): void;
+  /**
+   * Answers the host's `buffer-request` with the document's whole buffer and
+   * its current revision (D-1065). This document advertises the feature, so
+   * the host's toolbar may ask; nothing is granted to the document by it.
+   */
+  onBufferRequest(listener: () => BufferSnapshot): void;
+  /**
+   * Applies the host's `replace` as one edit, but only while the document's
+   * revision still equals the one the replace names. A mismatch changes
+   * nothing and reports why.
+   */
+  onReplace(
+    listener: (text: string, revision: number) => BridgeResult,
+  ): void;
 }
+
+/** The document's buffer and the revision it is at. */
+export interface BufferSnapshot {
+  text: string;
+  revision: number;
+}
+
+/** The same ceiling the host applies to every edited buffer. */
+const TEXT_LIMIT = 1 << 20;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function hasExactKeys(message: Record<string, unknown>, keys: string[]): boolean {
+  const actual = Object.keys(message).sort();
+  return actual.length === keys.length &&
+    actual.every((key, index) => key === keys[index]);
+}
+
+/** UTF-16 text is well formed when no surrogate is unpaired. */
+function isWellFormedText(text: string): boolean {
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = text.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
+      index += 1;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * textRefusal mirrors the host's rules early: the host decides, but a buffer
+ * this document already knows is unusable does not need to cross the frame.
+ */
+export function textRefusal(text: string): string {
+  if (new TextEncoder().encode(text).length > TEXT_LIMIT) {
+    return "内容超过 1 MiB 上限";
+  }
+  if (!isWellFormedText(text)) return "内容不是有效的 UTF-8";
+  if (text.includes("\u0000")) return "内容包含无法处理的字符";
+  return "";
+}
+
+/**
+ * The revision rule for a host `replace` (D-1065). The host reads the buffer at
+ * one revision and tags its replacement with that number; the document applies
+ * it only while its own counter still matches, so a reader who typed while the
+ * command ran keeps their text.
+ */
+export const REVISION_REFUSAL = "内容已变化，未替换";
+
+/** Empty when a replacement may apply, otherwise the sentence to report. */
+export function replaceRefusal(
+  currentRevision: number,
+  expectedRevision: number,
+): string {
+  return currentRevision === expectedRevision ? "" : REVISION_REFUSAL;
+}
+
+function parseBufferRequest(data: unknown): number | null {
+  if (!isRecord(data) || data.v !== 1 || data.type !== "buffer-request") return null;
+  if (!hasExactKeys(data, ["requestId", "type", "v"])) return null;
+  if (typeof data.requestId !== "number" || !Number.isInteger(data.requestId)) {
+    return null;
+  }
+  return data.requestId;
+}
+
+function parseReplace(data: unknown): { requestId: number; text: string; revision: number } | null {
+  if (!isRecord(data) || data.v !== 1 || data.type !== "replace") return null;
+  if (!hasExactKeys(data, ["requestId", "revision", "text", "type", "v"])) return null;
+  if (typeof data.requestId !== "number" || !Number.isInteger(data.requestId)) {
+    return null;
+  }
+  if (typeof data.text !== "string") return null;
+  if (typeof data.revision !== "number" || !Number.isInteger(data.revision)) {
+    return null;
+  }
+  if (data.revision < 0) return null;
+  return { requestId: data.requestId, text: data.text, revision: data.revision };
 }
 
 /** The application's resolved colour scheme (D-1042). */
@@ -110,6 +212,8 @@ export function connectWorkbench(): WorkbenchBridge {
   const listeners: ((item: WorkbenchTextItem) => void)[] = [];
   const pending = new Map<number, (result: BridgeResult) => void>();
   let nextRequest = 1;
+  let bufferListener: (() => BufferSnapshot) | null = null;
+  let replaceListener: ((text: string, revision: number) => BridgeResult) | null = null;
 
   function post(message: unknown): void {
     parent.postMessage(message, "*");
@@ -142,6 +246,39 @@ export function connectWorkbench(): WorkbenchBridge {
       applyTheme(theme);
       return;
     }
+    const bufferRequest = parseBufferRequest(data);
+    if (bufferRequest !== null) {
+      // Only answer a question this document can actually answer; a missing
+      // listener means the page has not wired its buffer yet.
+      const buffer = bufferListener?.();
+      if (buffer) {
+        post({
+          v: 1,
+          type: "buffer",
+          requestId: bufferRequest,
+          text: buffer.text,
+          revision: buffer.revision,
+        });
+      }
+      return;
+    }
+    const replacement = parseReplace(data);
+    if (replacement) {
+      const refusal = textRefusal(replacement.text);
+      const result = refusal !== ""
+        ? { ok: false, message: refusal }
+        : replaceListener?.(replacement.text, replacement.revision);
+      if (!result) return;
+      const answer: Record<string, unknown> = {
+        v: 1,
+        type: "result",
+        requestId: replacement.requestId,
+        ok: result.ok,
+      };
+      if (result.message !== undefined) answer.message = result.message;
+      post(answer);
+      return;
+    }
     if (!isRecord(data) || data.v !== 1 || data.type !== "result") return;
     const result = data as unknown as ResultMessage;
     const resolve = pending.get(result.requestId);
@@ -150,7 +287,9 @@ export function connectWorkbench(): WorkbenchBridge {
     resolve({ ok: Boolean(result.ok), id: result.id, message: result.message });
   });
 
-  post({ v: 1, type: "ready" });
+  // D-1065: the host draws an editor toolbar only for a document that says it
+  // can hand over its buffer. Nothing else about the channel changes.
+  post({ v: 1, type: "ready", features: ["buffer"] });
 
   return {
     get item() {
@@ -171,6 +310,12 @@ export function connectWorkbench(): WorkbenchBridge {
     },
     close() {
       post({ v: 1, type: "close" });
+    },
+    onBufferRequest(listener) {
+      bufferListener = listener;
+    },
+    onReplace(listener) {
+      replaceListener = listener;
     },
   };
 }
