@@ -157,6 +157,15 @@ command declares; export cards and comparisons stay on the command palette:
 `com.mypaste.code-edit` and `com.mypaste.image-edit` declare it;
 `com.mypaste.code-card` and `com.mypaste.diff-view` deliberately do not.
 
+A document may also declare the buttons for its own actions (D-1068). Its
+`ready` message can carry `actions: [{id, title}]`, each entry optionally with
+`emphasis` (the row's primary button) or `enabled: false`; MyPaste draws at most
+four of them in its card header with its own material, and sends a press back as
+`{v: 1, type: "action", id}`. The document decides what each id means and still
+writes back through its own `save` and `copy` requests. `com.mypaste.code-edit`
+1.3.0 declares 复制文本 and 保存为新条目 this way instead of drawing a footer of
+its own.
+
 Each package keeps its own `src/` and shares no code with the others; every
 package declares the bridge protocol and its own highlighting or diff engine
 from its own side. Text save and copy cross the bridge as exact-key messages

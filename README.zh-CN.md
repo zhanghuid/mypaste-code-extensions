@@ -130,6 +130,13 @@
 `com.mypaste.code-edit` 与 `com.mypaste.image-edit` 声明了它；
 `com.mypaste.code-card` 与 `com.mypaste.diff-view` 有意不声明。
 
+文档也可以声明自己动作行的按钮（D-1068）：`ready` 可带
+`actions: [{id, title}]`，每一项可选 `emphasis`（这一行的主动作）或
+`enabled: false`。MyPaste 最多画四个按钮在卡片头部，材质归宿主；按下时宿主
+发回 `{v: 1, type: "action", id}`。每个 id 的含义由文档决定，写回仍走它自己的
+`save` 与 `copy` 请求。`com.mypaste.code-edit` 1.3.0 用这种方式声明
+「复制文本」与「保存为新条目」，不再自己画页脚。
+
 每个包保留自己的 `src/`，彼此不共享代码；每个包都从自己这一侧声明桥协议与
 自己的高亮或 diff 引擎。文本另存与复制以精确键的消息过桥
 （`{v: 1, type: "save", requestId, text, title}` 与

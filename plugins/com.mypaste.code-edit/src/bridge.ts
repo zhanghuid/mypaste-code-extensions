@@ -54,6 +54,24 @@ export interface WorkbenchBridge {
   onReplace(
     listener: (text: string, revision: number) => BridgeResult,
   ): void;
+  /**
+   * Receives one press of an action this document declared in `ready`
+   * (D-1068). The host draws the buttons and forwards only the id it was
+   * given; the document decides what each id means.
+   */
+  onAction(listener: (id: string) => void): void;
+}
+
+/**
+ * One button this document asks the host to draw in the workbench card's
+ * action row. The host owns the material; `emphasis` and `enabled` only pick
+ * which of its own looks the button gets (D-1068).
+ */
+export interface WorkbenchActionDeclaration {
+  id: string;
+  title: string;
+  emphasis?: boolean;
+  enabled?: boolean;
 }
 
 /** The document's buffer and the revision it is at. */
@@ -202,18 +220,29 @@ function parseItem(data: unknown): WorkbenchTextItem | null {
   return { kind: "text", title: item.title, text: item.text };
 }
 
+/** parseAction accepts exactly the action message the host sends (D-1068). */
+function parseAction(data: unknown): string | null {
+  if (!isRecord(data) || !hasExactKeys(data, ["id", "type", "v"])) return null;
+  if (data.v !== 1 || data.type !== "action") return null;
+  if (typeof data.id !== "string" || data.id === "") return null;
+  return data.id;
+}
+
 /**
  * connectWorkbench wires the bridge and tells the host the document is ready.
  * The host sends the item only after that; a document that renders first and
  * asks later would race a host that already delivered.
  */
-export function connectWorkbench(): WorkbenchBridge {
+export function connectWorkbench(
+  actions: readonly WorkbenchActionDeclaration[] = [],
+): WorkbenchBridge {
   let item: WorkbenchTextItem | null = null;
   const listeners: ((item: WorkbenchTextItem) => void)[] = [];
   const pending = new Map<number, (result: BridgeResult) => void>();
   let nextRequest = 1;
   let bufferListener: (() => BufferSnapshot) | null = null;
   let replaceListener: ((text: string, revision: number) => BridgeResult) | null = null;
+  const actionListeners: ((id: string) => void)[] = [];
 
   function post(message: unknown): void {
     parent.postMessage(message, "*");
@@ -244,6 +273,11 @@ export function connectWorkbench(): WorkbenchBridge {
     const theme = parseTheme(data);
     if (theme) {
       applyTheme(theme);
+      return;
+    }
+    const action = parseAction(data);
+    if (action !== null) {
+      for (const listener of actionListeners) listener(action);
       return;
     }
     const bufferRequest = parseBufferRequest(data);
@@ -289,11 +323,19 @@ export function connectWorkbench(): WorkbenchBridge {
 
   // D-1065: the host draws an editor toolbar only for a document that says it
   // can hand over its buffer. Nothing else about the channel changes.
-  post({ v: 1, type: "ready", features: ["buffer"] });
+  post({
+    v: 1,
+    type: "ready",
+    features: ["buffer"],
+    ...(actions.length > 0 ? { actions: actions.map((action) => ({ ...action })) } : {}),
+  });
 
   return {
     get item() {
       return item;
+    },
+    onAction(listener) {
+      actionListeners.push(listener);
     },
     onItem(listener) {
       if (item) {

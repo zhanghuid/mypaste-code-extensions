@@ -6,6 +6,9 @@
  * D-1065：文档声明 `buffer` 特性，宿主因此在窗口顶部画出编辑器命令栏。
  * 文档只交出当前缓冲区与修订号，并接受宿主发来的整段替换；命令由宿主选择、
  * 由宿主执行，文档仍然没有调用格式化或高亮的入口。
+ *
+ * D-1068：复制与保存两个按钮也由宿主画在卡片头部。文档在 `ready` 里声明
+ * 它们，收到 `action` 时做原来的写回；按钮材质、尺寸与焦点都归宿主。
  */
 
 import { connectWorkbench, replaceRefusal, type BridgeResult } from "./bridge";
@@ -21,7 +24,10 @@ const HIGHLIGHT_LIMIT = 200_000;
 const INDENT = "  ";
 const SAVE_TITLE_LIMIT = 120;
 
-const bridge = connectWorkbench();
+const bridge = connectWorkbench([
+  { id: "copy", title: "复制文本" },
+  { id: "save", title: "保存为新条目", emphasis: true },
+]);
 
 function one<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -36,8 +42,6 @@ const dirtyMark = one<HTMLElement>("#doc-dirty");
 const gutter = one<HTMLElement>("#editor-gutter");
 const highlight = one<HTMLElement>("#editor-highlight");
 const input = one<HTMLTextAreaElement>("#editor-input");
-const saveButton = one<HTMLButtonElement>("[data-action=save]");
-const copyButton = one<HTMLButtonElement>("[data-action=copy]");
 const status = one<HTMLElement>("#doc-status");
 
 let originalText = "";
@@ -128,20 +132,16 @@ function render(): void {
   syncScroll();
 }
 
-function setActions(enabled: boolean): void {
-  saveButton.disabled = !enabled;
-  copyButton.disabled = !enabled;
-}
-
 async function run(action: () => Promise<void>): Promise<void> {
+  // The host's buttons cannot be disabled from here (D-1068); a press that
+  // lands mid-write is simply ignored, and the status line already says what
+  // is happening.
   if (busy) return;
   busy = true;
-  setActions(false);
   try {
     await action();
   } finally {
     busy = false;
-    setActions(true);
   }
 }
 
@@ -210,8 +210,10 @@ input.addEventListener("keydown", (event) => {
   }
 });
 
-saveButton.addEventListener("click", () => void save());
-copyButton.addEventListener("click", () => void copy());
+bridge.onAction((id) => {
+  if (id === "save") void save();
+  else if (id === "copy") void copy();
+});
 
 bridge.onItem((item) => {
   originalText = item.text;

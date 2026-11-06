@@ -1,12 +1,13 @@
-"""The code-edit document's buffer exchange (host D-1065).
+"""The code-edit document's buffer exchange and action row (D-1065, D-1068).
 
 The document runs in a browser sandbox, but its bridge is plain TypeScript with
 one dependency on the host's message channel. This test bundles the bridge with
 the same esbuild the workbench build uses, runs it under Node with a minimal
 window/parent stub, and drives the exact messages the host sends: `ready` with
-the buffer feature, `buffer-request`, and `replace` at a current and a stale
-revision. The refusal rule comes from the package's own bridge module, so the
-revision-mismatch sentence is the one the document really uses.
+the buffer feature and the declared actions, `buffer-request`, `replace` at a
+current and a stale revision, and an `action` press. The refusal rule comes
+from the package's own bridge module, so the revision-mismatch sentence is the
+one the document really uses.
 """
 
 from __future__ import annotations
@@ -49,9 +50,34 @@ function emit(data) {
 const last = () => posted.at(-1);
 const checks = [];
 
-const bridge = connectWorkbench();
-assert.deepEqual(posted[0], { v: 1, type: "ready", features: ["buffer"] });
-checks.push("ready advertises the buffer feature");
+const ACTIONS = [
+  { id: "copy", title: "复制文本" },
+  { id: "save", title: "保存为新条目", emphasis: true },
+];
+const bridge = connectWorkbench(ACTIONS);
+assert.deepEqual(posted[0], {
+  v: 1,
+  type: "ready",
+  features: ["buffer"],
+  actions: [
+    { id: "copy", title: "复制文本" },
+    { id: "save", title: "保存为新条目", emphasis: true },
+  ],
+});
+checks.push("ready advertises the buffer feature and its action row");
+
+const pressed = [];
+bridge.onAction((id) => pressed.push(id));
+emit({ v: 1, type: "action", id: "save" });
+assert.deepEqual(pressed, ["save"]);
+checks.push("a declared action press reaches the document");
+
+const beforeAction = posted.length;
+emit({ v: 1, type: "action", id: "save", extra: true });
+emit({ v: 1, type: "action", id: "" });
+assert.equal(pressed.length, 1);
+assert.equal(posted.length, beforeAction);
+checks.push("an action with an extra key or empty id is dropped");
 
 const state = { text: "package main", revision: 0 };
 bridge.onBufferRequest(() => ({ text: state.text, revision: state.revision }));
@@ -153,7 +179,9 @@ class WorkbenchBridgeTest(unittest.TestCase):
             )
         checks = json.loads(self.result.stdout.strip().splitlines()[-1])
         self.assertEqual(checks, [
-            "ready advertises the buffer feature",
+            "ready advertises the buffer feature and its action row",
+            "a declared action press reaches the document",
+            "an action with an extra key or empty id is dropped",
             "buffer-request is answered with the buffer and its revision",
             "a replace at the current revision applies",
             "a replace at a stale revision changes nothing",

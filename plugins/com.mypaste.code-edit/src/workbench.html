@@ -203,22 +203,6 @@
   }
   #doc-status[data-tone="error"] { color: var(--mp-danger-ink, #b4472c); }
   #doc-status[hidden] { display: none; }
-  footer button {
-    padding: 6px 14px;
-    border: 1px solid var(--line);
-    background: transparent;
-    color: var(--ink);
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-  }
-  footer button:hover:not(:disabled) { border-color: var(--accent); }
-  footer button:disabled { opacity: 0.45; cursor: default; }
-  footer button[data-action="save"] {
-    border-color: transparent;
-    background: var(--accent);
-    color: var(--accent-ink);
-  }
 </style>
 </head>
 <body>
@@ -238,10 +222,9 @@
         autocapitalize="off" wrap="off" aria-label="文档内容"></textarea>
     </div>
   </div>
+  <!-- D-1068: the copy and save buttons live in the host's card header now. -->
   <footer>
     <span id="doc-status" role="status" aria-live="polite" hidden></span>
-    <button type="button" data-action="copy">复制文本</button>
-    <button type="button" data-action="save">保存为新条目</button>
   </footer>
 <script>
 <!--bundle-->
