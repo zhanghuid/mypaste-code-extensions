@@ -192,6 +192,16 @@ triggers); MyPaste lists them in the install confirmation, and the single
 enable switch is the whole permission decision (D-1039 in the host
 repository). There is no signature or trusted tier to obtain.
 
+`com.mypaste.sql` — the SQL toolkit extension (syntax highlighting, syntax
+diagnostics and formatting for seven dialects, lexed by
+[chroma](https://github.com/alecthomas/chroma)) — ships as a compiled binary
+too. Its Go source lives in `plugins/com.mypaste.sql/src/` (own `go.mod`);
+the archive contains only the manifest and the built binaries, never the
+source tree. Its spec declares a `targets` list, so the archive nests one
+binary per platform under `bin/<goos>-<goarch>/` (`.exe` on windows); the
+host resolves the declared entrypoint through that layout (D-1057 in the
+host repository).
+
 Build the official packages locally:
 
 ```sh
@@ -208,8 +218,9 @@ SHA-256 for review. The feed carries that digest; it does not carry a
 signature, and MyPaste ignores one if an older feed still has it.
 
 Official binaries are built for macOS arm64 (`CGO_ENABLED=0`, `-trimpath`),
-matching the app's first shipping platform. Additional targets are added to
-`scripts/official_packages.py` when the app ships them.
+matching the app's first shipping platform; packages that declare a
+`targets` list build every listed platform the same way. Additional targets
+are added to `scripts/official_packages.py` when the app ships them.
 
 ## Build
 

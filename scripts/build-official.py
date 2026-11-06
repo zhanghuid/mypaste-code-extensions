@@ -4,7 +4,9 @@
 The packages under plugins/*/ that this script owns (OFFICIAL below) come in
 two shapes, and the shipped archive never contains the source tree:
 
-- a compiled Go program (manifest, menu page, one built binary);
+- a compiled Go program (manifest, menu page, one built binary — or, for a
+  package with a `targets` list, one binary per platform under
+  `bin/<goos>-<goarch>/`);
 - a workbench document (manifest plus the one HTML fragment the host serves,
   bundled from src/ by scripts/build-workbenches.mjs). A workbench package
   runs no process, so it carries no binary at all.
@@ -52,18 +54,35 @@ def fail(message: str) -> None:
 
 def build_binary(spec: dict, staging: Path) -> None:
     module = ROOT / spec["module"]
-    output = staging / spec["entrypoint"]
-    environment = dict(os.environ,
-                       CGO_ENABLED="0", GOOS=spec["goos"], GOARCH=spec["goarch"])
-    # -buildvcs=false keeps the binary out of the commit history: without it Go
-    # stamps the repository revision into the executable, so every rebuild of an
-    # unchanged package produced a new archive under the same version.
-    done = subprocess.run(
-        ["go", "build", "-trimpath", "-buildvcs=false", "-o", str(output),
-         spec["package"]],
-        cwd=module, env=environment, capture_output=True, text=True)
-    if done.returncode != 0:
-        fail(f"go build failed:\n{done.stderr.strip()}")
+    targets = spec.get("targets") or [{
+        "goos": spec["goos"], "goarch": spec["goarch"],
+    }]
+    for target in targets:
+        # A single-target package keeps the flat layout the first host knew:
+        # the binary sits beside the manifest. A multi-target package nests
+        # one binary per platform under bin/<goos>-<goarch>/, which the host
+        # resolves through (D-1057 in the host repository).
+        if len(targets) == 1:
+            output = staging / spec["entrypoint"]
+        else:
+            name = spec["entrypoint"]
+            if target["goos"] == "windows":
+                name += ".exe"
+            output = staging / "bin" / target["goos"] / target["goarch"] / name
+        output.parent.mkdir(parents=True, exist_ok=True)
+        environment = dict(os.environ,
+                           CGO_ENABLED="0", GOOS=target["goos"],
+                           GOARCH=target["goarch"])
+        # -buildvcs=false keeps the binary out of the commit history: without
+        # it Go stamps the repository revision into the executable, so every
+        # rebuild of an unchanged package produced a new archive under the
+        # same version.
+        done = subprocess.run(
+            ["go", "build", "-trimpath", "-buildvcs=false", "-o", str(output),
+             spec["package"]],
+            cwd=module, env=environment, capture_output=True, text=True)
+        if done.returncode != 0:
+            fail(f"go build failed:\n{done.stderr.strip()}")
 
 
 def build_workbench(plugin_id: str, output: Path) -> None:

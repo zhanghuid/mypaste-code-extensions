@@ -5,11 +5,15 @@ pipelines read it: scripts/build-official.py builds and signs exactly these,
 and scripts/package.py skips them, because their capability model and runtime
 shape are outside the run-script allowlist it validates.
 
-A binary package's spec names the Go module that builds the entrypoint, the
-asset files copied into the archive beside the manifest, and the platform the
-binary is built for (the host's first shipping platform; see the README). A
-workbench package's spec is `{"workbench": True}`: the archive holds the
-manifest and the one document the host serves, and no process runs at all.
+A binary package's spec names the Go module that builds the entrypoint and
+the asset files copied into the archive beside the manifest, plus either one
+platform (`goos`/`goarch`, the host's first shipping platform; see the README)
+or a `targets` list: a multi-target package ships one binary per platform
+under `bin/<goos>-<goarch>/<entrypoint>` (`.exe` appended on windows), and the
+host resolves the entrypoint through that layout (D-1057 in the host
+repository). A workbench package's spec is `{"workbench": True}`: the archive
+holds the manifest and the one document the host serves, and no process runs
+at all.
 """
 
 OFFICIAL = {
@@ -32,5 +36,20 @@ OFFICIAL = {
         "assets": ["menu.html"],
         "goos": "darwin",
         "goarch": "arm64",
+    },
+    "com.mypaste.sql": {
+        "module": "plugins/com.mypaste.sql/src",
+        "entrypoint": "sql",
+        "package": "./cmd/mypaste-sql",
+        "assets": [],
+        # One binary per platform the host may ever run on; the layout the
+        # host resolves through is bin/<goos>-<goarch>/<entrypoint>.
+        "targets": [
+            {"goos": "darwin", "goarch": "arm64"},
+            {"goos": "darwin", "goarch": "amd64"},
+            {"goos": "linux", "goarch": "amd64"},
+            {"goos": "linux", "goarch": "arm64"},
+            {"goos": "windows", "goarch": "amd64"},
+        ],
     },
 }

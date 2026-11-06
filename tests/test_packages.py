@@ -303,6 +303,33 @@ class PackageTests(unittest.TestCase):
                 archive.name,
             )
 
+    def test_multi_target_archives_ship_one_binary_per_platform(self) -> None:
+        # D-1057 in the host repository: a package with a targets list nests
+        # one binary per platform under bin/<goos>-<goarch>/ (".exe" on
+        # windows), while single-target packages keep the flat layout.
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import official_packages  # noqa: E402
+
+        spec = official_packages.OFFICIAL["com.mypaste.sql"]
+        archive = next(
+            path for path in DIST.glob("com.mypaste.sql-*.mypaste-plugin")
+        )
+        with zipfile.ZipFile(archive) as bundle:
+            names = bundle.namelist()
+        expected = {
+            f"bin/{target['goos']}/{target['goarch']}/"
+            + ("sql.exe" if target["goos"] == "windows" else "sql")
+            for target in spec["targets"]
+        }
+        self.assertEqual(expected, expected & set(names))
+        self.assertIn("mypaste.plugin.json", names)
+        flat = next(
+            path for path in DIST.glob("com.mypaste.ferry-*.mypaste-plugin")
+        )
+        with zipfile.ZipFile(flat) as bundle:
+            self.assertIn("ferry", bundle.namelist())
+            self.assertFalse(any(name.startswith("bin/") for name in bundle.namelist()))
+
     def test_dist_index_covers_every_package_with_verified_digests(self) -> None:
         build_packages()
         index = json.loads((DIST / "index.json").read_text(encoding="utf-8"))

@@ -143,6 +143,16 @@
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
+      "id": "com.mypaste.sql",
+      "name": "SQL Toolkit",
+      "version": "1.0.0",
+      "description": "SQL 语法高亮、语法错误提示与格式化：七种方言，跨平台官方包；失败时回退内置高亮、不写剪贴板。",
+      "fileName": "com.mypaste.sql-1.0.0.mypaste-plugin",
+      "sha256": "f6056409d69617a386a9c770dd48ff9a737eb63617913c19aa42cec9d9f6715c",
+      "runtimeProtocol": 2,
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
+    },
+    {
       "id": "mypaste.format-typescript",
       "name": "TypeScript Format",
       "version": "2.0.0",
