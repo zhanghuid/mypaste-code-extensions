@@ -72,20 +72,35 @@ class PackageTests(unittest.TestCase):
     def test_packaging_rejects_undeclared_commands(self) -> None:
         packaging = load_packaging()
         packaging.validate_target(
-            {"id": "format", "appliesTo": ["text", "rich_text"], "languages": ["json"]},
+            {
+                "id": "format",
+                "forms": ["text"],
+                "languages": ["json"],
+                "surface": "editor",
+                "capabilities": ["selection.read"],
+                "output": ["text/plain"],
+            },
             "mypaste.format-json",
         )
         invalid = [
             {"id": "format", "languages": ["json"]},
-            {"id": "format", "appliesTo": [], "languages": ["json"]},
-            {"id": "format", "appliesTo": "text", "languages": ["json"]},
-            {"id": "format", "appliesTo": [["text"]], "languages": ["json"]},
-            {"id": "format", "appliesTo": ["pdf"], "languages": ["json"]},
-            {"id": "format", "appliesTo": ["text", "text"], "languages": ["json"]},
-            {"id": "format", "appliesTo": ["text"]},
-            {"id": "format", "appliesTo": ["text"], "languages": ["JSON"]},
-            {"id": "format", "appliesTo": ["text"], "languages": ["json", "json"]},
-            {"id": "format", "appliesTo": ["image"], "languages": ["json"]},
+            {"id": "format", "forms": [], "languages": ["json"]},
+            {"id": "format", "forms": "text", "languages": ["json"]},
+            {"id": "format", "forms": [["text"]]},
+            {"id": "format", "forms": ["pdf"]},
+            {"id": "format", "forms": ["text", "text"]},
+            {"id": "format", "forms": ["text"], "languages": ["JSON"]},
+            {"id": "format", "forms": ["text"], "languages": ["json", "json"]},
+            {"id": "format", "forms": ["image"], "languages": ["json"]},
+            {"id": "format", "forms": ["text"], "surface": "toolbar"},
+            {"id": "format", "forms": ["text"], "surface": "renderer"},
+            {
+                "id": "format",
+                "forms": ["text"],
+                "surface": "editor",
+                "capabilities": ["selection.read"],
+            },
+            {"id": "sync", "surface": "data-action"},
         ]
         stderr = io.StringIO()
         for command in invalid:
@@ -93,31 +108,36 @@ class PackageTests(unittest.TestCase):
                 packaging.validate_target(command, "mypaste.format-json")
 
     def test_every_package_has_valid_manifest(self) -> None:
-        official = official_ids()
-        # Official packages are compiled by build-official.py; their source
-        # tree holds no entrypoint binary and their capability model is the
-        # official one, not the run-script allowlist.
         packages = sorted(p for p in PLUGINS.iterdir()
-                          if p.is_dir() and p.name not in official)
+                          if p.is_dir() and not p.name.startswith("."))
         self.assertGreaterEqual(len(packages), 16)
         for package in packages:
             manifest = json.loads((package / "mypaste.plugin.json").read_text())
-            self.assertEqual(manifest["manifestVersion"], 1)
-            self.assertEqual(manifest["runtime"]["protocolVersion"], 2)
-            self.assertTrue((package / manifest["runtime"]["entrypoint"]).is_file())
+            self.assertEqual(manifest["manifestVersion"], 2)
+            runtime = manifest.get("runtime")
+            if runtime:
+                self.assertEqual(runtime["protocolVersion"], 2)
+                self.assertTrue(runtime.get("entrypoint"))
             capabilities = set(manifest.get("capabilities", []))
-            language = manifest["id"].rsplit("-", 1)[-1]
             if manifest["id"].startswith("mypaste.highlight-"):
                 self.assertEqual(capabilities, {"selection.render"})
             elif manifest["id"].startswith("mypaste.format-"):
-                self.assertEqual(capabilities, {"selection.read", "clipboard.write"})
-            # Every command declares what it acts on. MyPaste filters the
-            # command palette by these kinds and binds the preview formatter
-            # and highlighter by the declared language, so a package without
-            # the declaration silently stops being usable there.
-            command = manifest["commands"][0]
-            self.assertEqual(command["appliesTo"], ["text", "rich_text"])
-            self.assertEqual(command["languages"], [language])
+                self.assertEqual(capabilities, {"selection.read"})
+            # Every command names its surface and, unless it is a data action,
+            # the form subtree it acts on. MyPaste filters each surface by
+            # these declarations, so a package without them is never offered.
+            for command in manifest.get("commands", []):
+                self.assertIn(command.get("surface", "palette"),
+                              {"renderer", "palette", "editor", "workbench",
+                               "data-action"})
+                if command.get("surface") == "data-action":
+                    self.assertNotIn("forms", command)
+                else:
+                    self.assertTrue(command.get("forms"), manifest["id"])
+                self.assertNotIn("appliesTo", command)
+                self.assertNotIn("global", command)
+                self.assertNotIn("workbench", command)
+            self.assertNotIn("menu", manifest)
 
     def test_index_declares_each_package_runtime_protocol(self) -> None:
         # The host filters catalog entries by this field before listing them,
@@ -433,8 +453,8 @@ class PackageTests(unittest.TestCase):
                 self.assertEqual(companion, "previous-text", plugin_id)
             self.assertTrue(manifest["commands"], plugin_id)
             for command in manifest["commands"]:
-                self.assertTrue(command.get("workbench"), plugin_id)
-                self.assertTrue(command.get("appliesTo"), plugin_id)
+                self.assertEqual(command.get("surface"), "workbench", plugin_id)
+                self.assertTrue(command.get("forms") or command.get("surface") == "data-action", plugin_id)
                 self.assertNotIn("capabilities", command, plugin_id)
                 self.assertNotIn("pageAction", command, plugin_id)
 

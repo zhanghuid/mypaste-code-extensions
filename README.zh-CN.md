@@ -39,31 +39,54 @@
 | Go | `mypaste.format-go` | `mypaste.highlight-go` |
 | Rust | `mypaste.format-rust` | `mypaste.highlight-rust` |
 
-格式化包申请 `selection.read` 与 `clipboard.write`。高亮包只申请
+格式化包只申请 `selection.read`：它们返回文本，从不写剪贴板。高亮包只申请
 `selection.render`；它们不能写剪贴板、读历史、用文件、联网或执行任意命令。
 
-## 命令声明
+## manifest 版本 2
 
-每个包都声明自己的命令作用于什么：
+所有 manifest 都是 `"manifestVersion": 2`。命令声明它作用于哪些内容形态，
+以及它出现在哪一个表面：
 
 ```json
 "commands": [{
   "id": "format",
-  "appliesTo": ["text", "rich_text"],
+  "forms": ["text"],
   "languages": ["go"],
-  "capabilities": ["selection.read", "clipboard.write"],
+  "surface": "editor",
+  "input": ["text/plain"],
+  "output": ["text/plain"],
+  "capabilities": ["selection.read"],
   "...": "..."
 }]
 ```
 
-`appliesTo` 是封闭集合——`text`、`rich_text`、`image`、`link`、`file`、
-`color`；`languages` 列出命令处理的代码语言。只有文本命令可以声明语言。
-MyPaste 只对匹配的条目在 Cmd+K 命令面板里提供该命令，把它归到所声明的语言
-下，并在运行前重查声明。没有声明时，包仍会被发现、可以安装，但它的命令
-不会被提供。
+`forms` 使用宿主的形态树：`text`（`plain`、`rich`）、`link`、`color`、
+`media`（`image`、`audio`、`video`）与 `file`（`document`、`archive`、
+`folder`、`other`）。声明匹配整棵子树，所以 `text` 同时覆盖纯文本与富文本。
+`forms` 为空表示命令不区分形态。
+
+`surface` 是以下之一：
+
+| 表面 | 出现位置 | 要求 |
+| --- | --- | --- |
+| `renderer` | 绘制代码预览 | 声明 `selection.render` |
+| `palette` | Cmd+K 命令面板（默认） | — |
+| `editor` | 代码编辑器的动作条 | 声明 `selection.read`，输出 `text/plain` |
+| `workbench` | 打开包自己的文档 | 声明形态，不启动进程 |
+| `data-action` | 宿主数据动作，不面对剪贴板条目 | 至少声明一项能力 |
+
+声明了 `languages` 的命令必须位于文字子树内。`"*"` 表示所有语言，必须单独
+声明。编辑器表面只收文本：MyPaste 丢弃复制效果，不写剪贴板；不按保存就不
+写入历史。渲染表面只负责呈现，所以预览不会用格式化器改写已存内容。
+
+一个包最多可以用 `menus` 增加八个一级标签；每个标签有唯一 `id`、不超过 24
+个字的标题、一个 HTML 入口，并可选 `statusCommand`、最多六项 `actions` 与
+`order`。MyPaste 按 `order`、包 ID、声明顺序排序。
 
 `scripts/package.py` 拒绝命令缺失或误用这些字段的包：读不懂的声明在构建时
-失败，而不是带着问题上架。
+失败，而不是带着问题上架。版本 1 的 manifest 仍可安装：`appliesTo` 映射到
+`forms`，`global` 变成 `data-action`，`workbench` 变成 `workbench`，单个
+`menu` 变成 id 为 `menu` 的一条 `menus`。
 
 ## 工作台包
 
@@ -81,8 +104,8 @@ MyPaste 只对匹配的条目在 Cmd+K 命令面板里提供该命令，把它�
 "commands": [{
   "id": "clipboard.code-card",
   "title": "导出代码卡片",
-  "appliesTo": ["text", "rich_text"],
-  "workbench": true
+  "forms": ["text"],
+  "surface": "workbench"
 }]
 ```
 

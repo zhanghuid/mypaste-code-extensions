@@ -1,12 +1,12 @@
 {
-  "manifestVersion": 1,
+  "manifestVersion": 2,
   "id": "com.mypaste.ferry",
   "name": "跨设备同步",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "在已配对的 Mac 之间同步文本、图片与文件条目：端到端加密、离线排队、经你自己的中继转发；文件与目录由你在落盘前确认。中继只能看到设备 ID、消息大小与时间，看不到正文；扩展密钥由扩展私有目录的文件权限保护；自建中继的 TLS 证书由你负责；接收的文件不做病毒扫描。交互思路参考 PasteFerry（AGPL-3.0），未使用其源码或协议实现。",
   "capabilities": [
-    "entry.payload",
     "clipboard.write",
+    "entry.payload",
     "network.outbound",
     "storage.plugin"
   ],
@@ -24,7 +24,7 @@
       "capabilities": [
         "storage.plugin"
       ],
-      "global": true
+      "surface": "data-action"
     },
     {
       "id": "sync.push",
@@ -35,7 +35,7 @@
         "network.outbound",
         "storage.plugin"
       ],
-      "global": true
+      "surface": "data-action"
     },
     {
       "id": "sync.pull",
@@ -46,7 +46,7 @@
         "network.outbound",
         "storage.plugin"
       ],
-      "global": true
+      "surface": "data-action"
     },
     {
       "id": "sync.pair.begin",
@@ -56,7 +56,7 @@
         "network.outbound",
         "storage.plugin"
       ],
-      "global": true
+      "surface": "data-action"
     },
     {
       "id": "sync.pair.redeem",
@@ -66,7 +66,7 @@
         "network.outbound",
         "storage.plugin"
       ],
-      "global": true
+      "surface": "data-action"
     },
     {
       "id": "sync.pair.confirm",
@@ -75,7 +75,7 @@
       "capabilities": [
         "storage.plugin"
       ],
-      "global": true
+      "surface": "data-action"
     },
     {
       "id": "sync.pair.cancel",
@@ -84,7 +84,7 @@
       "capabilities": [
         "storage.plugin"
       ],
-      "global": true
+      "surface": "data-action"
     },
     {
       "id": "sync.unpair",
@@ -93,7 +93,7 @@
       "capabilities": [
         "storage.plugin"
       ],
-      "global": true
+      "surface": "data-action"
     },
     {
       "id": "sync.autosync",
@@ -102,7 +102,7 @@
       "capabilities": [
         "storage.plugin"
       ],
-      "global": true
+      "surface": "data-action"
     },
     {
       "id": "sync.queue.clear",
@@ -111,7 +111,7 @@
       "capabilities": [
         "storage.plugin"
       ],
-      "global": true
+      "surface": "data-action"
     }
   ],
   "triggers": [
@@ -127,19 +127,6 @@
       "minutes": 1
     }
   ],
-  "menu": {
-    "title": "跨设备同步",
-    "entry": "menu.html",
-    "statusCommand": "sync.status",
-    "actions": [
-      "sync.pair.begin",
-      "sync.pair.cancel",
-      "sync.unpair",
-      "sync.autosync",
-      "sync.pull",
-      "sync.queue.clear"
-    ]
-  },
   "settings": [
     {
       "key": "relayurl",
@@ -156,6 +143,22 @@
       "description": "显示在已配对设备上的名称，最多 64 个字符。",
       "default": "",
       "maxLength": 64
+    }
+  ],
+  "menus": [
+    {
+      "id": "sync",
+      "title": "跨设备同步",
+      "entry": "menu.html",
+      "statusCommand": "sync.status",
+      "actions": [
+        "sync.pair.begin",
+        "sync.pair.cancel",
+        "sync.unpair",
+        "sync.autosync",
+        "sync.pull",
+        "sync.queue.clear"
+      ]
     }
   ]
 }

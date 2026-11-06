@@ -42,33 +42,60 @@ Each language has two independently installable packages:
 | Go | `mypaste.format-go` | `mypaste.highlight-go` |
 | Rust | `mypaste.format-rust` | `mypaste.highlight-rust` |
 
-Formatting packages request `selection.read` and `clipboard.write`.
-Highlighting packages request only `selection.render`; they cannot write the
-clipboard, read history, use files, network, or spawn arbitrary commands.
+Formatting packages request only `selection.read`: they answer with text and
+never write the clipboard. Highlighting packages request only
+`selection.render`; they cannot write the clipboard, read history, use files,
+network, or spawn arbitrary commands.
 
-## Command declaration
+## Manifest version 2
 
-Every package declares what its command acts on:
+Every manifest is `"manifestVersion": 2`. A command names the content forms it
+acts on and the one surface it appears on:
 
 ```json
 "commands": [{
   "id": "format",
-  "appliesTo": ["text", "rich_text"],
+  "forms": ["text"],
   "languages": ["go"],
-  "capabilities": ["selection.read", "clipboard.write"],
+  "surface": "editor",
+  "input": ["text/plain"],
+  "output": ["text/plain"],
+  "capabilities": ["selection.read"],
   "...": "..."
 }]
 ```
 
-`appliesTo` is a closed set — `text`, `rich_text`, `image`, `link`, `file`,
-`color` — and `languages` lists the code languages the command handles. Only
-text commands may declare languages. MyPaste offers the command in the Cmd+K
-command palette only for matching items, groups it under the declared language,
-and re-checks the declaration before running it. Without the declaration a
-package is discovered and can be installed, but its command is not offered.
+`forms` uses the host's form tree: `text` (`plain`, `rich`), `link`, `color`,
+`media` (`image`, `audio`, `video`) and `file` (`document`, `archive`,
+`folder`, `other`). A declaration matches its whole subtree, so `text` covers
+plain and rich text. An empty `forms` list makes the command form-agnostic.
+
+`surface` is one of:
+
+| surface | where it appears | requirement |
+| --- | --- | --- |
+| `renderer` | paints the code preview | declares `selection.render` |
+| `palette` | the Cmd+K command palette (default) | — |
+| `editor` | the code editor's action bar | declares `selection.read`, outputs `text/plain` |
+| `workbench` | opens the package's own document | declares forms, starts no process |
+| `data-action` | a host data action, no clipboard item | declares at least one capability |
+
+A command that names a `languages` entry must stay inside the text subtree.
+`"*"` declares every language and must stand alone. The editor surface gets
+text only: MyPaste drops any copy effect instead of writing the clipboard, and
+saves nothing unless you press save. The renderer surface is presentation only,
+so a preview never rewrites the stored text with a formatter.
+
+A package may add up to eight top-level tabs with `menus`; each tab has a
+unique `id`, a title of at most 24 characters, one HTML entry, and optionally a
+`statusCommand`, up to six `actions` and an `order`. MyPaste sorts tabs by
+`order`, then package id, then declaration order.
 
 `scripts/package.py` rejects a package whose commands omit or misuse these
 fields, so an unreadable declaration fails the build instead of shipping.
+Version 1 manifests still install: `appliesTo` maps onto `forms`, `global`
+becomes `data-action`, `workbench` becomes `workbench`, and the single `menu`
+becomes one `menus` entry with the id `menu`.
 
 ## Workbench packages
 
@@ -88,8 +115,8 @@ where roundness is the shape's meaning, such as a status dot.
 "commands": [{
   "id": "clipboard.code-card",
   "title": "导出代码卡片",
-  "appliesTo": ["text", "rich_text"],
-  "workbench": true
+  "forms": ["text"],
+  "surface": "workbench"
 }]
 ```
 

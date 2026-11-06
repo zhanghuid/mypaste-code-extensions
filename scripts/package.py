@@ -26,10 +26,15 @@ MAX_INDEX_VERSION = 32
 PLUGIN_ID = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$")
 PLUGIN_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$")
 LANGUAGE = re.compile(r"^[a-z][a-z0-9+#-]*$")
-# The host owns the clipboard item kinds; a package may only declare kinds it
-# knows, and the host re-checks the declaration before running a command.
-TARGET_KINDS = {"text", "rich_text", "image", "link", "file", "color"}
-TEXT_KINDS = {"text", "rich_text"}
+# The host owns the content-form tree (D-1060); a package may only name nodes
+# the host declares, and the host re-checks the declaration before running a
+# command. A form matches its whole subtree, so "text" covers plain and rich.
+FORMS = {
+    "text", "plain", "rich", "link", "color", "media", "image", "audio",
+    "video", "file", "document", "archive", "folder", "other",
+}
+TEXT_FORMS = {"text", "plain", "rich"}
+SURFACES = {"renderer", "palette", "editor", "workbench", "data-action"}
 
 
 def fail(message: str) -> None:
@@ -52,8 +57,10 @@ def validate(package: Path) -> dict:
     if not manifest_path.is_file():
         fail(f"{package.name}: missing mypaste.plugin.json")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("manifestVersion") != 1:
-        fail(f"{package.name}: manifestVersion must be 1")
+    if manifest.get("manifestVersion") != 2:
+        fail(f"{package.name}: manifestVersion must be 2")
+    if "menu" in manifest:
+        fail(f"{package.name}: manifestVersion 2 uses menus, not menu")
     runtime = manifest.get("runtime")
     if not runtime or runtime.get("protocolVersion") != 2:
         fail(f"{package.name}: runtime protocolVersion must be 2")
@@ -80,32 +87,57 @@ def validate(package: Path) -> dict:
 
 
 def validate_target(command: dict, package_name: str) -> None:
-    """Every command declares what it acts on and which languages it serves.
+    """Every command declares its content forms, its surface and its languages.
 
     The declaration is the protocol contract with the host: the host filters
-    the command list by kind and binds the preview formatter and highlighter
-    by the declared language, so an undeclared command is unusable there.
+    each surface by it, and the page matches the form subtree and the language
+    before offering the command (D-1060, D-1063). A command without `forms` is
+    form-agnostic; a command that names a language must sit under `text`.
     """
-    applies_to = command.get("appliesTo")
-    if not isinstance(applies_to, list) or not applies_to:
-        fail(f"{package_name}: command {command.get('id')} must declare appliesTo")
-    if not all(isinstance(kind, str) for kind in applies_to):
-        fail(f"{package_name}: target kinds must be strings")
-    unknown = set(applies_to) - TARGET_KINDS
+    surface = command.get("surface", "palette")
+    if surface not in SURFACES:
+        fail(f"{package_name}: unknown surface {surface!r}")
+    forms = command.get("forms", [])
+    if not isinstance(forms, list):
+        fail(f"{package_name}: forms must be a list")
+    if not all(isinstance(form, str) for form in forms):
+        fail(f"{package_name}: forms must be strings")
+    unknown = set(forms) - FORMS
     if unknown:
-        fail(f"{package_name}: unknown target kinds {sorted(unknown)}")
-    if len(set(applies_to)) != len(applies_to):
-        fail(f"{package_name}: duplicate target kind in {command.get('id')}")
-    languages = command.get("languages")
-    if not isinstance(languages, list) or not languages:
-        fail(f"{package_name}: command {command.get('id')} must declare languages")
+        fail(f"{package_name}: unknown forms {sorted(unknown)}")
+    if len(set(forms)) != len(forms):
+        fail(f"{package_name}: duplicate form in {command.get('id')}")
+    if surface == "data-action":
+        if forms or command.get("languages"):
+            fail(f"{package_name}: data actions declare no forms or languages")
+    elif not forms:
+        fail(f"{package_name}: command {command.get('id')} must declare forms")
+    languages = command.get("languages", [])
+    if not isinstance(languages, list):
+        fail(f"{package_name}: languages must be a list")
     for language in languages:
+        if language == "*":
+            continue
         if not isinstance(language, str) or not LANGUAGE.match(language):
             fail(f"{package_name}: invalid language {language!r}")
     if len(set(languages)) != len(languages):
         fail(f"{package_name}: duplicate language in {command.get('id')}")
-    if not set(applies_to) <= TEXT_KINDS:
-        fail(f"{package_name}: only text commands may declare languages")
+    if "*" in languages and len(languages) > 1:
+        fail(f"{package_name}: wildcard language must stand alone")
+    if languages and not set(forms) <= TEXT_FORMS:
+        fail(f"{package_name}: only text forms may declare languages")
+    capabilities = set(command.get("capabilities", []))
+    if surface == "renderer" and "selection.render" not in capabilities:
+        fail(f"{package_name}: renderer commands must declare selection.render")
+    if surface == "editor":
+        if "selection.read" not in capabilities:
+            fail(f"{package_name}: editor commands must declare selection.read")
+        if "text/plain" not in command.get("output", []):
+            fail(f"{package_name}: editor commands must output text/plain")
+    if surface == "workbench" and capabilities:
+        fail(f"{package_name}: workbench commands do not start a process")
+    if surface == "data-action" and not capabilities:
+        fail(f"{package_name}: data actions must declare a capability")
 
 
 def files_for(package: Path) -> list[Path]:

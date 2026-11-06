@@ -14,31 +14,36 @@ clipboard-write authority just because it is installed for preview.
 
 ## What a command declares
 
-Every command in `mypaste.plugin.json` says what it acts on and which code
-languages it serves:
+Every command in `mypaste.plugin.json` (manifest version 2) says which content
+forms it acts on, which surface it appears on, and which code languages it
+serves:
 
 ```json
 "commands": [{
   "id": "format",
   "title": "格式化 JSON",
   "description": "...",
-  "appliesTo": ["text", "rich_text"],
+  "forms": ["text"],
   "languages": ["json"],
+  "surface": "editor",
   "input": ["text/plain"],
   "output": ["text/plain"],
-  "capabilities": ["selection.read", "clipboard.write"]
+  "capabilities": ["selection.read"]
 }]
 ```
 
-- `appliesTo` is a closed set of clipboard item kinds: `text`, `rich_text`,
-  `image`, `link`, `file`, `color`. MyPaste only offers a command for an item
-  whose kind it declares, and it re-checks the declaration before running it.
-  A command that omits `appliesTo` is treated as kind-agnostic.
-- `languages` names the code languages the command handles. Only commands that
-  apply to text may declare languages. MyPaste groups the command palette by
-  this declaration and binds the preview formatter (`selection.read` +
-  `clipboard.write`) and highlighter (`selection.render`) by it. The plugin ID
-  is an identity, never a language: a package may be named anything.
+- `forms` names nodes of the host's form tree: `text` (`plain`, `rich`),
+  `link`, `color`, `media` (`image`, `audio`, `video`) and `file`
+  (`document`, `archive`, `folder`, `other`). A declaration matches its whole
+  subtree; an empty list is form-agnostic. MyPaste re-checks the declaration
+  before running a command.
+- `surface` is `renderer`, `palette` (the default), `editor`, `workbench` or
+  `data-action`. The renderer requires `selection.render`; the editor requires
+  `selection.read` and a `text/plain` output and never receives a clipboard
+  write; a workbench declares forms and starts no process; a data action names
+  no forms and no languages.
+- `languages` names the code languages the command handles, or `*` for every
+  language. Only commands inside the text subtree may declare languages.
 
 The name of the plugin package is therefore free. `mypaste.format-json` is a
 convention for readers, not something the host parses.

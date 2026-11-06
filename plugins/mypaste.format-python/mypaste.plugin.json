@@ -1,19 +1,38 @@
 {
-  "manifestVersion": 1,
+  "manifestVersion": 2,
   "id": "mypaste.format-python",
   "name": "Python Format",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "使用本机可用工具格式化 Python；依赖缺失或语法错误时保留原文。",
-  "capabilities": ["selection.read", "clipboard.write"],
-  "runtime": {"protocolVersion": 2, "entrypoint": "run"},
-  "commands": [{
-    "id": "format",
-    "title": "格式化 Python",
-    "description": "本机格式化当前文本；失败时不写入剪贴板。",
-    "input": ["text/plain"],
-    "output": ["text/plain"],
-    "capabilities": ["selection.read", "clipboard.write"],
-    "appliesTo": ["text", "rich_text"],
-    "languages": ["python"]
-  }]
+  "capabilities": [
+    "selection.read"
+  ],
+  "runtime": {
+    "protocolVersion": 2,
+    "entrypoint": "run"
+  },
+  "commands": [
+    {
+      "id": "format",
+      "title": "格式化 Python",
+      "description": "本机格式化当前文本；失败时不写入剪贴板。",
+      "input": [
+        "text/plain"
+      ],
+      "output": [
+        "text/plain"
+      ],
+      "capabilities": [
+        "selection.read"
+      ],
+      "languages": [
+        "python"
+      ],
+      "forms": [
+        "plain",
+        "rich"
+      ],
+      "surface": "editor"
+    }
+  ]
 }

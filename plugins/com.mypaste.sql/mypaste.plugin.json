@@ -1,10 +1,13 @@
 {
-  "manifestVersion": 1,
+  "manifestVersion": 2,
   "id": "com.mypaste.sql",
   "name": "SQL Toolkit",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "SQL 语法高亮、语法错误提示与格式化：七种方言，跨平台官方包；失败时回退内置高亮、不写剪贴板。",
-  "capabilities": ["selection.render", "selection.read", "clipboard.write"],
+  "capabilities": [
+    "selection.read",
+    "selection.render"
+  ],
   "runtime": {
     "protocolVersion": 2,
     "entrypoint": "sql"
@@ -14,21 +17,45 @@
       "id": "highlight",
       "title": "高亮 SQL",
       "description": "返回方言感知的语法 token 与语法错误提示；失败时 MyPaste 自动回退内置高亮。",
-      "input": ["text/plain"],
-      "output": ["application/vnd.mypaste.render+json"],
-      "capabilities": ["selection.render"],
-      "appliesTo": ["text", "rich_text"],
-      "languages": ["sql"]
+      "input": [
+        "text/plain"
+      ],
+      "output": [
+        "application/vnd.mypaste.render+json"
+      ],
+      "capabilities": [
+        "selection.render"
+      ],
+      "languages": [
+        "sql"
+      ],
+      "forms": [
+        "plain",
+        "rich"
+      ],
+      "surface": "renderer"
     },
     {
       "id": "format",
       "title": "格式化 SQL",
       "description": "按方言排版 SQL 并复制；有语法错误时不写剪贴板并报告位置。",
-      "input": ["text/plain"],
-      "output": ["text/plain"],
-      "capabilities": ["selection.read", "clipboard.write"],
-      "appliesTo": ["text", "rich_text"],
-      "languages": ["sql"]
+      "input": [
+        "text/plain"
+      ],
+      "output": [
+        "text/plain"
+      ],
+      "capabilities": [
+        "selection.read"
+      ],
+      "languages": [
+        "sql"
+      ],
+      "forms": [
+        "plain",
+        "rich"
+      ],
+      "surface": "editor"
     }
   ],
   "settings": [
@@ -36,21 +63,37 @@
       "key": "dialect",
       "type": "enum",
       "title": "SQL 方言",
-      "values": ["ansi", "postgresql", "mysql", "sqlite", "tsql", "plsql", "bigquery"],
+      "values": [
+        "ansi",
+        "postgresql",
+        "mysql",
+        "sqlite",
+        "tsql",
+        "plsql",
+        "bigquery"
+      ],
       "default": "ansi"
     },
     {
       "key": "keywordcase",
       "type": "enum",
       "title": "关键字大小写",
-      "values": ["preserve", "upper", "lower"],
+      "values": [
+        "preserve",
+        "upper",
+        "lower"
+      ],
       "default": "preserve"
     },
     {
       "key": "indent",
       "type": "enum",
       "title": "缩进宽度",
-      "values": ["2", "4", "8"],
+      "values": [
+        "2",
+        "4",
+        "8"
+      ],
       "default": "4"
     }
   ]

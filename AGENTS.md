@@ -16,15 +16,21 @@ does not contain the MyPaste app or its database.
     saving an image as a new history entry, copying an image, and closing.
 - Highlighting packages may request only `selection.render` and must return
   bounded token arrays, never HTML or CSS.
-- Formatting packages may request only `selection.read` and `clipboard.write`.
-  They must return the original input on failure and must never execute user
-  code.
-- Every command must declare `appliesTo` (a non-empty subset of `text`,
-  `rich_text`, `image`, `link`, `file`, `color`) and `languages` (lowercase
-  tokens matching `^[a-z][a-z0-9+#-]*$`). Languages are allowed only for text
-  commands. The host filters the command palette and binds the preview
-  formatter/highlighter by this declaration; it never infers a language from the
-  plugin ID, so keep the IDs conventional for readers only.
+- Formatting packages may request only `selection.read` and declare the
+  `editor` surface. They must return the original input on failure and must
+  never execute user code; the host never writes their answer to the clipboard.
+- Every manifest is `manifestVersion: 2`. Every command must declare `forms`
+  (a non-empty subtree of the host's form tree: `text`/`plain`/`rich`, `link`,
+  `color`, `media`/`image`/`audio`/`video`, `file`/`document`/`archive`/
+  `folder`/`other`) and one `surface` (`renderer`, `palette`, `editor`,
+  `workbench`, `data-action`). `languages` (lowercase tokens matching
+  `^[a-z][a-z0-9+#-]*$`, or `*`) are allowed only inside the text subtree. The
+  host validates the declaration and the page matches the subtree and language;
+  it never infers a language from the plugin ID, so keep the IDs conventional
+  for readers only.
+- Tabs are declared with `menus` (at most eight, each with a unique `id` and
+  title, one HTML entry, optional `statusCommand`, at most six `actions`, and
+  an `order`). The host owns the tab order.
 - Official packages (`plugins/com.mypaste.*`, listed in
   `scripts/official_packages.py`) are packaged only by
   `scripts/build-official.py`; `scripts/package.py` skips them and their
