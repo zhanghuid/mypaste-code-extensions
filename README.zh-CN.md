@@ -11,20 +11,28 @@
 
 ## 包的种类
 
-本仓库有三类包：
+所有包都使用 MyPaste 插件协议 v3。v3 有两种角色：
 
-- **脚本包**（`plugins/mypaste.*`）——run-script 扩展，由 `scripts/package.py`
-  从纯源码打包；语言表见下文。
-- **工作台包**（`plugins/com.mypaste.code-card`、`plugins/com.mypaste.code-edit`、
+- **表面**——有 UI。交付一个页面，不运行进程；页面自己画界面，只通过表面桥
+  接触宿主。
+- **能力**——没有 UI，只有命令。声明了展示位的命令由宿主展示，其余由表面
+  通过注册表集成。
+
+本仓库包含：
+
+- **脚本能力包**（`plugins/mypaste.*`）——run-script 扩展，由
+  `scripts/package.py` 从纯源码打包；语言表见下文。
+- **二进制能力包**（`plugins/com.mypaste.ferry`、`plugins/com.mypaste.sql`）
+  ——编译后的 Go 程序，由 `scripts/build-official.py` 构建。
+- **表面包**（`plugins/com.mypaste.code-card`、`plugins/com.mypaste.code-edit`、
   `plugins/com.mypaste.diff-view`、`plugins/com.mypaste.image-edit`）——一个
-  HTML 文档，由 MyPaste 显示在工作台卡片里。它们不运行进程、不声明能力；
-  见下文「工作台包」。
-- **官方包**（`plugins/com.mypaste.*`）——编译后的 Go 二进制与工作台文档，
-  带更宽的能力，由 `scripts/build-official.py` 构建；见下文「官方包」。
+  HTML 页面，不运行进程；见下文「表面包」。
+- **官方包**（`plugins/com.mypaste.*`）——上面的二进制与表面，由
+  `scripts/build-official.py` 构建；见下文「官方包」。
   `scripts/official_packages.py` 是这份清单的唯一所有者；
   `scripts/package.py` 从不打包或校验它们。
 
-### 脚本包
+### 脚本能力包
 
 每种语言有两个可独立安装的包：
 
@@ -39,119 +47,99 @@
 | Go | `mypaste.format-go` | `mypaste.highlight-go` |
 | Rust | `mypaste.format-rust` | `mypaste.highlight-rust` |
 
-格式化包只申请 `selection.read`：它们返回文本，从不写剪贴板。高亮包只申请
-`selection.render`；它们不能写剪贴板、读历史、用文件、联网或执行任意命令。
+两类都只申请 `entity.read`。格式化返回文本，从不写剪贴板；高亮返回有界的
+token 数组，从不返回 HTML 或 CSS。两者都不能读历史、用文件、联网或执行任意
+命令。它们都不声明 `placement`，宿主因此从不直接展示：由表面通过注册表集成。
+语言是包自己的内部概念，宿主从不推断。
 
-## manifest 版本 2
+## manifest 版本 3
 
-所有 manifest 都是 `"manifestVersion": 2`。命令声明它作用于哪些内容形态，
-以及它出现在哪一个表面：
+所有 manifest 都是 `"manifestVersion": 3`，每条命令声明它作用于哪些实体形态：
 
 ```json
 "commands": [{
   "id": "format",
+  "title": "格式化 JSON",
   "forms": ["text"],
-  "languages": ["go"],
-  "surface": "editor",
-  "input": ["text/plain"],
-  "output": ["text/plain"],
-  "capabilities": ["selection.read"],
-  "...": "..."
+  "output": ["text"]
 }]
 ```
 
-`forms` 使用宿主的形态树：`text`（`plain`、`rich`）、`link`、`color`、
+`forms` 使用宿主的实体树：`text`（`plain`、`rich`）、`link`、`color`、
 `media`（`image`、`audio`、`video`）与 `file`（`document`、`archive`、
 `folder`、`other`）。声明匹配整棵子树，所以 `text` 同时覆盖纯文本与富文本。
-`forms` 为空表示命令不区分形态。
 
-`surface` 是以下之一：
+`output` 声明命令产出的实体；宿主据此裁决结果能否另存或复制。缺省与
+`forms` 相同。
 
-| 表面 | 出现位置 | 要求 |
-| --- | --- | --- |
-| `renderer` | 绘制代码预览 | 声明 `selection.render` |
-| `palette` | Cmd+K 命令面板（默认） | — |
-| `editor` | 代码编辑器的动作条 | 声明 `selection.read`，输出 `text/plain` |
-| `workbench` | 打开包自己的文档 | 声明形态，不启动进程 |
-| `data-action` | 宿主数据动作，不面对剪贴板条目 | 至少声明一项能力 |
+`placement` 声明宿主自己在哪里展示命令：
 
-声明了 `languages` 的命令必须位于文字子树内。`"*"` 表示所有语言，必须单独
-声明。编辑器表面只收文本：MyPaste 丢弃复制效果，不写剪贴板；不按保存就不
-写入历史。渲染表面只负责呈现，所以预览不会用格式化器改写已存内容。
+| placement | 出现位置 |
+| --- | --- |
+| `palette` | Cmd+K 命令面板 |
+| `card-action` | 当前实体卡片/预览的动作行 |
+| `trigger` | 后台触发器（宿主 D-1024），不占界面 |
 
-一个包最多可以用 `menus` 增加八个一级标签；每个标签有唯一 `id`、不超过 24
-个字的标题、一个 HTML 入口，并可选 `statusCommand`、最多六项 `actions` 与
-`order`。MyPaste 按 `order`、包 ID、声明顺序排序。
+命令可以不声明 `placement`：那它就是**纯能力**，宿主从不展示，只由表面通过
+注册表（0/1/N，命中键只有实体类型）集成。
 
-`scripts/package.py` 拒绝命令缺失或误用这些字段的包：读不懂的声明在构建时
-失败，而不是带着问题上架。版本 1 的 manifest 仍可安装：`appliesTo` 映射到
-`forms`，`global` 变成 `data-action`，`workbench` 变成 `workbench`，单个
-`menu` 变成 id 为 `menu` 的一条 `menus`。
+能力使用宿主的封闭服务清单，并只申请足以完成工作的最小一项：
+`entity.read`、`entity.save`、`copy`、`clipboard.write`、`entry.payload`、
+`secret.read`、`network.outbound`、`storage.plugin`、`companion.read`、
+`history.exchange`。
 
-## 工作台包
+`scripts/package.py` 拒绝缺少或误用这些字段的包，也拒绝仍带 v2 词汇
+（`surface: "editor"`、`appliesTo`、`global`、`menus`、`workbench`、
+`languages`）的 manifest：读不懂的声明在构建时失败，而不是带着问题上架。
+
+## 表面包
 
 `com.mypaste.code-card`、`com.mypaste.code-edit`、`com.mypaste.diff-view` 与
-`com.mypaste.image-edit` 交付的是文档而不是进程。MyPaste 读取 manifest 的
-`workbench.document`，包上自己的 CSP，放进沙箱 frame 显示；文档只能读取命令
-所作用的条目，把文本或图片另存为一条新历史、复制文本或图片，然后关闭。
-别的什么都到不了它——没有宿主绑定、没有资产路径、没有别的条目。
-
-声明为编辑器的文档（`editor: true`）还可以在 `ready` 消息里通告
-`features: ["buffer"]`（宿主 D-1065）。宿主随后在文档上方画出自己的工具栏，
-列出匹配的 `editor` 命令，并读取当前缓冲区；命令在该缓冲区上运行，结果以
-一条带读取时修订号的 `replace` 消息送回。文档仍然不运行、不命名、也发现
-不了命令：它只回答 `buffer-request`，并在修订号未变时应用 `replace`。
-
-文档遵循宿主的视觉规则（宿主 D-1045）：不画圆角盒子。卡片、面板、按钮与
-工具片一律直角；只有圆就是形状本意的地方（如状态点）才允许圆。
+`com.mypaste.image-edit` 交付页面而不是进程：
 
 ```json
-"workbench": {"title": "代码卡片", "document": "workbench.html"},
-"commands": [{
-  "id": "clipboard.code-card",
-  "title": "导出代码卡片",
+"surface": {
+  "entry": "preview.html",
   "forms": ["text"],
-  "surface": "workbench"
-}]
-```
-
-需要第二段文本才能工作的文档在工作台块里声明，宿主自己把相邻条目送来：
-
-```json
-"workbench": {
-  "title": "高亮对比",
-  "document": "workbench.html",
-  "companion": "previous-text"
+  "role": "open"
 }
 ```
 
-`"previous-text"` 是唯一被接受的词（D-1040）。宿主从可见列表里挑相邻条目——
-有文本、不是图片、不是被调用的条目——优先前一条，否则取后一条；
-`com.mypaste.code-edit` 与 `com.mypaste.image-edit` 声明了它；
-`com.mypaste.code-card` 与 `com.mypaste.diff-view` 有意不声明。
+`forms` 声明表面适配的实体，`role` 是以下之一：
 
-文档也可以声明自己动作行的按钮（D-1068）：`ready` 可带
-`actions: [{id, title}]`，每一项可选 `emphasis`（这一行的主动作）或
-`enabled: false`。MyPaste 最多画四个按钮在卡片头部，材质归宿主；按下时宿主
-发回 `{v: 1, type: "action", id}`。每个 id 的含义由文档决定，写回仍走它自己的
-`save` 与 `copy` 请求。`com.mypaste.code-edit` 1.3.0 用这种方式声明
-「复制文本」与「保存为新条目」，不再自己画页脚。
+- `open`——「打开这个实体」的目标（卡片被双击、且它是默认表面时）。
+  code-edit、diff-view 与 image-edit 声明它。
+- `preview`——画进剪切坞的卡片预览。code-card 声明它。
 
-每个包保留自己的 `src/`，彼此不共享代码；每个包都从自己这一侧声明桥协议与
-自己的高亮或 diff 引擎。文本另存与复制以精确键的消息过桥
-（`{v: 1, type: "save", requestId, text, title}` 与
-`{v: 1, type: "copy", requestId, text}`）；宿主对文本再校验一次——1 MiB、
-UTF-8、无控制字符——并按 `requestId` 把结果报回。另存写入一条新历史条目，
-从不替换原条目。
+宿主把页面放进沙箱 frame，并中介这些操作：读取本次调用的条目、把文本或图片
+另存为一条新历史、复制文本或图片、关闭。别的什么都到不了它——没有宿主绑定、
+没有资产路径、没有别的条目。需要与相邻条目对比的表面声明 `companion.read`
+并主动索取；相邻条目由宿主挑选，页面没有任何浏览历史的途径。
 
-宿主在 `ready` 之后带回 `item`（声明了 `companion` 时附带），并立即再发
+v3 移除了宿主工作台：没有缓冲区交换、没有宿主画的编辑器工具栏、也没有宿主画
+的文档动作行（宿主 D-1065、D-1068）。每个页面自己画控件。例如 code-edit 的
+页面自己画「复制文本」与「保存为新条目」，并在运行时从注册表搭出命令工具栏：
+
+- `{v: 1, type: "registry", requestId, forms}` → `{v: 1, type: "result",
+  requestId, ok, commands: [{pluginId, commandId, title, description?,
+  output?}]}`——适配这些实体形态的能力命令。
+- `{v: 1, type: "invoke", requestId, pluginId, commandId, text}` → `{v: 1,
+  type: "result", requestId, ok, output?, diagnostics?, render?}`——对当前
+  缓冲区运行一条命令。
+
+文本另存与复制以精确键的消息过桥（`{v: 1, type: "save", requestId, text,
+title}` 与 `{v: 1, type: "copy", requestId, text}`）；宿主对文本再校验一次
+——1 MiB、UTF-8、无控制字符——并按 `requestId` 把结果报回。另存写入一条新
+历史条目，从不替换原条目。
+
+宿主在页面的 `{v: 1, type: "ready"}` 之后带回 `item`，并立即再发
 `{v: 1, type: "theme", scheme: "light" | "dark", tokens: {"surface": "…"}}`
-（D-1042、D-1043）。这个 scheme 是 MyPaste 从自己的外观设置解析出来的，
-沙箱 frame 的 `prefers-color-scheme` 看不到它，所以文档按 `:root[data-scheme]`
+（宿主 D-1042、D-1043）。这个 scheme 是 MyPaste 从自己的外观设置解析出来的，
+沙箱 frame 的 `prefers-color-scheme` 看不到它，所以页面按 `:root[data-scheme]`
 上色，媒体查询只作为消息到达前显示的值。`tokens` 带的是该 scheme 解析出的
-值——颜色与两个字体栈——键是宿主自己的 CSS 自定义属性名去掉 `--`。两个文档
+值——颜色与两个字体栈——键是宿主自己的 CSS 自定义属性名去掉 `--`。每个页面
 把每个值镜像为 `--mp-<name>` 并在 CSS 里优先使用，自己的调色板作为旧宿主的
-回退。读者在文档打开期间改外观或主题时，宿主会重发整对消息。
+回退。读者在页面打开期间改外观或主题时，宿主会重发整对消息。
 
 对比文档就地编辑：在任一窗格的任何位置——文本、行号、表头或最后一行之下的
 空白——单击一次就打开该侧的编辑器；点击落在已渲染的行上时，光标在指针下，
@@ -159,9 +147,10 @@ UTF-8、无控制字符——并按 `requestId` 把结果报回。另存写入�
 （长文本重绘本身变慢时进一步退避），编辑器从不等 diff。两个窗格是一个
 两列网格，行号各归各侧。
 
-关闭属于宿主卡片。MyPaste 在工作台 chrome 里画唯一一个关闭控件，文档不得
-再画第二个；文档仍可为 Escape 键请求桥关闭，但 Escape 先退出编辑模式
-（对比文档正是这样用的）。
+关闭属于宿主容器。MyPaste 在表面 chrome 里画唯一一个关闭控件，页面不得再画
+第二个；页面仍可为 Escape 键请求桥关闭，但 Escape 先退出编辑模式（对比页面
+正是这样用的）。页面遵循宿主的视觉规则（宿主 D-1045）：不画圆角盒子。卡片、
+面板、按钮与工具片一律直角；只有圆就是形状本意的地方（如状态点）才允许圆。
 
 源码：
 
@@ -169,29 +158,30 @@ UTF-8、无控制字符——并按 `requestId` 把结果报回。另存写入�
 plugins/com.mypaste.code-card/
   mypaste.plugin.json
   src/main.ts          入口、控件、状态行
-  src/bridge.ts        宿主桥（文档一侧的视角）
+  src/bridge.ts        宿主桥（页面一侧的视角）
   src/card.ts          调色板、布局与画布绘制
   src/tokenize.ts      卡片自己的分词器与语言表
-  src/workbench.html   标记、样式与 <!--bundle--> 占位
-  workbench.html       生成物：归档里带的文档
+  src/preview.html     标记、样式与 <!--bundle--> 占位
+  preview.html         生成物：归档里带的页面
 
-plugins/com.mypaste.code-edit/   浮层编辑器（自己的分词器、
-                                 语言表与桥）
-plugins/com.mypaste.diff-view/   对比文档（自己的 diff 引擎
-                                 与语言表；声明 companion）
+plugins/com.mypaste.code-edit/   编辑器（自己的分词器、语言表与桥；
+                                 注册表命令工具栏）
+plugins/com.mypaste.diff-view/   对比页面（自己的 diff 引擎与语言表；
+                                 读取 companion）
+plugins/com.mypaste.image-edit/  图片编辑器（自己的画布工具）
 ```
 
-单个文档用 `bun run build:workbenches` 构建（esbuild 把 `src/main.ts` 打成
-片段）。`scripts/build-official.py` 往 staging 目录取同样的构建，归档里
-永远不会有过期的输出。
+用 `bun run build:surfaces` 构建每个页面（esbuild 把 `src/main.ts` 打成完整
+文档）。`scripts/build-official.py` 往 staging 目录取同样的构建，归档里永远
+不会有过期的输出。
 
 ## 官方包
 
 `com.mypaste.ferry`——跨设备同步扩展——以编译二进制而不是运行脚本交付。
 它的 Go 源码在 `plugins/com.mypaste.ferry/src/`（独立 `go.mod`）；归档里只有
-manifest、`menu.html` 与构建出的 `ferry` 二进制，绝无源码树。它对话的中继
-服务在 `servers/mypaste-relay/`（独立 `go.mod`），是一个独立的 HTTPS 服务，
-不是插件包，单独部署。Ferry 需要运行脚本白名单之外的能力（`entry.payload`、
+manifest 与构建出的 `ferry` 二进制，绝无源码树。它对话的中继服务在
+`servers/mypaste-relay/`（独立 `go.mod`），是一个独立的 HTTPS 服务，不是
+插件包，单独部署。Ferry 需要运行脚本白名单之外的能力（`entry.payload`、
 `network.outbound`（配置的主机）、`storage.plugin`、触发器）；MyPaste 在
 安装确认里逐项列出，唯一的启用开关就是全部的许可决定（宿主 D-1039）。
 没有签名或可信层级可取得。
@@ -199,10 +189,11 @@ manifest、`menu.html` 与构建出的 `ferry` 二进制，绝无源码树。它
 `com.mypaste.sql`——SQL 工具包扩展（七方言的语法高亮、语法诊断与格式化，
 词法分析用
 [chroma](https://github.com/alecthomas/chroma)）——同样以编译二进制交付。
-它的 Go 源码在 `plugins/com.mypaste.sql/src/`（独立 `go.mod`）；归档里只有
-manifest 与构建出的二进制，绝无源码树。它的规格声明了 `targets` 列表，
-归档按平台在 `bin/<goos>/<goarch>/` 下嵌套每平台一个二进制（Windows 为
-`.exe`）；宿主按这个布局解析声明的入口（宿主 D-1057）。
+它是纯能力：只暴露 `highlight` 与 `format` 命令，没有 UI。它的 Go 源码在
+`plugins/com.mypaste.sql/src/`（独立 `go.mod`）；归档里只有 manifest 与构建
+出的二进制，绝无源码树。它的规格声明了 `targets` 列表，归档按平台在
+`bin/<goos>/<goarch>/` 下嵌套每平台一个二进制（Windows 为 `.exe`）；宿主按
+这个布局解析声明的入口（宿主 D-1057）。
 
 本地构建官方包：
 
@@ -229,15 +220,16 @@ MyPaste 遇到旧 feed 里的签名会忽略。
 ```sh
 bun install                                                # esbuild + tsc
 bun run test                                               # Python 测试
-bun run typecheck                                          # 两个包的 TS
-bun run build:workbenches                                  # 两个文档
+bun run typecheck                                          # 每个包的 TS
+bun run build:surfaces                                     # 每个表面页面
 bun run build                                              # 脚本包
 python3 scripts/build-official.py                          # 官方包
 sh scripts/release.sh                                      # 构建、测试、发布
 ```
 
 `dist/` 里每个包有一个 ZIP 根的 `.mypaste-plugin`。归档根必须是
-`mypaste.plugin.json` 加入口脚本；工作台包则是 manifest 加它声明的那个文档。
+`mypaste.plugin.json` 加入口脚本；表面包则是 manifest 加 `surface.entry`
+声明的那个页面。
 
 ## 发布
 
@@ -254,8 +246,8 @@ sh scripts/release.sh
 
 脚本要求工作树干净且所在分支从 `main` 派生，否则拒绝启动。它在第一个失败
 处停下：测试失败会把重建出的 `dist/` 留在树里，但什么都不提交、不推送。
-先提交包、文档与 manifest 的改动：脚本会 amend 当前提交，使其成为发布提交。
-工作台包与所有其他包一样，仍需宿主的安装确认才能运行。
+先提交包、页面与 manifest 的改动：脚本会 amend 当前提交，使其成为发布提交。
+表面包与所有其他包一样，仍需宿主的安装确认才能运行。
 
 ## 本地安装
 
@@ -265,8 +257,7 @@ sh scripts/release.sh
      逐一安装。
    - 「安装 / 更新插件…」并选择一个 `.mypaste-plugin` 文件。
 3. 刷新列表，只授予每个包声明的能力，然后在剪贴板命令面板里使用命令。
-4. 高亮：选中一个代码条目并预览。没有授予高亮插件时，MyPaste 用内置的
-   高亮器。
+4. 高亮：在集成注册表的表面里打开代码条目，或从命令面板运行高亮命令。
 
 文件夹导入接受嵌套的包目录，跳过隐藏目录、`node_modules` 与 `.git`，
 忽略符号链接，并逐包报告结果。部分失败不回滚已成功安装的包。
@@ -289,11 +280,11 @@ sh scripts/release.sh
 ## 安全模型
 
 - 高亮返回 token；从不返回 HTML。
-- MyPaste 在宿主边界再次校验语言与 token 类型白名单、token 数量与总字节。
+- MyPaste 在宿主边界再次校验实体形态与 token 类型白名单、token 数量与总字节。
 - 格式化失败保留原文；不完整的输出被拒绝。
 - 本仓库没有脚本包申请网络、文件或进程能力。官方同步包申请
-  `network.outbound`（HTTPS、配置的主机）与 `storage.plugin`；MyPaste 把
-  两者挡在可信来源之后，并在安装对话框里展示。
+  `network.outbound`（HTTPS、配置的主机）与 `storage.plugin`；MyPaste 在
+  安装对话框里逐项展示。
 - 应用的插件能力列表是授予上限，不是操作系统级沙箱。
 
 提交进仓库的 `dist/` 目录就是 MyPaste 读取的固定 raw-GitHub feed：
@@ -301,8 +292,8 @@ sh scripts/release.sh
 ```text
 dist/
   index.json
-  mypaste.format-go-2.0.0.mypaste-plugin
-  mypaste.format-go-2.0.0.mypaste-plugin.sha256
+  mypaste.format-go-3.0.0.mypaste-plugin
+  mypaste.format-go-3.0.0.mypaste-plugin.sha256
   ...
 ```
 
@@ -324,7 +315,7 @@ manifest 严格校验，旧宿主不认识的 manifest 字段会让整个包在�
 | `description` | 是 | 一行描述。 |
 | `fileName` | 是 | `dist/` 内的归档名。 |
 | `sha256` | 是 | 归档摘要，宿主安装前校验。 |
-| `runtimeProtocol` | 是 | 包使用的运行协议（`2`；无运行时的工作台包为 `0`）。 |
+| `runtimeProtocol` | 是 | 包使用的运行协议（`2`；无运行时的表面包为 `0`）。 |
 | `repository` | 否 | 项目地址，HTTPS，显示在市场详情页。宿主只在自己持有的这份索引里按插件 ID 解析出地址后才打开它——页面永远不提供 URL。 |
 
 应用只抓取

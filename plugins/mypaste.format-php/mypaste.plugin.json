@@ -1,14 +1,14 @@
 {
-  "manifestVersion": 2,
+  "manifestVersion": 3,
   "id": "mypaste.format-php",
   "name": "Php Format",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "使用本机可用工具格式化 Php；依赖缺失或语法错误时保留原文。",
   "capabilities": [
-    "selection.read"
+    "entity.read"
   ],
   "runtime": {
-    "protocolVersion": 2,
+    "mode": "command",
     "entrypoint": "run"
   },
   "commands": [
@@ -16,23 +16,12 @@
       "id": "format",
       "title": "格式化 Php",
       "description": "本机格式化当前文本；失败时不写入剪贴板。",
-      "input": [
-        "text/plain"
+      "forms": [
+        "text"
       ],
       "output": [
-        "text/plain"
-      ],
-      "capabilities": [
-        "selection.read"
-      ],
-      "languages": [
-        "php"
-      ],
-      "forms": [
-        "plain",
-        "rich"
-      ],
-      "surface": "editor"
+        "text"
+      ]
     }
   ]
 }

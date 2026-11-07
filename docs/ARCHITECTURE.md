@@ -1,65 +1,61 @@
 # Architecture
 
-## Two plugin families
+## Two plugin roles
 
-MyPaste has two different trust decisions:
+MyPaste plugin protocol v3 has two roles:
 
-1. **Formatting** changes text and then asks the host to write the result to
-   the clipboard. It needs `selection.read` + `clipboard.write`.
-2. **Highlighting** is presentation-only. It needs only `selection.render` and
-   must not write anything.
+1. **Surface** — has UI. It ships one page, runs no process, and draws its own
+   interface (highlighting, formatting and syntax checking included). It reaches
+   the host only through the surface bridge: the container, the closed service
+   list, and the registry.
+2. **Capability** — no UI, only commands. The host shows the commands that
+   declare a `placement`; a command without one is a pure capability that a
+   surface integrates through the registry.
 
-This split is deliberate. A highlighting plugin cannot silently acquire
-clipboard-write authority just because it is installed for preview.
+This split is deliberate. A highlighting capability can only return tokens; it
+cannot silently acquire clipboard-write authority. A surface that offers saving
+or copying declares `entity.save` and `clipboard.write` itself, and the host
+performs the write.
 
 ## What a command declares
 
-Every command in `mypaste.plugin.json` (manifest version 2) says which content
-forms it acts on, which surface it appears on, and which code languages it
-serves:
+Every command in `mypaste.plugin.json` (manifest version 3) declares the entity
+forms it acts on, what it produces, and optionally where the host shows it:
 
 ```json
 "commands": [{
   "id": "format",
   "title": "格式化 JSON",
-  "description": "...",
   "forms": ["text"],
-  "languages": ["json"],
-  "surface": "editor",
-  "input": ["text/plain"],
-  "output": ["text/plain"],
-  "capabilities": ["selection.read"]
+  "output": ["text"]
 }]
 ```
 
-- `forms` names nodes of the host's form tree: `text` (`plain`, `rich`),
+- `forms` names nodes of the host's entity tree: `text` (`plain`, `rich`),
   `link`, `color`, `media` (`image`, `audio`, `video`) and `file`
   (`document`, `archive`, `folder`, `other`). A declaration matches its whole
-  subtree; an empty list is form-agnostic. MyPaste re-checks the declaration
-  before running a command.
-- `surface` is `renderer`, `palette` (the default), `editor`, `workbench` or
-  `data-action`. The renderer requires `selection.render`; the editor requires
-  `selection.read` and a `text/plain` output and never receives a clipboard
-  write; a workbench declares forms and starts no process; a data action names
-  no forms and no languages.
-- `languages` names the code languages the command handles, or `*` for every
-  language. Only commands inside the text subtree may declare languages.
+  subtree. MyPaste re-checks the declaration before running a command.
+- `output` names the entity types the command produces; the host uses it to
+  decide whether the result can be saved or copied. It defaults to `forms`.
+- `placement` is `palette` (the command palette), `card-action` (the card or
+  preview action row) or `trigger` (a background trigger). A command with no
+  `placement` is a pure capability the host never shows.
 
-The name of the plugin package is therefore free. `mypaste.format-json` is a
-convention for readers, not something the host parses.
+Languages are the package's own internal concept. The host never infers a
+language from the package ID or from the text; v3 has no `languages` field. The
+name `mypaste.format-json` is a convention for readers, not something the host
+parses.
 
 ## Runtime protocol
 
-The host starts a short-lived child process for each invocation, sends one JSON
-object on stdin and reads one JSON object from stdout. The adapter reads the
-entire request before writing exactly one response. Diagnostics go to stderr
-only for the local developer; the host never displays raw stderr.
-
-Every manifest declares `"runtime": {"protocolVersion": 2, ...}`. MyPaste
-accepts only protocol 2 (D-1012); a package that still declares 1 is rejected
-when the host validates its manifest. The request and response shapes in this
-repository are unchanged from the v1 field set — only the declared version and
-the adapters' version check moved to 2.
+A command package runs in a short-lived child process: the host writes one JSON
+request on stdin and reads one JSON response on stdout. The manifest declares
+this with `"runtime": {"mode": "command", "entrypoint": "run"}`; `mode` is
+`command` (start per invocation) or `resident` (kept alive with backoff). The
+process protocol itself is unchanged from v2: the request carries
+`"protocolVersion": 2`, and the adapter reads the entire request before writing
+exactly one response. Diagnostics go to stderr only for the local developer;
+the host never displays raw stderr.
 
 ### Highlight response
 
@@ -79,18 +75,15 @@ the adapters' version check moved to 2.
 }
 ```
 
-Allowed languages: `go`, `html`, `javascript`, `json`, `php`, `python`, `rust`,
-`typescript`.
+The surface that integrates a highlight command turns these tokens into escaped
+spans; a token is text plus a kind, never HTML. Allowed token kinds: empty
+string, `keyword`, `string`, `comment`, `number`, `literal`, `property`,
+`function`, `tag`, `type`.
 
-Allowed token kinds: empty string, `keyword`, `string`, `comment`, `number`,
-`literal`, `property`, `function`, `tag`, `type`.
-
-Limits: 40 000 tokens and 256 KiB total text (`extension.MaxRenderTokens`
-and `extension.MaxTextBytes`). The host owns that ceiling for every
-extension text path; an adapter must not enforce a smaller one, or it
-rejects text the host has already delivered. MyPaste validates the result twice:
-once in Go before it crosses the host boundary, and once in TypeScript before
-turning tokens into escaped spans.
+An adapter bounds its own output (token count and total text) because the
+surface consumes it directly. The host's text ceiling for the surrounding
+buffer is 1 MiB, UTF-8 and no NUL; an adapter must not enforce a smaller ceiling
+on the input, or it rejects text the host has already delivered.
 
 ### Format response
 
@@ -105,15 +98,17 @@ turning tokens into escaped spans.
 }
 ```
 
-The host's `clipboard.write` boundary performs the actual write. The adapter
-must not create a second history entry and must not claim success when no
-formatter is available.
+A formatting capability returns text; it never writes the clipboard. When the
+host invokes it from a placement, the host's `clipboard.write` boundary performs
+the actual write, and a command result that cannot be resolved into an entity is
+not written at all. A surface that integrates a formatter through the registry
+applies the returned text to its own page instead.
 
 ## Declared settings
 
-A plugin may declare up to eight parameters the user can change without
-reinstalling. The host renders them on the plugin card; the plugin only reads
-the resolved values from the request.
+A plugin may declare settings the user can change without reinstalling. The
+host renders them on the plugin card; the plugin only reads the resolved values
+from the request.
 
 ```json
 "settings": [{
@@ -173,14 +168,14 @@ https://raw.githubusercontent.com/<owner>/mypaste-code-extensions/main/dist/inde
 
 The index is versioned repository metadata, not a dynamic marketplace API. It
 contains only package identity, display metadata, archive file names, SHA-256
-digests and each package's declared `runtimeProtocol` (copied from the
-manifest by the packager). The app resolves package files relative to the
-same fixed directory and rejects redirects, path traversal and digest
-mismatches. A host drops catalog entries whose `runtimeProtocol` names a
-protocol it does not support before listing them, so the marketplace only
-offers packages the scanning host can actually install; entries without the
-field (an index that predates it) stay listed and are judged by the manifest
-inside the archive at install time.
+digests, the project address, and each package's `runtimeProtocol` (2 for a
+package with a runtime, 0 for a surface package with none). The app resolves
+package files relative to the same fixed directory and rejects redirects, path
+traversal and digest mismatches. A host drops catalog entries whose
+`runtimeProtocol` names a protocol it does not support before listing them, so
+the marketplace only offers packages the scanning host can actually install;
+entries without the field (an index that predates it) stay listed and are
+judged by the manifest inside the archive at install time.
 
 `dist/index.json` and all referenced `.mypaste-plugin` / `.sha256` files are
 committed together. The packaging script writes reproducible ZIP timestamps and

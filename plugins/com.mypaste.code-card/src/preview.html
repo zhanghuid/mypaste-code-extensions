@@ -1,0 +1,206 @@
+<style>
+  :root {
+    --card-bg: #f3ece1;
+    --card-surface: #fbf7f0;
+    --card-ink: #2f261e;
+    --card-muted: #8b7c6a;
+    --card-line: rgba(70, 48, 26, 0.14);
+    --card-accent: #a65d2e;
+    --card-accent-ink: #fff8ef;
+    --card-stage: #ece3d5;
+    --card-focus: rgba(166, 93, 46, 0.35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --card-bg: #171412;
+      --card-surface: #201c18;
+      --card-ink: #f0e6d9;
+      --card-muted: #9a8c7b;
+      --card-line: rgba(255, 236, 214, 0.12);
+      --card-accent: #e2955f;
+      --card-accent-ink: #241a12;
+      --card-stage: #12100e;
+      --card-focus: rgba(226, 149, 95, 0.35);
+    }
+  }
+  html, body { height: 100%; }
+  body { background: var(--card-bg); color: var(--card-ink); }
+
+  .card-surface {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 268px;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .card-stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+    padding: 28px;
+    overflow: auto;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.5), transparent 62%),
+      var(--card-stage);
+  }
+  @media (prefers-color-scheme: dark) {
+    .card-stage { background: var(--card-stage); }
+  }
+  #card-preview {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    box-shadow: 0 18px 48px rgba(58, 38, 18, 0.22);
+    background: #fff;
+  }
+
+  .card-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+    padding: 22px 20px;
+    overflow: auto;
+    border-left: 1px solid var(--card-line);
+    background: var(--card-surface);
+  }
+
+  .rail-head h1 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+  }
+  .rail-head p {
+    margin: 0;
+    color: var(--card-muted);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field > span {
+    color: var(--card-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .field input[type="text"],
+  .field select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 9px;
+    border: 1px solid var(--card-line);
+    background: var(--card-bg);
+    color: var(--card-ink);
+    font: inherit;
+  }
+  .field input[type="text"]:focus-visible,
+  .field select:focus-visible {
+    outline: 2px solid var(--card-focus);
+    outline-offset: 1px;
+    border-color: var(--card-accent);
+  }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .toggle input { accent-color: var(--card-accent); }
+
+  .field output {
+    float: right;
+    color: var(--card-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .field input[type="range"] { width: 100%; accent-color: var(--card-accent); }
+
+  .actions {
+    display: grid;
+    gap: 8px;
+    margin-top: auto;
+  }
+  .actions button {
+    padding: 9px 12px;
+    border: 1px solid var(--card-line);
+    background: var(--card-bg);
+    color: var(--card-ink);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .actions button:hover:not(:disabled) { border-color: var(--card-accent); }
+  .actions button:disabled { opacity: 0.45; cursor: default; }
+  .actions button.primary {
+    border-color: transparent;
+    background: var(--card-accent);
+    color: var(--card-accent-ink);
+  }
+  .actions button.ghost { border-color: transparent; background: transparent; color: var(--card-muted); font-weight: 500; }
+  .actions button:focus-visible { outline: 2px solid var(--card-focus); outline-offset: 2px; }
+
+  .status {
+    min-height: 18px;
+    margin: 0;
+    color: var(--card-muted);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .status[data-tone="error"] { color: #b4553f; }
+  @media (prefers-color-scheme: dark) {
+    .status[data-tone="error"] { color: #e89a83; }
+  }
+</style>
+
+<div class="card-surface" id="card-surface">
+  <section class="card-stage">
+    <canvas id="card-preview" aria-label="代码卡片预览"></canvas>
+  </section>
+  <aside class="card-rail">
+    <div class="rail-head">
+      <h1>代码卡片</h1>
+      <p>卡片在本地绘制。保存会在历史里新建一个图片条目。</p>
+    </div>
+    <label class="field">
+      <span>标题</span>
+      <input id="card-title" type="text" maxlength="120" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="pair">
+      <label class="field">
+        <span>配色</span>
+        <select id="card-theme">
+          <option value="terracotta">陶土</option>
+          <option value="midnight">午夜</option>
+          <option value="paper">纸白</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>样式</span>
+        <select id="card-window">
+          <option value="window">窗口</option>
+          <option value="flat">平铺</option>
+        </select>
+      </label>
+    </div>
+    <label class="toggle"><input id="card-lines" type="checkbox" checked><span>显示行号</span></label>
+    <label class="field">
+      <span>字号 <output id="card-scale-value" for="card-scale">100%</output></span>
+      <input id="card-scale" type="range" min="0.8" max="1.4" step="0.1" value="1">
+    </label>
+    <div class="actions">
+      <button type="button" class="primary" data-action="save" disabled>保存为新条目</button>
+      <button type="button" data-action="copy" disabled>复制图片</button>
+      <button type="button" class="ghost" data-action="close">关闭</button>
+    </div>
+    <p id="card-status" class="status" role="status" hidden></p>
+  </aside>
+</div>
+<script>
+<!--bundle-->
+</script>

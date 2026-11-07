@@ -1,54 +1,57 @@
 # Repository Guidelines
 
 This repository contains independently installable MyPaste code extensions. It
-does not contain the MyPaste app or its database.
+does not contain the MyPaste app or its database. Every package speaks MyPaste
+plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
 
 - Each package lives under `plugins/<plugin-id>/` and must have
   `mypaste.plugin.json` directly in that directory. Packages share nothing: a
   package's `src/` is its own code, and no package imports from another.
-- Three package shapes exist, all official except the script ones:
-  - **run-script** — a `run.sh` speaking the line protocol, packaged by
-    `scripts/package.py`;
-  - **binary** — a Go program under `src/`, packaged by `scripts/build-official.py`;
-  - **workbench** — no process at all: a manifest `workbench: {title, document}`
-    plus commands marked `"workbench": true`. The host serves the document to a
-    sandboxed iframe inside the app and mediates reading this invocation's item,
-    saving an image as a new history entry, copying an image, and closing.
-- Highlighting packages may request only `selection.render` and must return
-  bounded token arrays, never HTML or CSS.
-- Formatting packages may request only `selection.read` and declare the
-  `editor` surface. They must return the original input on failure and must
-  never execute user code; the host never writes their answer to the clipboard.
-- Every manifest is `manifestVersion: 2`. Every command must declare `forms`
-  (a non-empty subtree of the host's form tree: `text`/`plain`/`rich`, `link`,
+- Protocol v3 has two roles: **surface** — has UI, ships a page, runs no
+  process — and **capability** — no UI, only commands, reached by the host or
+  by a surface through the registry. The shapes here are:
+  - **run-script capability** — a `run`/`run.sh` speaking the line protocol
+    (v3 keeps v2's process protocol), packaged by `scripts/package.py`;
+  - **binary capability** — a Go program under `src/`, packaged by
+    `scripts/build-official.py`;
+  - **surface** — a manifest `surface: {entry, forms, role}` plus one page.
+    `role` is `open` (the target of "open this entity") or `preview` (drawn
+    into the dock's card preview).
+- Highlighting packages are capabilities: they request only `entity.read`,
+  declare one `highlight` command with `forms: ["text"]` and no `placement`,
+  and return bounded token arrays, never HTML or CSS.
+- Formatting packages are capabilities too: only `entity.read`, one `format`
+  command with `output: ["text"]` and no `placement`. They must return the
+  original input on failure and must never execute user code; the host never
+  writes their answer to the clipboard.
+- Every manifest is `manifestVersion: 3`. Every command declares non-empty
+  `forms` (a subtree of the host's entity tree: `text`/`plain`/`rich`, `link`,
   `color`, `media`/`image`/`audio`/`video`, `file`/`document`/`archive`/
-  `folder`/`other`) and one `surface` (`renderer`, `palette`, `editor`,
-  `workbench`, `data-action`). `languages` (lowercase tokens matching
-  `^[a-z][a-z0-9+#-]*$`, or `*`) are allowed only inside the text subtree. The
-  host validates the declaration and the page matches the subtree and language;
-  it never infers a language from the plugin ID, so keep the IDs conventional
-  for readers only.
-- Tabs are declared with `menus` (at most eight, each with a unique `id` and
-  title, one HTML entry, optional `statusCommand`, at most six `actions`, and
-  an `order`). The host owns the tab order.
+  `folder`/`other`), optionally `output`, and optionally `placement`
+  (`palette`, `card-action`, `trigger`). A command without `placement` is a
+  pure capability the registry exposes to surfaces. Languages are an
+  extension's internal concern: the host never infers one, and v3 has no
+  `languages` field.
+- Capabilities are the closed service list of PLUGINS.md section 6
+  (`entity.read`, `entity.save`, `copy`, `clipboard.write`, `entry.payload`,
+  `secret.read`, `network.outbound`, `storage.plugin`, `companion.read`,
+  `history.exchange`); ask for the least one that does the job.
 - Official packages (`plugins/com.mypaste.*`, listed in
   `scripts/official_packages.py`) are packaged only by
   `scripts/build-official.py`; `scripts/package.py` skips them and their
-  capability model is not bound by the run-script allowlist. They ship signed
-  (offline ed25519, `scripts/sign.py`) or not at all — an unsigned dry run
-  never lands in `dist/index.json` with an empty `signature` field. The
-  signing key is a 0600 seed file outside every repository; never commit,
-  log or transmit it. Binary packages are compiled Go programs with their own
-  `go.mod` under `plugins/<plugin-id>/src/`.
-- Workbench packages keep their sources in `plugins/<plugin-id>/src/`: the
-  document template (`workbench.html`, markup and styles, exactly one
-  `<!--bundle-->`) and the TypeScript it loads. `plugins/<plugin-id>/workbench.html`
-  is generated by `scripts/build-workbenches.mjs` (esbuild, one IIFE, 1 MiB
-  ceiling) and is what ships; edit the sources, never the generated file. The
-  document is a fragment — the host adds doctype, CSP, title and base style —
-  and it may only talk to the host through the fixed bridge in its own
-  `src/bridge.ts`. It has no database, asset, preference or filesystem access
-  and must not fetch anything over the network.
+  capability model is not bound by the run-script allowlist. Binary packages
+  are compiled Go programs with their own `go.mod` under
+  `plugins/<plugin-id>/src/`.
+- Surface packages keep their sources in `plugins/<plugin-id>/src/`: the page
+  template (`preview.html`, markup and styles, exactly one `<!--bundle-->`)
+  and the TypeScript it loads. `plugins/<plugin-id>/preview.html` is generated
+  by `scripts/build-surfaces.mjs` (esbuild, one IIFE, 1 MiB ceiling) and is
+  what ships; edit the sources, never the generated file. A template may be a
+  complete document or a fragment the host wraps; the generated entry holds
+  the bundled script either way, and it may only talk to the host through the
+  fixed bridge in its own `src/bridge.ts`. It has no database, asset,
+  preference or filesystem access and must not fetch anything over the
+  network.
 - `servers/mypaste-relay/` is a standalone HTTPS relay service (own `go.mod`),
   not a plugin package; deploy it separately. The ferry↔relay wire protocol
   (`mypaste-relay-v1`) is frozen: changing it is a breaking protocol change
@@ -62,9 +65,10 @@ does not contain the MyPaste app or its database.
   existing installs keep working until the user installs the new package.
 - Do not add network, file, process, history or secret capabilities to the
   script packages without a new threat model and explicit maintainer review.
-- Verify before committing: `bun test`, `bun run build`, and (when official
-  packages changed) `go test ./...` under each touched `plugins/*/src` or
-  `servers/*` module plus `python3 -m unittest discover -s tests`.
+- Verify before committing: `bun run build:surfaces`, `bun run check`, and
+  (when official packages changed) `go test ./...` under each touched
+  `plugins/*/src` or `servers/*` module plus
+  `python3 -m unittest discover -s tests`.
 - Commit each language family or protocol change separately when practical.
 - Commit `dist/` because it is the fixed raw-GitHub feed consumed by MyPaste.
   It must contain only verified packages, their `.sha256` files, and

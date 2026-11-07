@@ -1,6 +1,6 @@
 /**
  * The editor's language table. The package owns it: MyPaste does not hand a
- * workbench document its language list (D-1040), so the words, the tokens and
+ * surface page its language list (D-1040), so the words, the tokens and
  * the detection heuristics all live here and reach the document only through
  * an update of this package.
  */

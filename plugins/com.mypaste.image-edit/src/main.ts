@@ -3,7 +3,7 @@
  * 成品只经宿主的桥另存为新条目或复制到剪贴板，原图保持不动。
  */
 
-import { connectWorkbench } from "./bridge";
+import { connectSurface } from "./bridge";
 import {
   EDITOR_COLORS,
   applyCrop,
@@ -33,7 +33,7 @@ import {
   type ImageTool,
 } from "./editor";
 
-const bridge = connectWorkbench();
+const bridge = connectSurface();
 
 function one<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);

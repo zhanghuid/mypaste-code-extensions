@@ -1,17 +1,19 @@
 /**
- * 代码编辑工作台：把宿主交付的这条文本放进一个带行号与语法高亮的编辑面，
- * 另存为新条目或复制到剪贴板。文档不联网、不读取其它条目，也不调用宿主的
- * 高亮或格式化扩展；高亮由本包自带的 tokenizer 完成（D-1040）。
+ * 代码编辑表面：把宿主交付的这条文本放进一个带行号与语法高亮的编辑面，
+ * 另存为新条目或复制到剪贴板。页面不联网、不读取其它条目；高亮由本包自带的
+ * tokenizer 完成（协议 v3：高亮是表面自己的实现，不是宿主服务）。
  *
- * D-1065：文档声明 `buffer` 特性，宿主因此在窗口顶部画出编辑器命令栏。
- * 文档只交出当前缓冲区与修订号，并接受宿主发来的整段替换；命令由宿主选择、
- * 由宿主执行，文档仍然没有调用格式化或高亮的入口。
- *
- * D-1068：复制与保存两个按钮也由宿主画在卡片头部。文档在 `ready` 里声明
- * 它们，收到 `action` 时做原来的写回；按钮材质、尺寸与焦点都归宿主。
+ * D-1069：宿主不再画编辑器命令栏，也不再交换缓冲区。复制、保存与关闭按钮由
+ * 这个页面自己画；格式化能力由页面在运行时向注册表查询 `list("text")` 得到，
+ * 选中后经桥调用，返回的文本就地替换、返回的诊断显示在状态行。页面不执行
+ * 用户代码，也不调用宿主的任何高亮或格式化服务。
  */
 
-import { connectWorkbench, replaceRefusal, type BridgeResult } from "./bridge";
+import {
+  connectSurface,
+  textRefusal,
+  type SurfaceCommand,
+} from "./bridge";
 import {
   LANGUAGE_CHOICES,
   detectLanguage,
@@ -19,19 +21,16 @@ import {
 } from "./languages";
 import { tokenizeCode, type CodeLanguage } from "./tokenize";
 
-/** Above this many characters the document shows plain text, not tokens. */
+/** Above this many characters the page shows plain text, not tokens. */
 const HIGHLIGHT_LIMIT = 200_000;
 const INDENT = "  ";
 const SAVE_TITLE_LIMIT = 120;
 
-const bridge = connectWorkbench([
-  { id: "copy", title: "复制文本" },
-  { id: "save", title: "保存为新条目", emphasis: true },
-]);
+const bridge = connectSurface();
 
 function one<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
-  if (!element) throw new Error(`工作台文档缺少 ${selector}`);
+  if (!element) throw new Error(`表面页面缺少 ${selector}`);
   return element;
 }
 
@@ -43,16 +42,15 @@ const gutter = one<HTMLElement>("#editor-gutter");
 const highlight = one<HTMLElement>("#editor-highlight");
 const input = one<HTMLTextAreaElement>("#editor-input");
 const status = one<HTMLElement>("#doc-status");
+const commandBar = one<HTMLElement>("#doc-commands");
+const copyButton = one<HTMLButtonElement>("[data-action=copy]");
+const saveButton = one<HTMLButtonElement>("[data-action=save]");
 
 let originalText = "";
 let choice: CodeLanguage | "auto" | "text" = "auto";
 let busy = false;
-/**
- * The document's own edit counter (D-1065). The host reads a buffer at one
- * revision and sends its replacement tagged with it; this document applies the
- * replacement only if no edit happened in between.
- */
-let revision = 0;
+let commands: SurfaceCommand[] = [];
+const commandButtons: HTMLButtonElement[] = [];
 
 function escapeHTML(value: string): string {
   return value
@@ -132,16 +130,26 @@ function render(): void {
   syncScroll();
 }
 
+function updateButtons(): void {
+  const disabled = busy || bridge.item === null;
+  copyButton.disabled = disabled;
+  saveButton.disabled = disabled;
+  for (const button of commandButtons) button.disabled = disabled;
+}
+
 async function run(action: () => Promise<void>): Promise<void> {
-  // The host's buttons cannot be disabled from here (D-1068); a press that
-  // lands mid-write is simply ignored, and the status line already says what
-  // is happening.
+  // A press that lands mid-write is ignored; the status line already says what
+  // is happening. The page owns its buttons, so it also disables them.
   if (busy) return;
   busy = true;
+  updateButtons();
   try {
     await action();
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : "操作失败", true);
   } finally {
     busy = false;
+    updateButtons();
   }
 }
 
@@ -168,6 +176,85 @@ function copy(): Promise<void> {
   });
 }
 
+/**
+ * Applies a command's text as one edit. `insertText` participates in the
+ * native undo stack, so a format is a single Cmd+Z away; `setRangeText` is the
+ * fallback for a browser that refuses the command. The caret is clamped to the
+ * new length so a format does not also move it to the end.
+ */
+function applyReplacement(text: string): void {
+  const refusal = textRefusal(text);
+  if (refusal !== "") {
+    setStatus(refusal, true);
+    return;
+  }
+  const caretAt = input.selectionStart;
+  input.focus();
+  input.setSelectionRange(0, input.value.length);
+  const inserted = document.execCommand("insertText", false, text);
+  if (!inserted) {
+    input.setRangeText(text, 0, input.value.length, "end");
+  }
+  const at = Math.min(caretAt, text.length);
+  input.setSelectionRange(at, at);
+  render();
+}
+
+function diagnosticSentence(title: string, line: number, column: number, message: string): string {
+  return `「${title}」第 ${line} 行第 ${column} 列：${message}`;
+}
+
+function invokeCommand(command: SurfaceCommand): Promise<void> {
+  return run(async () => {
+    setStatus(`正在运行「${command.title}」…`);
+    const result = await bridge.invoke(command, input.value);
+    const first = result.diagnostics[0];
+    if (!result.ok) {
+      setStatus(
+        first
+          ? diagnosticSentence(command.title, first.line, first.column, first.message)
+          : (result.message || "命令失败"),
+        true,
+      );
+      return;
+    }
+    if (result.output !== undefined) applyReplacement(result.output);
+    if (first) {
+      const more = result.diagnostics.length > 1 ? `（共 ${result.diagnostics.length} 处）` : "";
+      setStatus(diagnosticSentence(command.title, first.line, first.column, first.message) + more, true);
+      return;
+    }
+    setStatus(result.output === undefined ? `「${command.title}」已运行` : `已应用「${command.title}」`);
+  });
+}
+
+/**
+ * Fills the page's own command toolbar from the registry. A capability package
+ * declares a text command with no placement, so the host never shows it; this
+ * surface is the one that composes it (PLUGINS.md section 5.2). A failure just
+ * leaves the toolbar hidden — the editor keeps its built-in features.
+ */
+async function loadCommands(): Promise<void> {
+  try {
+    commands = await bridge.list(["text"]);
+  } catch {
+    commands = [];
+  }
+  commandBar.replaceChildren();
+  commandButtons.length = 0;
+  for (const command of commands) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = command.title;
+    button.title = command.description ?? command.title;
+    button.addEventListener("click", () => void invokeCommand(command));
+    commandBar.append(button);
+    commandButtons.push(button);
+  }
+  commandBar.hidden = commands.length === 0;
+  updateButtons();
+}
+
 for (const item of LANGUAGE_CHOICES) {
   const option = document.createElement("option");
   option.value = item.value;
@@ -182,7 +269,6 @@ languageSelect.addEventListener("change", () => {
 });
 
 input.addEventListener("input", () => {
-  revision += 1;
   render();
 });
 input.addEventListener("scroll", syncScroll);
@@ -194,69 +280,29 @@ input.addEventListener("keydown", (event) => {
     const start = input.selectionStart;
     const end = input.selectionEnd;
     input.setRangeText(INDENT, start, end, "end");
-    // setRangeText fires no input event, so the edit is counted here.
-    revision += 1;
     render();
     return;
   }
   if (event.key === "s" && (event.metaKey || event.ctrlKey)) {
     event.preventDefault();
     void save();
-    return;
-  }
-  if (event.key === "Escape") {
-    event.preventDefault();
-    bridge.close();
   }
 });
 
-bridge.onAction((id) => {
-  if (id === "save") void save();
-  else if (id === "copy") void copy();
-});
+copyButton.addEventListener("click", () => void copy());
+saveButton.addEventListener("click", () => void save());
 
 bridge.onItem((item) => {
   originalText = item.text;
   input.value = item.text;
   titleInput.value = item.title.slice(0, SAVE_TITLE_LIMIT);
   choice = "auto";
-  revision = 0;
   render();
+  updateButtons();
   input.focus();
   input.setSelectionRange(0, 0);
   renderCaret();
 });
 
-// The host's editor toolbar (D-1065) reads this buffer and may replace it.
-// Neither handler gives the document a way to run a command: the host names
-// the command, runs it and sends back the result.
-bridge.onBufferRequest(() => ({ text: input.value, revision }));
-
-/**
- * Applies the host's replacement as one edit. `insertText` participates in the
- * native undo stack, so a format is a single Cmd+Z away; `setRangeText` is the
- * fallback for a browser that refuses the command. The selection is restored
- * to where the reader left it, clamped to the new length, so a format does not
- * also move the caret to the end.
- */
-function applyReplace(text: string, expectedRevision: number): BridgeResult {
-  const refusal = replaceRefusal(revision, expectedRevision);
-  if (refusal !== "") return { ok: false, message: refusal };
-  const caret = input.selectionStart;
-  input.focus();
-  input.setSelectionRange(0, input.value.length);
-  const before = revision;
-  const inserted = document.execCommand("insertText", false, text);
-  if (!inserted) {
-    input.setRangeText(text, 0, input.value.length, "end");
-  }
-  // insertText fires an input event, which already counted the edit;
-  // setRangeText does not, so the fallback path counts it here.
-  if (revision === before) revision += 1;
-  const at = Math.min(caret, text.length);
-  input.setSelectionRange(at, at);
-  render();
-  return { ok: true };
-}
-
-bridge.onReplace(applyReplace);
+updateButtons();
+void loadCommands();

@@ -1,15 +1,14 @@
 {
-  "manifestVersion": 2,
+  "manifestVersion": 3,
   "id": "com.mypaste.sql",
   "name": "SQL Toolkit",
-  "version": "1.1.0",
+  "version": "3.0.0",
   "description": "SQL 语法高亮、语法错误提示与格式化：七种方言，跨平台官方包；失败时回退内置高亮、不写剪贴板。",
   "capabilities": [
-    "selection.read",
-    "selection.render"
+    "entity.read"
   ],
   "runtime": {
-    "protocolVersion": 2,
+    "mode": "command",
     "entrypoint": "sql"
   },
   "commands": [
@@ -17,45 +16,20 @@
       "id": "highlight",
       "title": "高亮 SQL",
       "description": "返回方言感知的语法 token 与语法错误提示；失败时 MyPaste 自动回退内置高亮。",
-      "input": [
-        "text/plain"
-      ],
-      "output": [
-        "application/vnd.mypaste.render+json"
-      ],
-      "capabilities": [
-        "selection.render"
-      ],
-      "languages": [
-        "sql"
-      ],
       "forms": [
-        "plain",
-        "rich"
-      ],
-      "surface": "renderer"
+        "text"
+      ]
     },
     {
       "id": "format",
       "title": "格式化 SQL",
       "description": "按方言排版 SQL 并复制；有语法错误时不写剪贴板并报告位置。",
-      "input": [
-        "text/plain"
+      "forms": [
+        "text"
       ],
       "output": [
-        "text/plain"
-      ],
-      "capabilities": [
-        "selection.read"
-      ],
-      "languages": [
-        "sql"
-      ],
-      "forms": [
-        "plain",
-        "rich"
-      ],
-      "surface": "editor"
+        "text"
+      ]
     }
   ],
   "settings": [

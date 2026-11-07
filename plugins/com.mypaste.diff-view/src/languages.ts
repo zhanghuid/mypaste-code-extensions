@@ -1,6 +1,6 @@
 /**
  * The comparison document's language table. The package owns it: MyPaste does
- * not hand a workbench document its language list (D-1040), so the words and
+ * not hand a surface page its language list (D-1040), so the words and
  * the detection heuristics live here and reach the document only through an
  * update of this package. The table only names what the two texts appear to
  * be; it never changes the comparison.

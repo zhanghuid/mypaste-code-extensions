@@ -4,12 +4,12 @@
 The packages under plugins/*/ that this script owns (OFFICIAL below) come in
 two shapes, and the shipped archive never contains the source tree:
 
-- a compiled Go program (manifest, menu page, one built binary — or, for a
-  package with a `targets` list, one binary per platform under
+- a compiled Go program (manifest, optional assets, one built binary — or, for
+  a package with a `targets` list, one binary per platform under
   `bin/<goos>-<goarch>/`);
-- a workbench document (manifest plus the one HTML fragment the host serves,
-  bundled from src/ by scripts/build-workbenches.mjs). A workbench package
-  runs no process, so it carries no binary at all.
+- a surface document (manifest plus the one HTML page `surface.entry` names,
+  bundled from src/ by scripts/build-surfaces.mjs). A surface package runs no
+  process, so it carries no binary at all.
 
 Installation is the trust decision (D-1039 in the MyPaste host repository):
 the feed carries no signature, and the host does not read one. Publishing is
@@ -85,13 +85,13 @@ def build_binary(spec: dict, staging: Path) -> None:
             fail(f"go build failed:\n{done.stderr.strip()}")
 
 
-def build_workbench(plugin_id: str, output: Path) -> None:
+def build_surface(plugin_id: str, output: Path) -> None:
     done = subprocess.run(
-        ["node", "scripts/build-workbenches.mjs", "--package", plugin_id,
+        ["node", "scripts/build-surfaces.mjs", "--package", plugin_id,
          "--out", str(output)],
         cwd=ROOT, capture_output=True, text=True)
     if done.returncode != 0:
-        fail(f"workbench build failed:\n{done.stderr.strip()}")
+        fail(f"surface build failed:\n{done.stderr.strip()}")
 
 
 def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
@@ -103,13 +103,13 @@ def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
     if manifest.get("id") != plugin_id:
         fail(f"{plugin_id}: manifest id does not match the directory")
     shutil.copyfile(manifest_path, staging / "mypaste.plugin.json")
-    if spec.get("workbench"):
-        # The document's own path comes from the manifest: the host reads it
-        # from there, so staging and serving cannot disagree about the name.
-        document = manifest.get("workbench", {}).get("document", "")
+    if spec.get("surface"):
+        # The page's own path comes from the manifest: the host reads it from
+        # `surface.entry`, so staging and serving cannot disagree about it.
+        document = manifest.get("surface", {}).get("entry", "")
         if not document:
-            fail(f"{plugin_id}: spec declares a workbench but the manifest has none")
-        build_workbench(plugin_id, staging / document)
+            fail(f"{plugin_id}: spec declares a surface but the manifest has none")
+        build_surface(plugin_id, staging / document)
         return manifest
     for asset in spec["assets"]:
         asset_path = source / asset
@@ -146,6 +146,22 @@ def record_digest(target: Path) -> str:
     return digest
 
 
+def prune_stale(plugin_id: str, version: str) -> None:
+    """Remove archives this script built for earlier versions of one package.
+
+    A v3 release supersedes every v2 archive for the same id; the marketplace
+    must never list two protocols for one package, so the predecessor goes the
+    same way scripts/package.py treats its own. The delete is bounded to this
+    id's `<id>-<version>.mypaste-plugin` files and their digests.
+    """
+    keep = f"{plugin_id}-{version}.mypaste-plugin"
+    for stale in sorted(DIST.glob(f"{plugin_id}-*.mypaste-plugin")):
+        if stale.name == keep:
+            continue
+        stale.unlink()
+        stale.with_suffix(stale.suffix + ".sha256").unlink(missing_ok=True)
+
+
 def update_index(entry: dict) -> None:
     index_path = DIST / "index.json"
     index = json.loads(index_path.read_text(encoding="utf-8"))
@@ -174,6 +190,7 @@ def main() -> None:
             staging = Path(temp) / plugin_id
             staging.mkdir()
             manifest = stage_package(plugin_id, spec, staging)
+            prune_stale(plugin_id, manifest["version"])
             target = write_archive(plugin_id, manifest, staging)
             sha256 = record_digest(target)
             update_index({
@@ -183,10 +200,10 @@ def main() -> None:
                 "description": manifest.get("description", ""),
                 "fileName": target.name,
                 "sha256": sha256,
-                # A workbench package declares no runtime; zero says exactly
-                # that, and the host keeps such entries.
-                "runtimeProtocol": manifest.get("runtime", {}).get(
-                    "protocolVersion", 0),
+                # A surface package declares no runtime; zero says exactly
+                # that, and the host keeps such entries. A command package
+                # speaks the child-process protocol v3 inherited from v2.
+                "runtimeProtocol": 2 if "runtime" in manifest else 0,
                 # The project address the marketplace detail page shows. It is
                 # feed metadata: the manifest never carries it, so older hosts
                 # keep installing the same package.

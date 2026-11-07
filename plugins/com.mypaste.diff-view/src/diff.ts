@@ -1,7 +1,7 @@
 /**
- * The text comparison engine behind the 高亮对比 workbench document.
+ * The text comparison engine behind the 高亮对比 surface.
  *
- * Both sides arrive through the workbench bridge: the item the command was
+ * Both sides arrive through the surface bridge: the item the command was
  * invoked on and the one comparison item its manifest declared (D-1040).
  * Nothing here touches the host. The approach follows
  * OmniDiff (https://github.com/ivankovic/omnidiff): align whole lines first,
@@ -299,7 +299,7 @@ export function diffLinePair(before: string, after: string): {
 
 /**
  * diffText turns two texts into aligned, highlighted rows plus the counts the
- * workbench reports. Lines that exist only on one side are marked whole; a
+ * diff summary. Lines that exist only on one side are marked whole; a
  * deletion and an insertion that sit next to each other become one change row
  * with word-level detail.
  */
@@ -419,7 +419,7 @@ export function diffText(beforeText: string, afterText: string): DiffResult {
   };
 }
 
-/** diffSummary is the sentence the workbench header carries. */
+/** diffSummary is the sentence the page header carries. */
 export function diffSummary(result: DiffResult): string {
   if (result.stats.added === 0 && result.stats.removed === 0) {
     return "两段文本相同";

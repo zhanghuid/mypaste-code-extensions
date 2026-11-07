@@ -1,13 +1,20 @@
 {
-  "manifestVersion": 2,
+  "manifestVersion": 3,
   "id": "com.mypaste.code-edit",
   "name": "代码编辑",
-  "version": "1.3.0",
+  "version": "3.0.0",
   "description": "在本地编辑代码或纯文本：行号、语法高亮与语言识别都随包提供，可另存为新的历史条目或复制到剪贴板；原条目保持不变，不联网、不读取其它条目。",
-  "workbench": {
-    "title": "代码编辑",
-    "document": "workbench.html",
-    "editor": true
+  "capabilities": [
+    "entity.read",
+    "entity.save",
+    "clipboard.write"
+  ],
+  "surface": {
+    "entry": "preview.html",
+    "forms": [
+      "text"
+    ],
+    "role": "open"
   },
   "commands": [
     {
@@ -15,10 +22,11 @@
       "title": "编辑代码",
       "description": "带行号与语法高亮地编辑这条文本，另存或复制",
       "forms": [
-        "plain",
-        "rich"
+        "text"
       ],
-      "surface": "workbench"
+      "placement": [
+        "card-action"
+      ]
     }
   ]
 }

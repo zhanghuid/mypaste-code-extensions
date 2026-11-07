@@ -3,5 +3,5 @@ node_modules/
 *.tmp
 __pycache__/
 *.pyc
-# Built from src/workbench.html + src/main.ts by scripts/build-workbenches.mjs.
-plugins/*/workbench.html
+# Built from src/preview.html + src/main.ts by scripts/build-surfaces.mjs.
+plugins/*/preview.html

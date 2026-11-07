@@ -12,22 +12,31 @@ auto-runs, downloads code at runtime, or writes the clipboard directly.
 
 ## Packages
 
-This repository holds three kinds of packages:
+Every package speaks MyPaste plugin protocol v3. v3 has two roles:
 
-- **Script packages** (`plugins/mypaste.*`) — run-script extensions packaged by
-  `scripts/package.py` from plain source; see the language table below.
-- **Workbench packages** (`plugins/com.mypaste.code-card`,
+- **Surface** — has UI. It ships one page and runs no process; the page draws
+  its own interface and reaches the host only through the surface bridge.
+- **Capability** — no UI, only commands. The host shows the commands that
+  declare a placement, and surfaces reach the rest through the registry.
+
+This repository holds:
+
+- **Script capability packages** (`plugins/mypaste.*`) — run-script extensions
+  packaged by `scripts/package.py` from plain source; see the language table
+  below.
+- **Binary capability packages** (`plugins/com.mypaste.ferry`,
+  `plugins/com.mypaste.sql`) — compiled Go programs built by
+  `scripts/build-official.py`.
+- **Surface packages** (`plugins/com.mypaste.code-card`,
   `plugins/com.mypaste.code-edit`, `plugins/com.mypaste.diff-view`,
-  `plugins/com.mypaste.image-edit`) — one HTML document that MyPaste shows in
-  its workbench card. They run no process and declare no capabilities; see
-  "Workbench packages" below.
-- **Official packages** (`plugins/com.mypaste.*`) — compiled Go binaries and
-  workbench documents with broader capabilities, built by
-  `scripts/build-official.py`; see "Official packages" below.
+  `plugins/com.mypaste.image-edit`) — one HTML page, no process; see
+  "Surface packages" below.
+- **Official packages** (`plugins/com.mypaste.*`) — the binaries and surfaces
+  above, built by `scripts/build-official.py`; see "Official packages" below.
   `scripts/official_packages.py` is the single owner of the list;
   `scripts/package.py` never packages or validates them.
 
-### Script packages
+### Script capability packages
 
 Each language has two independently installable packages:
 
@@ -42,164 +51,130 @@ Each language has two independently installable packages:
 | Go | `mypaste.format-go` | `mypaste.highlight-go` |
 | Rust | `mypaste.format-rust` | `mypaste.highlight-rust` |
 
-Formatting packages request only `selection.read`: they answer with text and
-never write the clipboard. Highlighting packages request only
-`selection.render`; they cannot write the clipboard, read history, use files,
-network, or spawn arbitrary commands.
+Both kinds request only `entity.read`. Formatting answers with text and never
+writes the clipboard; highlighting answers with bounded token arrays and never
+returns HTML or CSS. Neither can read history, use files, reach the network, or
+spawn arbitrary commands. They declare no `placement`, so the host never shows
+them directly: a surface integrates them through the registry, and a language
+is the package's own internal concept — the host never infers one.
 
-## Manifest version 2
+## Manifest version 3
 
-Every manifest is `"manifestVersion": 2`. A command names the content forms it
-acts on and the one surface it appears on:
+Every manifest is `"manifestVersion": 3`, and every command declares the entity
+forms it acts on:
 
 ```json
 "commands": [{
   "id": "format",
+  "title": "格式化 JSON",
   "forms": ["text"],
-  "languages": ["go"],
-  "surface": "editor",
-  "input": ["text/plain"],
-  "output": ["text/plain"],
-  "capabilities": ["selection.read"],
-  "...": "..."
+  "output": ["text"]
 }]
 ```
 
-`forms` uses the host's form tree: `text` (`plain`, `rich`), `link`, `color`,
+`forms` uses the host's entity tree: `text` (`plain`, `rich`), `link`, `color`,
 `media` (`image`, `audio`, `video`) and `file` (`document`, `archive`,
 `folder`, `other`). A declaration matches its whole subtree, so `text` covers
-plain and rich text. An empty `forms` list makes the command form-agnostic.
+plain and rich text.
 
-`surface` is one of:
+`output` names what the command produces; the host uses it to decide whether
+the result can be saved or copied. It defaults to `forms`.
 
-| surface | where it appears | requirement |
-| --- | --- | --- |
-| `renderer` | paints the code preview | declares `selection.render` |
-| `palette` | the Cmd+K command palette (default) | — |
-| `editor` | the code editor's action bar | declares `selection.read`, outputs `text/plain` |
-| `workbench` | opens the package's own document | declares forms, starts no process |
-| `data-action` | a host data action, no clipboard item | declares at least one capability |
+`placement` names where the host itself shows the command:
 
-A command that names a `languages` entry must stay inside the text subtree.
-`"*"` declares every language and must stand alone. The editor surface gets
-text only: MyPaste drops any copy effect instead of writing the clipboard, and
-saves nothing unless you press save. The renderer surface is presentation only,
-so a preview never rewrites the stored text with a formatter.
+| placement | where it appears |
+| --- | --- |
+| `palette` | the Cmd+K command palette |
+| `card-action` | the card/preview action row for the current entity |
+| `trigger` | a background trigger (host D-1024), no interface |
 
-A package may add up to eight top-level tabs with `menus`; each tab has a
-unique `id`, a title of at most 24 characters, one HTML entry, and optionally a
-`statusCommand`, up to six `actions` and an `order`. MyPaste sorts tabs by
-`order`, then package id, then declaration order.
+A command may omit `placement`: it is then a **pure capability**, which the
+host never shows and only surfaces reach through the registry (0/1/N, keyed by
+entity type alone).
+
+Capabilities use the host's closed service list and should ask for the least
+one that does the job: `entity.read`, `entity.save`, `copy`, `clipboard.write`,
+`entry.payload`, `secret.read`, `network.outbound`, `storage.plugin`,
+`companion.read`, `history.exchange`.
 
 `scripts/package.py` rejects a package whose commands omit or misuse these
-fields, so an unreadable declaration fails the build instead of shipping.
-Version 1 manifests still install: `appliesTo` maps onto `forms`, `global`
-becomes `data-action`, `workbench` becomes `workbench`, and the single `menu`
-becomes one `menus` entry with the id `menu`.
+fields, or whose manifest still names v2 vocabulary (`surface: "editor"`,
+`appliesTo`, `global`, `menus`, `workbench`, `languages`), so an unreadable
+declaration fails the build instead of shipping.
 
-## Workbench packages
+## Surface packages
 
 `com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view` and
-`com.mypaste.image-edit` ship a document instead of a process. MyPaste reads
-the manifest's `workbench.document`, wraps it in its own CSP and shows it in a
-sandboxed frame; the document can only read the item the command was invoked
-on, save text or an image as a new history item, copy text or an image, and
-close. Nothing else reaches it — no host binding, no asset path, no other item.
-
-An `editor` workbench (`editor: true`) may also advertise
-`features: ["buffer"]` in its `ready` message (host D-1065). The host then draws
-its own toolbar of the matching `editor` commands above the document and asks
-for the current buffer; a command runs on that buffer and the result comes back
-as one `replace` message tagged with the revision it was read at. The document
-still never runs, names or discovers a command: it only answers `buffer-request`
-and applies `replace` when its revision is unchanged.
-
-The documents follow the host's visual rule (host D-1045): no rounded boxes.
-Cards, panels, buttons and tool chips are square; a circle is allowed only
-where roundness is the shape's meaning, such as a status dot.
+`com.mypaste.image-edit` ship a page instead of a process:
 
 ```json
-"workbench": {"title": "代码卡片", "document": "workbench.html"},
-"commands": [{
-  "id": "clipboard.code-card",
-  "title": "导出代码卡片",
+"surface": {
+  "entry": "preview.html",
   "forms": ["text"],
-  "surface": "workbench"
-}]
-```
-
-A document that needs a second text to work on declares it in the workbench
-block, and the host delivers the neighbour itself:
-
-```json
-"workbench": {
-  "title": "高亮对比",
-  "document": "workbench.html",
-  "companion": "previous-text"
+  "role": "open"
 }
 ```
 
-`"previous-text"` is the only accepted word (D-1040). The host picks the
-adjacent item from the visible list — one that has text, is not an image and is
-not the invoked item — preferring the previous item and otherwise the next, and
-delivers it in the same `item` message as `companion`; it never hands the
-document a way to browse history. With no such neighbour the host refuses to
-open the document and says so. A companion over 1 MiB is skipped.
+`forms` names the entities the surface adapts, and `role` is one of:
 
-A document that edits its item declares `"editor": true` (D-1041). MyPaste
-opens only such a workbench on a preview double-click, for the kinds its
-command declares; export cards and comparisons stay on the command palette:
+- `open` — the target of "open this entity" (a double-click on a card when this
+  surface is the chosen default). Code-edit, diff-view and image-edit declare it.
+- `preview` — drawn into the dock's card preview. Code-card declares it.
 
-```json
-"workbench": {"title": "代码编辑", "document": "workbench.html", "editor": true}
-```
+The host serves the page to a sandboxed frame and mediates reading this
+invocation's item, saving text or an image as a new history entry, copying text
+or an image, and closing. Nothing else reaches it — no host binding, no asset
+path, no other item. A surface that compares against a neighbour declares the
+`companion.read` capability and asks for it; the host chooses the adjacent
+item and never gives the page a way to browse history.
 
-`com.mypaste.code-edit` and `com.mypaste.image-edit` declare it;
-`com.mypaste.code-card` and `com.mypaste.diff-view` deliberately do not.
+v3 removed the host workbench: there is no buffer exchange, no host-drawn
+editor toolbar and no host-drawn document action row (host D-1065, D-1068).
+Each page draws its own controls. Code-edit's page, for example, draws 复制文本
+and 保存为新条目 itself and builds a command toolbar at runtime from the
+registry:
 
-A document may also declare the buttons for its own actions (D-1068). Its
-`ready` message can carry `actions: [{id, title}]`, each entry optionally with
-`emphasis` (the row's primary button) or `enabled: false`; MyPaste draws at most
-four of them in its card header with its own material, and sends a press back as
-`{v: 1, type: "action", id}`. The document decides what each id means and still
-writes back through its own `save` and `copy` requests. `com.mypaste.code-edit`
-1.3.0 declares 复制文本 and 保存为新条目 this way instead of drawing a footer of
-its own.
+- `{v: 1, type: "registry", requestId, forms}` → `{v: 1, type: "result",
+  requestId, ok, commands: [{pluginId, commandId, title, description?,
+  output?}]}` — the capability commands that adapt those entity forms.
+- `{v: 1, type: "invoke", requestId, pluginId, commandId, text}` → `{v: 1,
+  type: "result", requestId, ok, output?, diagnostics?, render?}` — runs one
+  command against the current buffer.
 
-Each package keeps its own `src/` and shares no code with the others; every
-package declares the bridge protocol and its own highlighting or diff engine
-from its own side. Text save and copy cross the bridge as exact-key messages
+Text save and copy cross the bridge as exact-key messages
 (`{v: 1, type: "save", requestId, text, title}` and
 `{v: 1, type: "copy", requestId, text}`); the host validates the text again —
 1 MiB, UTF-8, no control characters — and reports the result back per
 `requestId`. Saving writes a new history item; it never replaces the original.
 
-The host answers `ready` with the `item` (carrying `companion` when declared)
-and immediately after with
+The host answers the page's `{v: 1, type: "ready"}` with the `item` and then
 `{v: 1, type: "theme", scheme: "light" | "dark", tokens: {"surface": "…"}}`
-(D-1042, D-1043). That scheme is the one MyPaste resolved from its own
+(host D-1042, D-1043). That scheme is the one MyPaste resolved from its own
 appearance setting, which the sandboxed frame's `prefers-color-scheme` cannot
-see, so a document paints by `:root[data-scheme]` and uses the media query only
-as the value shown before the message arrives. `tokens` carries the values that
+see, so a page paints by `:root[data-scheme]` and uses the media query only as
+the value shown before the message arrives. `tokens` carries the values that
 scheme resolved to — colours and the two font stacks — keyed by the host's own
-CSS custom property names without `--`. Both documents mirror each value as
-`--mp-<name>` and prefer it in CSS, keeping their own palette as the fallback
+CSS custom property names without `--`. Each page mirrors every value as
+`--mp-<name>` and prefers it in CSS, keeping its own palette as the fallback
 for an older host. The host resends the whole pair when the reader changes the
-appearance or theme while the document is open.
+appearance or theme while the page is open.
 
-The comparison document edits in place: one click anywhere in either pane —
-its text, its gutter, its head, or the space below the last line — opens that
-side's editor, with the caret under the pointer when the click lands on a
-rendered line and at the side's end otherwise; a drag that selects text stays
-a selection. While typing, only the other column is
-repainted, at most every 150 ms (backing off further when a repaint of a long
-text is itself slow), so the editor never waits for the diff. Both panes are a
-two-column grid; each side owns its own line numbers.
+The comparison page edits in place: one click anywhere in either pane — its
+text, its gutter, its head, or the space below the last line — opens that side's
+editor, with the caret under the pointer when the click lands on a rendered
+line and at the side's end otherwise; a drag that selects text stays a
+selection. While typing, only the other column is repainted, at most every
+150 ms (backing off further when a repaint of a long text is itself slow), so
+the editor never waits for the diff. Both panes are a two-column grid; each
+side owns its own line numbers.
 
-Closing belongs to the host card. MyPaste draws one close control in the
-workbench chrome, and a document must not draw a second one; a document may
-still ask the bridge to close for its Escape key, but Escape first leaves an
-editing mode (the comparison document uses it for that).
+Closing belongs to the host container. MyPaste draws one close control in the
+surface chrome, and a page must not draw a second one; a page may still ask the
+bridge to close for its Escape key, but Escape first leaves an editing mode
+(the comparison page uses it for that). The pages follow the host's visual rule
+(host D-1045): no rounded boxes. Cards, panels, buttons and tool chips are
+square; a circle is allowed only where roundness is the shape's meaning, such
+as a status dot.
 
 Sources:
 
@@ -207,46 +182,47 @@ Sources:
 plugins/com.mypaste.code-card/
   mypaste.plugin.json
   src/main.ts          entry, controls, status line
-  src/bridge.ts        the host bridge, as the document sees it
+  src/bridge.ts        the host bridge, as the page sees it
   src/card.ts          palettes, layout and canvas drawing
   src/tokenize.ts      the card's own tokenizer and language table
-  src/workbench.html   markup, styles and the <!--bundle--> placeholder
-  workbench.html       GENERATED: the document the archive ships
+  src/preview.html     markup, styles and the <!--bundle--> placeholder
+  preview.html         GENERATED: the page the archive ships
 
-plugins/com.mypaste.code-edit/   the overlay editor (its own tokenizer,
-                                 language table and bridge)
-plugins/com.mypaste.diff-view/   the comparison document (its own diff engine
-                                 and language table; declares a companion)
+plugins/com.mypaste.code-edit/   the editor (its own tokenizer, language
+                                 table and bridge; registry command toolbar)
+plugins/com.mypaste.diff-view/   the comparison page (its own diff engine and
+                                 language table; reads a companion)
+plugins/com.mypaste.image-edit/  the image editor (canvas tools of its own)
 ```
 
-Build one document with `bun run build:workbenches` (esbuild bundles
-`src/main.ts` into the fragment). `scripts/build-official.py` runs the same
-build into the staging directory, so an archive never contains stale output.
+Build every page with `bun run build:surfaces` (esbuild bundles `src/main.ts`
+into the complete document). `scripts/build-official.py` runs the same build
+into the staging directory, so an archive never contains stale output.
 
 ## Official packages
-
 
 `com.mypaste.ferry` — the cross-device sync extension — ships from this
 repository as a compiled binary instead of a run script. Its Go source lives
 in `plugins/com.mypaste.ferry/src/` (own `go.mod`); the archive contains only
-the manifest, `menu.html` and the built `ferry` binary, never the source tree.
-The relay service it talks to lives in `servers/mypaste-relay/` (own
-`go.mod`); it is a standalone HTTPS server, not a plugin package, and is
-deployed separately. Ferry needs capabilities outside the run-script allowlist
-(`entry.payload`, `network.outbound` with configured hosts, `storage.plugin`,
-triggers); MyPaste lists them in the install confirmation, and the single
-enable switch is the whole permission decision (D-1039 in the host
-repository). There is no signature or trusted tier to obtain.
+the manifest and the built `ferry` binary, never the source tree. The relay
+service it talks to lives in `servers/mypaste-relay/` (own `go.mod`); it is a
+standalone HTTPS server, not a plugin package, and is deployed separately.
+Ferry needs capabilities outside the run-script allowlist (`entry.payload`,
+`network.outbound` with configured hosts, `storage.plugin`, triggers); MyPaste
+lists them in the install confirmation, and the single enable switch is the
+whole permission decision (D-1039 in the host repository). There is no
+signature or trusted tier to obtain.
 
 `com.mypaste.sql` — the SQL toolkit extension (syntax highlighting, syntax
 diagnostics and formatting for seven dialects, lexed by
 [chroma](https://github.com/alecthomas/chroma)) — ships as a compiled binary
-too. Its Go source lives in `plugins/com.mypaste.sql/src/` (own `go.mod`);
-the archive contains only the manifest and the built binaries, never the
-source tree. Its spec declares a `targets` list, so the archive nests one
-binary per platform under `bin/<goos>/<goarch>/` (`.exe` on windows); the
-host resolves the declared entrypoint through that layout (D-1057 in the
-host repository).
+too. It is a pure capability: it exposes `highlight` and `format` commands and
+has no UI. Its Go source lives in `plugins/com.mypaste.sql/src/` (own
+`go.mod`); the archive contains only the manifest and the built binaries,
+never the source tree. Its spec declares a `targets` list, so the archive
+nests one binary per platform under `bin/<goos>/<goarch>/` (`.exe` on
+windows); the host resolves the declared entrypoint through that layout
+(D-1057 in the host repository).
 
 Build the official packages locally:
 
@@ -276,16 +252,16 @@ for the official packages.
 ```sh
 bun install                                                # esbuild + tsc
 bun run test                                               # Python suite
-bun run typecheck                                          # both packages' TS
-bun run build:workbenches                                  # both documents
+bun run typecheck                                          # every package's TS
+bun run build:surfaces                                     # every surface page
 bun run build                                              # script packages
 python3 scripts/build-official.py                          # official packages
 sh scripts/release.sh                                      # build, test, publish
 ```
 
 `dist/` will contain one ZIP-root `.mypaste-plugin` per package. The archive
-root must be `mypaste.plugin.json` plus the entry script, or — for a workbench
-package — the manifest plus the one document it declares.
+root must be `mypaste.plugin.json` plus the entry script, or — for a surface
+package — the manifest plus the one page `surface.entry` names.
 
 ## Release
 
@@ -305,8 +281,8 @@ publishing.
 The script refuses to start unless the work tree is clean on a branch that
 descends from `main`. It stops at the first failure, so a failing test leaves
 the rebuilt `dist/` in the tree but commits and pushes nothing. Commit the
-package, document and manifest changes first: the script amends the current
-commit, so it becomes the release commit. A workbench package still needs the
+package, page and manifest changes first: the script amends the current
+commit, so it becomes the release commit. A surface package still needs the
 host's install confirmation before it can run, exactly like every other
 package.
 
@@ -319,8 +295,8 @@ package.
    - "Install / update plugin..." and select one `.mypaste-plugin` file.
 3. Refresh the list, grant only the capability each package declares, then use
    the command from the clipboard command palette.
-4. For highlighting, select a code item and preview it. If no highlight plugin
-   is granted, MyPaste uses its built-in highlighter.
+4. For highlighting, open a code item in a surface that integrates the
+   registry, or use a highlight command from the palette.
 
 Folder import accepts nested package folders, skips hidden directories,
 `node_modules` and `.git`, ignores symbolic links, and reports each package
@@ -347,13 +323,13 @@ the language fixtures and the archive validator.
 ## Security model
 
 - Highlighting returns tokens; it never returns HTML.
-- MyPaste validates language and token-kind allowlists, token count and total
-  bytes again at the host boundary.
+- MyPaste validates entity forms and token-kind allowlists, token count and
+  total bytes again at the host boundary.
 - Formatting failures preserve the original text; partial output is rejected.
 - No script package in this repository requests network, file, or process
   capabilities. The official sync package does request `network.outbound`
-  (HTTPS, configured hosts) and `storage.plugin`; MyPaste gates both behind
-  trusted provenance and shows them in the install dialog.
+  (HTTPS, configured hosts) and `storage.plugin`; MyPaste shows both in the
+  install dialog.
 - The app's plugin capability list is a grant ceiling, not an operating-system
   sandbox.
 
@@ -362,8 +338,8 @@ The committed `dist/` directory is the fixed raw-GitHub feed used by MyPaste:
 ```text
 dist/
   index.json
-  mypaste.format-go-2.0.0.mypaste-plugin
-  mypaste.format-go-2.0.0.mypaste-plugin.sha256
+  mypaste.format-go-3.0.0.mypaste-plugin
+  mypaste.format-go-3.0.0.mypaste-plugin.sha256
   ...
 ```
 
@@ -389,7 +365,7 @@ know — an older MyPaste simply does not show the repository link.
 | `description` | yes | One-line description. |
 | `fileName` | yes | Archive name inside `dist/`. |
 | `sha256` | yes | Digest of the archive the host verifies before installing. |
-| `runtimeProtocol` | yes | Runtime protocol the package speaks (`2`, or `0` for a workbench package with no runtime). |
+| `runtimeProtocol` | yes | Runtime protocol the package speaks (`2`, or `0` for a surface package with no runtime). |
 | `repository` | no | Project address, HTTPS, shown on the marketplace detail page. The host opens it only after resolving the address from its own copy of this index, keyed by plugin ID — the page never supplies a URL. |
 
 The app fetches only

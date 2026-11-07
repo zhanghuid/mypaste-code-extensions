@@ -1,8 +1,8 @@
 {
-  "manifestVersion": 2,
+  "manifestVersion": 3,
   "id": "com.mypaste.ferry",
   "name": "跨设备同步",
-  "version": "1.1.0",
+  "version": "3.0.0",
   "description": "在已配对的 Mac 之间同步文本、图片与文件条目：端到端加密、离线排队、经你自己的中继转发；文件与目录由你在落盘前确认。中继只能看到设备 ID、消息大小与时间，看不到正文；扩展密钥由扩展私有目录的文件权限保护；自建中继的 TLS 证书由你负责；接收的文件不做病毒扫描。交互思路参考 PasteFerry（AGPL-3.0），未使用其源码或协议实现。",
   "capabilities": [
     "clipboard.write",
@@ -11,7 +11,6 @@
     "storage.plugin"
   ],
   "runtime": {
-    "protocolVersion": 2,
     "entrypoint": "ferry",
     "mode": "command",
     "configuredHosts": true
@@ -21,97 +20,152 @@
       "id": "sync.status",
       "title": "读取同步状态",
       "description": "返回设备、配对、中继连通性、队列与最近传输的只读 JSON。",
-      "capabilities": [
-        "storage.plugin"
+      "forms": [
+        "text",
+        "link",
+        "color",
+        "media",
+        "file"
       ],
-      "surface": "data-action"
+      "placement": [
+        "palette"
+      ]
     },
     {
       "id": "sync.push",
       "title": "发送新条目",
       "description": "把本次剪贴板触发的条目加密后发往已配对设备。",
-      "capabilities": [
-        "entry.payload",
-        "network.outbound",
-        "storage.plugin"
+      "forms": [
+        "text",
+        "link",
+        "color",
+        "media",
+        "file"
       ],
-      "surface": "data-action"
+      "placement": [
+        "trigger"
+      ]
     },
     {
       "id": "sync.pull",
       "title": "接收同步内容",
       "description": "取回信箱中的加密分块，校验后写回剪贴板；文件与目录经你确认后落盘。",
-      "capabilities": [
-        "clipboard.write",
-        "network.outbound",
-        "storage.plugin"
+      "forms": [
+        "text",
+        "link",
+        "color",
+        "media",
+        "file"
       ],
-      "surface": "data-action"
+      "placement": [
+        "palette",
+        "trigger"
+      ]
     },
     {
       "id": "sync.pair.begin",
       "title": "生成配对码",
       "description": "在中继上创建一次性 6 位配对码，10 分钟内有效。",
-      "capabilities": [
-        "network.outbound",
-        "storage.plugin"
+      "forms": [
+        "text",
+        "link",
+        "color",
+        "media",
+        "file"
       ],
-      "surface": "data-action"
+      "placement": [
+        "palette"
+      ]
     },
     {
       "id": "sync.pair.redeem",
       "title": "兑换配对码",
       "description": "用另一台设备显示的配对码发起配对，并给出双方核对的指纹。",
-      "capabilities": [
-        "network.outbound",
-        "storage.plugin"
+      "forms": [
+        "text",
+        "link",
+        "color",
+        "media",
+        "file"
       ],
-      "surface": "data-action"
+      "placement": [
+        "palette"
+      ]
     },
     {
       "id": "sync.pair.confirm",
       "title": "确认配对指纹",
       "description": "核对指纹一致后，把等待中的设备标记为已配对。",
-      "capabilities": [
-        "storage.plugin"
+      "forms": [
+        "text",
+        "link",
+        "color",
+        "media",
+        "file"
       ],
-      "surface": "data-action"
+      "placement": [
+        "palette"
+      ]
     },
     {
       "id": "sync.pair.cancel",
       "title": "取消配对",
       "description": "作废本机尚未兑换完的配对码，并移除仍在等待指纹确认的设备。",
-      "capabilities": [
-        "storage.plugin"
+      "forms": [
+        "text",
+        "link",
+        "color",
+        "media",
+        "file"
       ],
-      "surface": "data-action"
+      "placement": [
+        "palette"
+      ]
     },
     {
       "id": "sync.unpair",
       "title": "解绑设备",
       "description": "解除与一台已配对设备的绑定；它重新配对前不会再收到你的内容。",
-      "capabilities": [
-        "storage.plugin"
+      "forms": [
+        "text",
+        "link",
+        "color",
+        "media",
+        "file"
       ],
-      "surface": "data-action"
+      "placement": [
+        "palette"
+      ]
     },
     {
       "id": "sync.autosync",
       "title": "暂停或恢复自动同步",
       "description": "切换自动同步的暂停状态；离线队列与配对保持不变。",
-      "capabilities": [
-        "storage.plugin"
+      "forms": [
+        "text",
+        "link",
+        "color",
+        "media",
+        "file"
       ],
-      "surface": "data-action"
+      "placement": [
+        "palette"
+      ]
     },
     {
       "id": "sync.queue.clear",
       "title": "清空离线队列",
       "description": "丢弃本机尚未发出的全部离线消息；已确认发送的内容不受影响。",
-      "capabilities": [
-        "storage.plugin"
+      "forms": [
+        "text",
+        "link",
+        "color",
+        "media",
+        "file"
       ],
-      "surface": "data-action"
+      "placement": [
+        "palette"
+      ]
     }
   ],
   "triggers": [
@@ -143,22 +197,6 @@
       "description": "显示在已配对设备上的名称，最多 64 个字符。",
       "default": "",
       "maxLength": 64
-    }
-  ],
-  "menus": [
-    {
-      "id": "sync",
-      "title": "跨设备同步",
-      "entry": "menu.html",
-      "statusCommand": "sync.status",
-      "actions": [
-        "sync.pair.begin",
-        "sync.pair.cancel",
-        "sync.unpair",
-        "sync.autosync",
-        "sync.pull",
-        "sync.queue.clear"
-      ]
     }
   ]
 }

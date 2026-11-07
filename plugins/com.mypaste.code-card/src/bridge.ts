@@ -1,12 +1,12 @@
 /**
- * The host's workbench bridge, as seen from inside the document. The document
+ * The host's surface bridge, as seen from inside the document. The document
  * runs in a sandboxed frame with an opaque origin: it holds no host binding and
  * can reach the host only through these four messages. Each one carries exactly
  * the fields it needs, and the host answers every save and copy with a result
  * the document shows on its own status line.
  */
 
-export type WorkbenchItem =
+export type SurfaceItem =
   | { kind: "text"; title: string; text: string }
   | { kind: "image"; title: string; mime: string; dataURL: string };
 
@@ -21,11 +21,11 @@ interface ResultMessage extends BridgeResult {
   requestId: number;
 }
 
-export interface WorkbenchBridge {
+export interface SurfaceBridge {
   /** The item this invocation was opened on, once the host has delivered it. */
-  readonly item: WorkbenchItem | null;
+  readonly item: SurfaceItem | null;
   /** Registers the one receiver for the item; it fires at most once. */
-  onItem(listener: (item: WorkbenchItem) => void): void;
+  onItem(listener: (item: SurfaceItem) => void): void;
   save(dataURL: string, title: string): Promise<BridgeResult>;
   copy(dataURL: string): Promise<BridgeResult>;
   close(): void;
@@ -35,7 +35,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function parseItem(data: unknown): WorkbenchItem | null {
+function parseItem(data: unknown): SurfaceItem | null {
   if (!isRecord(data) || data.v !== 1 || data.type !== "item") return null;
   const item = data.item;
   if (!isRecord(item) || typeof item.title !== "string") return null;
@@ -54,13 +54,13 @@ function parseItem(data: unknown): WorkbenchItem | null {
 }
 
 /**
- * connectWorkbench wires the bridge and tells the host the document is ready.
+ * connectSurface wires the bridge and tells the host the document is ready.
  * The host delivers the item only after that message, so nothing may be drawn
  * before it arrives.
  */
-export function connectWorkbench(): WorkbenchBridge {
-  let item: WorkbenchItem | null = null;
-  let itemListener: ((item: WorkbenchItem) => void) | null = null;
+export function connectSurface(): SurfaceBridge {
+  let item: SurfaceItem | null = null;
+  let itemListener: ((item: SurfaceItem) => void) | null = null;
   let nextRequest = 1;
   const pending = new Map<number, (result: BridgeResult) => void>();
 
@@ -99,7 +99,7 @@ export function connectWorkbench(): WorkbenchBridge {
     });
   }
 
-  const bridge: WorkbenchBridge = {
+  const bridge: SurfaceBridge = {
     get item() {
       return item;
     },

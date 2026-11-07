@@ -149,8 +149,8 @@ def main() -> int:
         fail("", "invalid JSON request")
         return 0
     request_id = request.get("id", "")
-    if request.get("protocolVersion") != 2 or request.get("render") is not True:
-        fail(request_id, "selection.render is required")
+    if request.get("protocolVersion") != 2:
+        fail(request_id, "protocol 2 request is required")
         return 0
     selection = request.get("selection")
     if not isinstance(selection, dict) or not isinstance(selection.get("text"), str):

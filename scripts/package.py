@@ -25,7 +25,10 @@ MAX_INDEX_ID = 96
 MAX_INDEX_VERSION = 32
 PLUGIN_ID = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$")
 PLUGIN_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$")
-LANGUAGE = re.compile(r"^[a-z][a-z0-9+#-]*$")
+# The feed's `runtimeProtocol` is the child-process line protocol, which v3
+# keeps from v2 (PLUGINS.md section 8). Every run-script package speaks it;
+# a surface package runs no process and the official builder writes zero.
+RUNTIME_PROTOCOL = 2
 # The host owns the content-form tree (D-1060); a package may only name nodes
 # the host declares, and the host re-checks the declaration before running a
 # command. A form matches its whole subtree, so "text" covers plain and rich.
@@ -33,8 +36,24 @@ FORMS = {
     "text", "plain", "rich", "link", "color", "media", "image", "audio",
     "video", "file", "document", "archive", "folder", "other",
 }
-TEXT_FORMS = {"text", "plain", "rich"}
-SURFACES = {"renderer", "palette", "editor", "workbench", "data-action"}
+# Protocol v3's closed service list (PLUGINS.md section 6). A package may ask
+# for a subset; asking for anything else is not a v3 manifest.
+SERVICES = {
+    "entity.read", "entity.save", "copy", "clipboard.write", "entry.payload",
+    "secret.read", "network.outbound", "storage.plugin", "companion.read",
+    "history.exchange",
+}
+# Where the host shows a command. A command without one is a pure capability:
+# it is never shown, only reached through the registry by a surface.
+PLACEMENTS = {"palette", "card-action", "trigger"}
+SURFACE_ROLES = {"open", "preview"}
+# Vocabulary v3 removed. A package that still names it is a v2 manifest that
+# only changed its version number.
+LEGACY_KEYS = {"menu", "menus", "workbench", "appliesTo", "global"}
+LEGACY_COMMAND_KEYS = {
+    "surface", "input", "languages", "capabilities", "menu", "workbench",
+    "appliesTo", "global",
+}
 
 
 def fail(message: str) -> None:
@@ -57,13 +76,14 @@ def validate(package: Path) -> dict:
     if not manifest_path.is_file():
         fail(f"{package.name}: missing mypaste.plugin.json")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("manifestVersion") != 2:
-        fail(f"{package.name}: manifestVersion must be 2")
-    if "menu" in manifest:
-        fail(f"{package.name}: manifestVersion 2 uses menus, not menu")
+    if manifest.get("manifestVersion") != 3:
+        fail(f"{package.name}: manifestVersion must be 3")
+    legacy = LEGACY_KEYS & set(manifest)
+    if legacy:
+        fail(f"{package.name}: protocol v3 has no {sorted(legacy)}")
     runtime = manifest.get("runtime")
-    if not runtime or runtime.get("protocolVersion") != 2:
-        fail(f"{package.name}: runtime protocolVersion must be 2")
+    if not runtime or runtime.get("mode") not in {"command", "resident"}:
+        fail(f"{package.name}: runtime mode must be command or resident")
     entrypoint = runtime.get("entrypoint", "")
     if not entrypoint or entrypoint.startswith("/") or ".." in Path(entrypoint).parts:
         fail(f"{package.name}: invalid entrypoint")
@@ -74,70 +94,71 @@ def validate(package: Path) -> dict:
     if os.name != "nt" and not mode & stat.S_IXUSR:
         fail(f"{package.name}: entrypoint must be executable")
     capabilities = set(manifest.get("capabilities", []))
-    allowed = {"selection.read", "clipboard.write", "selection.render"}
-    unknown = capabilities - allowed
+    unknown = capabilities - SERVICES
     if unknown:
         fail(f"{package.name}: unsupported capabilities {sorted(unknown)}")
+    surface = manifest.get("surface")
+    if surface is not None:
+        validate_surface(surface, package.name)
     for command in manifest.get("commands", []):
-        unknown = set(command.get("capabilities", [])) - allowed
-        if unknown:
-            fail(f"{package.name}: unsupported command capabilities {sorted(unknown)}")
         validate_target(command, package.name)
     return manifest
 
 
-def validate_target(command: dict, package_name: str) -> None:
-    """Every command declares its content forms, its surface and its languages.
-
-    The declaration is the protocol contract with the host: the host filters
-    each surface by it, and the page matches the form subtree and the language
-    before offering the command (D-1060, D-1063). A command without `forms` is
-    form-agnostic; a command that names a language must sit under `text`.
-    """
-    surface = command.get("surface", "palette")
-    if surface not in SURFACES:
-        fail(f"{package_name}: unknown surface {surface!r}")
-    forms = command.get("forms", [])
-    if not isinstance(forms, list):
-        fail(f"{package_name}: forms must be a list")
+def validate_forms(forms: object, package_name: str, owner: str) -> None:
+    if not isinstance(forms, list) or not forms:
+        fail(f"{package_name}: {owner} must declare forms")
     if not all(isinstance(form, str) for form in forms):
         fail(f"{package_name}: forms must be strings")
     unknown = set(forms) - FORMS
     if unknown:
         fail(f"{package_name}: unknown forms {sorted(unknown)}")
     if len(set(forms)) != len(forms):
-        fail(f"{package_name}: duplicate form in {command.get('id')}")
-    if surface == "data-action":
-        if forms or command.get("languages"):
-            fail(f"{package_name}: data actions declare no forms or languages")
-    elif not forms:
-        fail(f"{package_name}: command {command.get('id')} must declare forms")
-    languages = command.get("languages", [])
-    if not isinstance(languages, list):
-        fail(f"{package_name}: languages must be a list")
-    for language in languages:
-        if language == "*":
-            continue
-        if not isinstance(language, str) or not LANGUAGE.match(language):
-            fail(f"{package_name}: invalid language {language!r}")
-    if len(set(languages)) != len(languages):
-        fail(f"{package_name}: duplicate language in {command.get('id')}")
-    if "*" in languages and len(languages) > 1:
-        fail(f"{package_name}: wildcard language must stand alone")
-    if languages and not set(forms) <= TEXT_FORMS:
-        fail(f"{package_name}: only text forms may declare languages")
-    capabilities = set(command.get("capabilities", []))
-    if surface == "renderer" and "selection.render" not in capabilities:
-        fail(f"{package_name}: renderer commands must declare selection.render")
-    if surface == "editor":
-        if "selection.read" not in capabilities:
-            fail(f"{package_name}: editor commands must declare selection.read")
-        if "text/plain" not in command.get("output", []):
-            fail(f"{package_name}: editor commands must output text/plain")
-    if surface == "workbench" and capabilities:
-        fail(f"{package_name}: workbench commands do not start a process")
-    if surface == "data-action" and not capabilities:
-        fail(f"{package_name}: data actions must declare a capability")
+        fail(f"{package_name}: duplicate form in {owner}")
+
+
+def validate_surface(surface: object, package_name: str) -> None:
+    """A v3 surface names its page, the entities it adapts, and its role."""
+    if not isinstance(surface, dict):
+        fail(f"{package_name}: surface must be an object")
+    entry = surface.get("entry")
+    if (not isinstance(entry, str) or not entry or entry.startswith("/")
+            or ".." in Path(entry).parts):
+        fail(f"{package_name}: invalid surface entry")
+    if surface.get("role") not in SURFACE_ROLES:
+        fail(f"{package_name}: surface role must be open or preview")
+    validate_forms(surface.get("forms"), package_name, "surface")
+
+
+def validate_target(command: dict, package_name: str) -> None:
+    """A v3 command declares the entities it reads and where it is shown.
+
+    `forms` is the input entity type (a leaf or a whole parent such as `text`);
+    `output` is the entity type it produces, and is absent when the command
+    only returns a result the surface consumes. `placement` is optional: a
+    command without one is a pure capability, shown nowhere, reached only
+    through the registry by a surface.
+    """
+    legacy = LEGACY_COMMAND_KEYS & set(command)
+    if legacy:
+        fail(f"{package_name}: command {command.get('id')} uses v2 fields "
+             f"{sorted(legacy)}")
+    if not isinstance(command.get("id"), str) or not command["id"]:
+        fail(f"{package_name}: command id must be a non-empty string")
+    name = f"command {command['id']}"
+    validate_forms(command.get("forms"), package_name, name)
+    output = command.get("output")
+    if output is not None:
+        validate_forms(output, package_name, f"{name} output")
+    placement = command.get("placement", [])
+    if not isinstance(placement, list) or not all(
+            isinstance(place, str) for place in placement):
+        fail(f"{package_name}: {name} placement must be a list")
+    unknown = set(placement) - PLACEMENTS
+    if unknown:
+        fail(f"{package_name}: {name} has unknown placements {sorted(unknown)}")
+    if len(set(placement)) != len(placement):
+        fail(f"{package_name}: duplicate placement in {name}")
 
 
 def files_for(package: Path) -> list[Path]:
@@ -168,9 +189,9 @@ def build(package: Path) -> dict:
     plugin_id = manifest.get("id", "")
     display_name = manifest.get("name", "")
     description = manifest.get("description", "")
-    runtime_protocol = manifest["runtime"].get("protocolVersion", 0)
-    if not isinstance(runtime_protocol, int) or runtime_protocol < 1:
-        fail(f"{package.name}: invalid runtime protocolVersion")
+    runtime_protocol = RUNTIME_PROTOCOL
+    if manifest["runtime"].get("mode") not in {"command", "resident"}:
+        fail(f"{package.name}: invalid runtime mode")
     if not isinstance(plugin_id, str) or not PLUGIN_ID.match(plugin_id):
         fail(f"{package.name}: invalid id")
     if len(plugin_id) > MAX_INDEX_ID:

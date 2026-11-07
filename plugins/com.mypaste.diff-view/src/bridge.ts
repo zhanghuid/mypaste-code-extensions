@@ -1,20 +1,22 @@
 /**
- * The host's workbench bridge, as seen from inside the comparison document.
+ * The host's surface bridge, as seen from inside the comparison document.
  * The document runs in a sandboxed frame with an opaque origin: it holds no
  * host binding and can reach the host only through these messages. Each one
  * carries exactly the fields it needs, and the host answers every save and
  * copy with a result the document shows on its own status line.
  *
- * D-1040: this document writes text. The item message also carries the one
- * comparison item the manifest declared; the host chooses the neighbour and
- * the document never learns where it came from.
+ * D-1040: this page writes text. The comparison item is read through the
+ * `companion.read` service: after the host delivers the invoked item, the page
+ * asks for the one neighbour it compares against, and the host chooses it. A
+ * host that already pushed a companion with the item still works (older v3
+ * drafts did); the page never learns where the neighbour came from.
  *
  * D-1042/D-1043: the host also sends the application's resolved colour scheme
  * and the design tokens that scheme resolved to; the document paints by them
  * instead of by the system's appearance or a palette of its own.
  */
 
-export type WorkbenchTextItem = { kind: "text"; title: string; text: string };
+export type SurfaceTextItem = { kind: "text"; title: string; text: string };
 
 export interface BridgeResult {
   ok: boolean;
@@ -25,18 +27,20 @@ export interface BridgeResult {
 /** A result carries the request it answers; only the bridge reads that field. */
 interface ResultMessage extends BridgeResult {
   requestId: number;
+  /** The companion item, when the host answers a `companion` request. */
+  item?: unknown;
 }
 
 /** One delivery: the invoked item and, when declared, its comparison item. */
-export interface WorkbenchDelivery {
-  item: WorkbenchTextItem;
-  companion: WorkbenchTextItem | null;
+export interface SurfaceDelivery {
+  item: SurfaceTextItem;
+  companion: SurfaceTextItem | null;
 }
 
-export interface WorkbenchBridge {
-  readonly delivery: WorkbenchDelivery | null;
+export interface SurfaceBridge {
+  readonly delivery: SurfaceDelivery | null;
   /** Registers the one receiver for the delivery; it fires at most once. */
-  onItem(listener: (delivery: WorkbenchDelivery) => void): void;
+  onItem(listener: (delivery: SurfaceDelivery) => void): void;
   save(text: string, title: string): Promise<BridgeResult>;
   copy(text: string): Promise<BridgeResult>;
   close(): void;
@@ -47,14 +51,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** The application's resolved colour scheme (D-1042). */
-type WorkbenchScheme = "light" | "dark";
+type SurfaceScheme = "light" | "dark";
 
 /** Resolved host tokens; keys are the host's CSS names without `--` (D-1043). */
-type WorkbenchTokens = Record<string, string>;
+type SurfaceTokens = Record<string, string>;
 
 interface ParsedTheme {
-  scheme: WorkbenchScheme;
-  tokens: WorkbenchTokens;
+  scheme: SurfaceScheme;
+  tokens: SurfaceTokens;
 }
 
 /** The only shape a token name may take once it is prefixed with `--mp-`. */
@@ -68,7 +72,7 @@ const TOKEN_NAME = /^[a-z][a-z0-9-]*$/;
 function parseTheme(data: unknown): ParsedTheme | null {
   if (!isRecord(data) || data.v !== 1 || data.type !== "theme") return null;
   if (data.scheme !== "light" && data.scheme !== "dark") return null;
-  const tokens: WorkbenchTokens = {};
+  const tokens: SurfaceTokens = {};
   // Unknown keys are ignored: the document has no registry of the host's
   // theme, and a value it has no rule for sets a variable nothing reads. Only
   // non-empty strings reach CSS.
@@ -96,7 +100,7 @@ function applyTheme(theme: ParsedTheme): void {
   }
 }
 
-function parseTextItem(value: unknown): WorkbenchTextItem | null {
+function parseTextItem(value: unknown): SurfaceTextItem | null {
   if (!isRecord(value) || value.kind !== "text" ||
     typeof value.title !== "string" || typeof value.text !== "string") {
     return null;
@@ -104,39 +108,55 @@ function parseTextItem(value: unknown): WorkbenchTextItem | null {
   return { kind: "text", title: value.title, text: value.text };
 }
 
-function parseDelivery(data: unknown): WorkbenchDelivery | null {
+function parseItem(data: unknown): SurfaceTextItem | null {
   if (!isRecord(data) || data.v !== 1 || data.type !== "item") return null;
-  const item = parseTextItem(data.item);
-  if (!item) return null;
-  const companion = data.companion === undefined ? null : parseTextItem(data.companion);
-  // A malformed companion is not silently dropped: the document declared that
-  // it needs one, so it treats the delivery as unusable instead of comparing
-  // against half a pair.
-  if (data.companion !== undefined && !companion) return null;
-  return { item, companion };
+  return parseTextItem(data.item);
 }
 
 /**
- * connectWorkbench wires the bridge and tells the host the document is ready.
+ * connectSurface wires the bridge and tells the host the document is ready.
  * The host sends the delivery only after that; a document that renders first
  * and asks later would race a host that already delivered.
  */
-export function connectWorkbench(): WorkbenchBridge {
-  let delivery: WorkbenchDelivery | null = null;
-  const listeners: ((delivery: WorkbenchDelivery) => void)[] = [];
-  const pending = new Map<number, (result: BridgeResult) => void>();
+export function connectSurface(): SurfaceBridge {
+  let delivery: SurfaceDelivery | null = null;
+  const listeners: ((delivery: SurfaceDelivery) => void)[] = [];
+  const pending = new Map<number, (result: ResultMessage) => void>();
   let nextRequest = 1;
+  let delivering = false;
 
   function post(message: unknown): void {
     parent.postMessage(message, "*");
   }
 
-  function request(message: Record<string, unknown>): Promise<BridgeResult> {
+  function request(message: Record<string, unknown>): Promise<ResultMessage> {
     const requestId = nextRequest++;
     return new Promise((resolve) => {
       pending.set(requestId, resolve);
       post({ ...message, v: 1, requestId });
     });
+  }
+
+  /**
+   * Reads the comparison item. A host that already pushed one with the item
+   * keeps working; otherwise the page asks for it through `companion.read`.
+   * A malformed pushed companion makes the pair unusable rather than half a
+   * comparison, exactly as v2 refused it.
+   */
+  async function deliver(item: SurfaceTextItem, message: unknown): Promise<void> {
+    if (delivering) return;
+    delivering = true;
+    const pushed = isRecord(message) ? message.companion : undefined;
+    let companion: SurfaceTextItem | null;
+    if (pushed !== undefined) {
+      companion = parseTextItem(pushed);
+      if (!companion) return;
+    } else {
+      const result = await request({ type: "companion" });
+      companion = result.ok ? parseTextItem(result.item) : null;
+    }
+    delivery = { item, companion };
+    for (const listener of listeners.splice(0)) listener(delivery);
   }
 
   // The system appearance only covers the moment before the host speaks: the
@@ -147,10 +167,9 @@ export function connectWorkbench(): WorkbenchBridge {
   window.addEventListener("message", (event) => {
     if (event.source !== parent) return;
     const data = event.data;
-    const delivered = parseDelivery(data);
-    if (delivered) {
-      delivery = delivered;
-      for (const listener of listeners.splice(0)) listener(delivered);
+    const item = parseItem(data);
+    if (item) {
+      void deliver(item, data);
       return;
     }
     const theme = parseTheme(data);
@@ -163,7 +182,7 @@ export function connectWorkbench(): WorkbenchBridge {
     const resolve = pending.get(result.requestId);
     if (!resolve) return;
     pending.delete(result.requestId);
-    resolve({ ok: Boolean(result.ok), id: result.id, message: result.message });
+    resolve({ ...result, ok: Boolean(result.ok) });
   });
 
   post({ v: 1, type: "ready" });
@@ -179,11 +198,13 @@ export function connectWorkbench(): WorkbenchBridge {
       }
       listeners.push(listener);
     },
-    save(text, title) {
-      return request({ type: "save", text, title });
+    async save(text, title) {
+      const result = await request({ type: "save", text, title });
+      return { ok: result.ok, id: result.id, message: result.message };
     },
-    copy(text) {
-      return request({ type: "copy", text });
+    async copy(text) {
+      const result = await request({ type: "copy", text });
+      return { ok: result.ok, id: result.id, message: result.message };
     },
     close() {
       post({ v: 1, type: "close" });

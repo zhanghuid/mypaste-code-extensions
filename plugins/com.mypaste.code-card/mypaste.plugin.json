@@ -1,12 +1,20 @@
 {
-  "manifestVersion": 2,
+  "manifestVersion": 3,
   "id": "com.mypaste.code-card",
   "name": "代码卡片",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "把代码或纯文本条目渲染成一张可分享的卡片图片：自带语法高亮、三种配色、行号与窗口样式，可另存为新的图片条目或直接复制到剪贴板。卡片完全在本机绘制，不联网、不读取其它条目。",
-  "workbench": {
-    "title": "代码卡片",
-    "document": "workbench.html"
+  "capabilities": [
+    "entity.read",
+    "entity.save",
+    "clipboard.write"
+  ],
+  "surface": {
+    "entry": "preview.html",
+    "forms": [
+      "text"
+    ],
+    "role": "preview"
   },
   "commands": [
     {
@@ -14,10 +22,11 @@
       "title": "导出代码卡片",
       "description": "把这条文本渲染为卡片图片，另存或复制",
       "forms": [
-        "plain",
-        "rich"
+        "text"
       ],
-      "surface": "workbench"
+      "placement": [
+        "card-action"
+      ]
     }
   ]
 }

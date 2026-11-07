@@ -10,13 +10,13 @@
  * 负责，文档不再画第二个关闭按钮。
  */
 
-import { connectWorkbench, type WorkbenchDelivery } from "./bridge";
+import { connectSurface, type SurfaceDelivery } from "./bridge";
 import { diffSummary, diffText, type DiffRow } from "./diff";
 import { detectLanguage, languageLabel } from "./languages";
 
 type Side = "before" | "after";
 
-const bridge = connectWorkbench();
+const bridge = connectSurface();
 
 function one<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -380,7 +380,7 @@ function exitEdit(): void {
   renderView();
 }
 
-function render(delivery: WorkbenchDelivery): void {
+function render(delivery: SurfaceDelivery): void {
   const companion = delivery.companion;
   if (!companion) {
     // The host refuses before opening a document whose manifest asked for a

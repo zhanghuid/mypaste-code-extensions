@@ -27,8 +27,8 @@ export interface CodeToken {
 /**
  * The twelve languages this editor can highlight, one keyword list each. The
  * package owns its own table: it shares nothing with the MyPaste host or the
- * other workbench packages, so a language added elsewhere reaches this
- * document only by an update here.
+ * other surface packages, so a language added elsewhere reaches this
+ * page only by an update here.
  */
 const KEYWORDS: Record<CodeLanguage, ReadonlySet<string>> = {
   css: new Set(["important", "media", "supports"]),

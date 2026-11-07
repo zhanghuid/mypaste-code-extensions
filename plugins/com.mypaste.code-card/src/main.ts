@@ -3,7 +3,7 @@
  * 剪贴板。卡片完全在本地绘制——没有网络请求，也没有宿主绑定。
  */
 
-import { connectWorkbench } from "./bridge";
+import { connectSurface } from "./bridge";
 import {
   DEFAULT_CODE_CARD_OPTIONS,
   cardSource,
@@ -14,7 +14,7 @@ import {
   type CodeWindowStyle,
 } from "./card";
 
-const bridge = connectWorkbench();
+const bridge = connectSurface();
 
 function one<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);

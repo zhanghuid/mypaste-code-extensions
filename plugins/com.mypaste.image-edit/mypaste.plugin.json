@@ -1,13 +1,20 @@
 {
-  "manifestVersion": 2,
+  "manifestVersion": 3,
   "id": "com.mypaste.image-edit",
   "name": "图片编辑",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "在本地裁剪、旋转、翻转、标注与马赛克，另存为新的图片条目或复制到剪贴板；原图保持不变。编辑只作用于宿主交给本次命令的那一张图片。",
-  "workbench": {
-    "title": "图片编辑",
-    "document": "workbench.html",
-    "editor": true
+  "capabilities": [
+    "entity.read",
+    "entity.save",
+    "clipboard.write"
+  ],
+  "surface": {
+    "entry": "preview.html",
+    "forms": [
+      "image"
+    ],
+    "role": "open"
   },
   "commands": [
     {
@@ -17,7 +24,9 @@
       "forms": [
         "image"
       ],
-      "surface": "workbench"
+      "placement": [
+        "card-action"
+      ]
     }
   ]
 }

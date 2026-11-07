@@ -1,7 +1,7 @@
-"""The official (compiled or document-only, signed) extension packages.
+"""The official (compiled or surface-only) extension packages.
 
 This module is the one owner of the official package list. Both packaging
-pipelines read it: scripts/build-official.py builds and signs exactly these,
+pipelines read it: scripts/build-official.py builds and archives exactly these,
 and scripts/package.py skips them, because their capability model and runtime
 shape are outside the run-script allowlist it validates.
 
@@ -11,29 +11,29 @@ platform (`goos`/`goarch`, the host's first shipping platform; see the README)
 or a `targets` list: a multi-target package ships one binary per platform
 under `bin/<goos>-<goarch>/<entrypoint>` (`.exe` appended on windows), and the
 host resolves the entrypoint through that layout (D-1057 in the host
-repository). A workbench package's spec is `{"workbench": True}`: the archive
-holds the manifest and the one document the host serves, and no process runs
-at all.
+repository). A surface package's spec is `{"surface": True}`: the archive holds
+the manifest and the one page `surface.entry` names, and no process runs at
+all.
 """
 
 OFFICIAL = {
     "com.mypaste.code-edit": {
-        "workbench": True,
+        "surface": True,
     },
     "com.mypaste.code-card": {
-        "workbench": True,
+        "surface": True,
     },
     "com.mypaste.diff-view": {
-        "workbench": True,
+        "surface": True,
     },
     "com.mypaste.image-edit": {
-        "workbench": True,
+        "surface": True,
     },
     "com.mypaste.ferry": {
         "module": "plugins/com.mypaste.ferry/src",
         "entrypoint": "ferry",
         "package": "./cmd/mypaste-ferry",
-        "assets": ["menu.html"],
+        "assets": [],
         "goos": "darwin",
         "goarch": "arm64",
     },

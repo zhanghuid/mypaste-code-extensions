@@ -69,37 +69,39 @@ def load_packaging():
 
 
 class PackageTests(unittest.TestCase):
-    def test_packaging_rejects_undeclared_commands(self) -> None:
+    def test_packaging_validates_v3_commands(self) -> None:
         packaging = load_packaging()
+        # A pure capability: forms and an output entity, no placement at all.
         packaging.validate_target(
-            {
-                "id": "format",
-                "forms": ["text"],
-                "languages": ["json"],
-                "surface": "editor",
-                "capabilities": ["selection.read"],
-                "output": ["text/plain"],
-            },
+            {"id": "format", "forms": ["text"], "output": ["text"]},
             "mypaste.format-json",
         )
+        # A placed command, and one that only returns a result to its surface.
+        packaging.validate_target(
+            {"id": "push", "forms": ["text", "file"], "placement": ["palette", "trigger"]},
+            "com.mypaste.ferry",
+        )
+        packaging.validate_target(
+            {"id": "highlight", "forms": ["text"]},
+            "mypaste.highlight-json",
+        )
         invalid = [
-            {"id": "format", "languages": ["json"]},
-            {"id": "format", "forms": [], "languages": ["json"]},
-            {"id": "format", "forms": "text", "languages": ["json"]},
+            {"id": "format"},
+            {"id": "format", "forms": []},
+            {"id": "format", "forms": "text"},
             {"id": "format", "forms": [["text"]]},
             {"id": "format", "forms": ["pdf"]},
             {"id": "format", "forms": ["text", "text"]},
-            {"id": "format", "forms": ["text"], "languages": ["JSON"]},
-            {"id": "format", "forms": ["text"], "languages": ["json", "json"]},
-            {"id": "format", "forms": ["image"], "languages": ["json"]},
-            {"id": "format", "forms": ["text"], "surface": "toolbar"},
-            {"id": "format", "forms": ["text"], "surface": "renderer"},
-            {
-                "id": "format",
-                "forms": ["text"],
-                "surface": "editor",
-                "capabilities": ["selection.read"],
-            },
+            {"id": "format", "forms": ["text"], "output": ["text/plain"]},
+            {"id": "format", "forms": ["text"], "placement": "palette"},
+            {"id": "format", "forms": ["text"], "placement": ["toolbar"]},
+            {"id": "format", "forms": ["text"], "placement": ["palette", "palette"]},
+            {"id": "", "forms": ["text"]},
+            # Vocabulary v3 removed: a manifest that still names it is v2.
+            {"id": "format", "forms": ["text"], "surface": "editor"},
+            {"id": "format", "forms": ["text"], "languages": ["json"]},
+            {"id": "format", "forms": ["text"], "input": ["text"]},
+            {"id": "format", "forms": ["text"], "capabilities": ["entity.read"]},
             {"id": "sync", "surface": "data-action"},
         ]
         stderr = io.StringIO()
@@ -108,52 +110,66 @@ class PackageTests(unittest.TestCase):
                 packaging.validate_target(command, "mypaste.format-json")
 
     def test_every_package_has_valid_manifest(self) -> None:
+        packaging = load_packaging()
+        legacy_keys = {"menu", "menus", "workbench", "appliesTo", "global"}
+        legacy_command_keys = {
+            "surface", "input", "languages", "capabilities", "menu",
+            "workbench", "appliesTo", "global",
+        }
         packages = sorted(p for p in PLUGINS.iterdir()
                           if p.is_dir() and not p.name.startswith("."))
-        self.assertGreaterEqual(len(packages), 16)
+        self.assertGreaterEqual(len(packages), 22)
         for package in packages:
             manifest = json.loads((package / "mypaste.plugin.json").read_text())
-            self.assertEqual(manifest["manifestVersion"], 2)
+            self.assertEqual(manifest["manifestVersion"], 3)
+            self.assertFalse(legacy_keys & set(manifest), manifest["id"])
+            capabilities = set(manifest.get("capabilities", []))
+            self.assertLessEqual(capabilities, packaging.SERVICES, manifest["id"])
             runtime = manifest.get("runtime")
             if runtime:
-                self.assertEqual(runtime["protocolVersion"], 2)
+                self.assertIn(runtime["mode"], {"command", "resident"})
                 self.assertTrue(runtime.get("entrypoint"))
-            capabilities = set(manifest.get("capabilities", []))
-            if manifest["id"].startswith("mypaste.highlight-"):
-                self.assertEqual(capabilities, {"selection.render"})
-            elif manifest["id"].startswith("mypaste.format-"):
-                self.assertEqual(capabilities, {"selection.read"})
-            # Every command names its surface and, unless it is a data action,
-            # the form subtree it acts on. MyPaste filters each surface by
-            # these declarations, so a package without them is never offered.
+            # A surface names its page, the entity subtree it adapts and one of
+            # the two roles. Languages are the surface's own concern, never a
+            # manifest declaration (protocol v3 has no `languages`).
+            surface = manifest.get("surface")
+            if surface is not None:
+                self.assertIn(surface["role"], packaging.SURFACE_ROLES)
+                self.assertTrue(surface.get("forms"), manifest["id"])
+                self.assertNotIn("languages", surface)
+            # The eight headless highlight and eight headless format packages
+            # have no surface at all: they are pure capabilities the surfaces
+            # reach through the registry.
+            if (manifest["id"].startswith("mypaste.highlight-")
+                    or manifest["id"].startswith("mypaste.format-")):
+                self.assertEqual(capabilities, {"entity.read"})
+                self.assertNotIn("surface", manifest)
             for command in manifest.get("commands", []):
-                self.assertIn(command.get("surface", "palette"),
-                              {"renderer", "palette", "editor", "workbench",
-                               "data-action"})
-                if command.get("surface") == "data-action":
-                    self.assertNotIn("forms", command)
-                else:
-                    self.assertTrue(command.get("forms"), manifest["id"])
-                self.assertNotIn("appliesTo", command)
-                self.assertNotIn("global", command)
-                self.assertNotIn("workbench", command)
-            self.assertNotIn("menu", manifest)
+                self.assertTrue(command.get("forms"), manifest["id"])
+                self.assertFalse(set(command) & legacy_command_keys,
+                                 (manifest["id"], command["id"]))
+                for placement in command.get("placement", []):
+                    self.assertIn(placement, packaging.PLACEMENTS)
+                for form in command["forms"]:
+                    self.assertIn(form, packaging.FORMS)
+                for output in command.get("output", []):
+                    self.assertIn(output, packaging.FORMS)
 
     def test_index_declares_each_package_runtime_protocol(self) -> None:
         # The host filters catalog entries by this field before listing them,
         # so a package built for another protocol never reaches the install
         # offer and the manifest rejection never has to happen at install time.
         index = json.loads((DIST / "index.json").read_text())
-        self.assertGreaterEqual(len(index["packages"]), 16)
+        self.assertGreaterEqual(len(index["packages"]), 22)
         for entry in index["packages"]:
             manifest = json.loads(
                 (PLUGINS / entry["id"] / "mypaste.plugin.json").read_text()
             )
-            # A workbench package runs no process and declares no runtime;
+            # A surface package runs no process and declares no runtime;
             # the index says exactly that with zero.
             self.assertEqual(
                 entry["runtimeProtocol"],
-                manifest.get("runtime", {}).get("protocolVersion", 0),
+                2 if "runtime" in manifest else 0,
             )
 
     def test_highlighting_all_languages(self) -> None:
@@ -174,8 +190,7 @@ class PackageTests(unittest.TestCase):
                 "id": "test-id",
                 "method": "invoke",
                 "commandId": "highlight",
-                "capabilities": ["selection.render"],
-                "render": True,
+                "capabilities": ["entity.read"],
                 "selection": {"id": 1, "kind": "text", "title": "x", "text": source},
             })
             self.assertTrue(response["ok"], response)
@@ -206,7 +221,7 @@ class PackageTests(unittest.TestCase):
                 "id": "test-id",
                 "method": "invoke",
                 "commandId": "format",
-                "capabilities": ["selection.read", "clipboard.write"],
+                "capabilities": ["entity.read"],
                 "selection": {"id": 1, "kind": "text", "title": "x", "text": source},
             })
             self.assertTrue(response["ok"], (language, response))
@@ -231,7 +246,7 @@ class PackageTests(unittest.TestCase):
                 "id": "test-id",
                 "method": "invoke",
                 "commandId": "format",
-                "capabilities": ["selection.read", "clipboard.write"],
+                "capabilities": ["entity.read"],
                 "selection": {"id": 1, "kind": "text", "title": "x", "text": source},
             })
             self.assertFalse(response["ok"], (language, response))
@@ -245,7 +260,7 @@ class PackageTests(unittest.TestCase):
             "id": "test-id",
             "method": "invoke",
             "commandId": "format",
-            "capabilities": ["selection.read", "clipboard.write"],
+            "capabilities": ["entity.read"],
             "selection": {"id": 1, "kind": "text", "title": "x", "text": source},
         })
         self.assertTrue(response["ok"], response)
@@ -259,7 +274,7 @@ class PackageTests(unittest.TestCase):
             "id": "test-id",
             "method": "invoke",
             "commandId": "format",
-            "capabilities": ["selection.read", "clipboard.write"],
+            "capabilities": ["entity.read"],
             "selection": {"id": 1, "kind": "text", "title": "x", "text": "{\"a\":"},
         })
         self.assertFalse(response["ok"])
@@ -273,7 +288,7 @@ class PackageTests(unittest.TestCase):
             "id": "test-id",
             "method": "invoke",
             "commandId": "format",
-            "capabilities": ["selection.read", "clipboard.write"],
+            "capabilities": ["entity.read"],
             "selection": {"id": 1, "kind": "text", "title": "x", "text": source},
         }
         wide = invoke(package, {**request, "settings": {"indent": 6}})
@@ -305,7 +320,7 @@ class PackageTests(unittest.TestCase):
                 "id": "test-id",
                 "method": "invoke",
                 "commandId": "format",
-                "capabilities": ["selection.read", "clipboard.write"],
+                "capabilities": ["entity.read"],
                 "selection": {"id": 1, "kind": "text", "title": "x", "text": source},
             })
             self.assertTrue(response["ok"], (language, response))
@@ -314,7 +329,7 @@ class PackageTests(unittest.TestCase):
     def test_archives_exclude_python_caches(self) -> None:
         build_packages()
         archives = sorted((ROOT / "dist").glob("*.mypaste-plugin"))
-        self.assertGreaterEqual(len(archives), 16)
+        self.assertGreaterEqual(len(archives), 22)
         for archive in archives:
             with zipfile.ZipFile(archive) as bundle:
                 names = bundle.namelist()
@@ -366,7 +381,7 @@ class PackageTests(unittest.TestCase):
         ]
         manifests.sort(key=lambda item: item[0]["id"])
         self.assertEqual(len(index["packages"]), len(manifests))
-        self.assertGreaterEqual(len(index["packages"]), 16)
+        self.assertGreaterEqual(len(index["packages"]), 22)
         by_id = {item["id"]: item for item in index["packages"]}
         self.assertEqual(len(by_id), len(index["packages"]))
         self.assertEqual(
@@ -423,42 +438,34 @@ class PackageTests(unittest.TestCase):
             {f"{entry['fileName']}.sha256" for entry in index["packages"]},
         )
 
-    def test_workbench_packages_ship_one_document_and_no_binary(self) -> None:
+    def test_surface_packages_ship_one_page_and_no_binary(self) -> None:
         build_packages()
         index = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
         by_id = {entry["id"]: entry for entry in index["packages"]}
-        for plugin_id in (
-            "com.mypaste.code-card",
-            "com.mypaste.code-edit",
-            "com.mypaste.diff-view",
-            "com.mypaste.image-edit",
-        ):
+        roles = {
+            "com.mypaste.code-card": "preview",
+            "com.mypaste.code-edit": "open",
+            "com.mypaste.diff-view": "open",
+            "com.mypaste.image-edit": "open",
+        }
+        for plugin_id, role in roles.items():
             package = PLUGINS / plugin_id
             manifest = json.loads(
                 (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
-            workbench = manifest.get("workbench")
-            self.assertIsNotNone(workbench, plugin_id)
+            surface = manifest.get("surface")
+            self.assertIsNotNone(surface, plugin_id)
             self.assertNotIn("runtime", manifest, plugin_id)
-            # D-1041: only the two editing documents answer a preview
-            # double-click; the export card and the comparison stay on the
-            # command panel.
-            if plugin_id in ("com.mypaste.code-edit", "com.mypaste.image-edit"):
-                self.assertIs(workbench.get("editor"), True, plugin_id)
-            else:
-                self.assertNotIn("editor", workbench, plugin_id)
-            # D-1040: a document asks for a second text with the one word the
-            # host knows; anything else fails installation on the host side.
-            companion = workbench.get("companion")
-            if companion is not None:
-                self.assertEqual(companion, "previous-text", plugin_id)
+            self.assertEqual(surface["role"], role, plugin_id)
+            self.assertTrue(surface["forms"], plugin_id)
+            self.assertNotIn("languages", surface, plugin_id)
             self.assertTrue(manifest["commands"], plugin_id)
             for command in manifest["commands"]:
-                self.assertEqual(command.get("surface"), "workbench", plugin_id)
-                self.assertTrue(command.get("forms") or command.get("surface") == "data-action", plugin_id)
+                self.assertTrue(command.get("placement"), plugin_id)
+                self.assertTrue(command.get("forms"), plugin_id)
                 self.assertNotIn("capabilities", command, plugin_id)
                 self.assertNotIn("pageAction", command, plugin_id)
 
-            document = workbench["document"]
+            document = surface["entry"]
             archive = DIST / f"{plugin_id}-{manifest['version']}.mypaste-plugin"
             with zipfile.ZipFile(archive) as bundle:
                 self.assertEqual(
@@ -466,17 +473,15 @@ class PackageTests(unittest.TestCase):
                     sorted(["mypaste.plugin.json", document]),
                     plugin_id,
                 )
-                fragment = bundle.read(document)
-            # The host serves the document as a fragment it wraps itself: it
-            # must not carry a document skeleton, and its script must already
-            # be bundled in.
-            text = fragment.decode("utf-8")
-            head = text.lstrip().lower()
-            self.assertFalse(head.startswith("<!doctype"), plugin_id)
-            self.assertFalse(head.startswith("<html"), plugin_id)
+                page = bundle.read(document)
+            # The archive ships the built page itself: the script is already
+            # bundled in, and no placeholder survives. A template may be a
+            # complete document or a fragment the host wraps, so the test does
+            # not insist on a doctype.
+            text = page.decode("utf-8")
             self.assertNotIn("<!--bundle-->", text, plugin_id)
             self.assertIn("<script>", text, plugin_id)
-            self.assertLessEqual(len(fragment), 1 << 20, plugin_id)
+            self.assertLessEqual(len(page), 1 << 20, plugin_id)
 
             entry = by_id[plugin_id]
             self.assertEqual(entry["runtimeProtocol"], 0, plugin_id)
