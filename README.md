@@ -276,14 +276,18 @@ it ships its page and a compiled runtime, and it declares internal formatting
 commands with no `placement` and `output: ["text"]`. Protocol v3 exposes those
 commands only to the package's own surface; they never appear in the command
 palette or another surface's registry. The runtime speaks the same newline
-JSON protocol as a v2 process on stdin/stdout. Its formatting engines are fixed
-files in the archive: the reviewed Python/Node scripts under `engines/` (copied
-from `shared/`, which a test keeps byte-identical), the `sqlkit` Go package for
-SQL, a pinned Prettier 3.6.2 standalone build for CSS and YAML
-(`engines/prettier/`, MIT, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
-and installed formatters it locates by name for Go, Rust, PHP, Python, HTML and
-Shell. Request text travels on stdin, never through a shell, and the runtime
-reads nothing outside its own directory. SQL has one owner: `shared/sqlkit` is
+JSON protocol as a v2 process on stdin/stdout. Formatting runs inside the
+compiled binary: Go uses `go/format`, JSON `encoding/json`, SQL the shared
+`sqlkit` package, CSS a brace-aware re-indenter, and the remaining languages a
+whitespace normalizer that never re-nests indentation. No gofmt, rustfmt, php,
+python3, tidy, shfmt or Prettier CLI is looked up on the machine, so every
+command works on a machine with no formatter installed. When Node happens to
+exist, the runtime may use the archive's own helper scripts instead: the
+reviewed `js_format.mjs` (from `shared/`, which a test keeps byte-identical)
+and a pinned Prettier 3.6.2 standalone build for CSS and YAML
+(`engines/prettier/`, MIT, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md));
+without Node the in-process engines answer. Request text travels on stdin,
+never through a shell, and the runtime reads nothing outside its own directory. SQL has one owner: `shared/sqlkit` is
 a Go module that both `com.mypaste.sql` and the code-edit runtime `replace` to
 the same source tree, so the two packages compile and ship the same analyzer,
 formatter and compressor rather than drifting apart.
@@ -369,9 +373,9 @@ installed successfully.
 
 ## Formatter dependencies
 
-The source repository does not vendor compiler toolchains. Formatting adapters
-use tools already installed by the user and return a visible, actionable error
-when a dependency is missing. Current adapters:
+Standalone formatting capability packages (`mypaste.format-*`) use tools already
+installed by the user and return a visible, actionable error when a dependency
+is missing. Current adapters:
 
 - JSON: Python standard library `json`
 - JavaScript / TypeScript / HTML: `node` with local, reviewed formatter code
@@ -380,9 +384,12 @@ when a dependency is missing. Current adapters:
 - Go: `gofmt`
 - Rust: `rustfmt`
 
-All formatters read a single JSON request from stdin and return plain text. They
-never execute the code being formatted. Before publishing a new version, run
-the language fixtures and the archive validator.
+The combined `com.mypaste.code-edit` package does not depend on any of these:
+its formatting is compiled into its own runtime, and Node only enables the
+optional helpers shipped inside its archive (see above). All formatters read a
+single JSON request from stdin and return plain text. They never execute the
+code being formatted. Before publishing a new version, run the language
+fixtures and the archive validator.
 
 ## Security model
 
@@ -445,5 +452,6 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
 ## License
 
 MIT. See [LICENSE](LICENSE). Individual toolchain dependencies remain under
-their own licenses; formatter adapters call locally installed tools and do not
-redistribute them.
+their own licenses; the standalone formatter adapters call locally installed
+tools and do not redistribute them, while the only redistributed dependency is
+the pinned Prettier build inside code-edit, noted above.

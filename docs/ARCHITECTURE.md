@@ -154,17 +154,27 @@ settings should apply its manifest default rather than fail.
 ## Adapter execution
 
 The host provides a minimal environment (`HOME`, `TMPDIR`, `PATH`, `LANG`,
-`LC_ALL`). Format adapters may invoke only a fixed local command path discovered
-from that environment; plugin commands cannot inject arbitrary command names or
-arguments. There is no shell interpolation of user clipboard text.
+`LC_ALL`). Script-based format adapters may invoke only a fixed local command
+path discovered from that environment; plugin commands cannot inject arbitrary
+command names or arguments. Code-edit does not look up a tool at all: its
+formatters are compiled into its runtime. There is no shell interpolation of
+user clipboard text.
 
 ## Dependency policy
 
 - Highlighters are dependency-free local tokenizers.
-- Formatters use system tools already installed by the user; SQL, JSON, CSS
-  and YAML ship their own engines inside code-edit's archive. CSS and YAML use
-  a pinned Prettier standalone build, copied from node_modules at package time
-  by `scripts/vendor_prettier.py`.
+- Standalone formatting capabilities (`mypaste.format-*`) use system tools and
+  return a visible error when one is missing.
+- Code-edit's formatting is compiled into its runtime. Go, JSON and SQL use
+  parsers; CSS re-indents by brace level; Python, Rust, PHP, HTML, Shell and —
+  when Node is absent — CSS, YAML, JavaScript and TypeScript normalize
+  whitespace only and never re-nest indentation. No gofmt, rustfmt, php,
+  python3, tidy, shfmt or Prettier CLI is looked up on the machine.
+- The one optional helper is Node, and only for files inside code-edit's
+  archive: `engines/js_format.mjs` and a pinned Prettier 3.6.2 standalone build
+  for CSS and YAML (`engines/prettier/`), copied from node_modules at package
+  time by `scripts/vendor_prettier.py`. Every command answers in process when
+  Node is absent.
 - No package downloads a formatter at runtime.
 - A missing dependency returns a clear failure and leaves the clipboard
   unchanged.

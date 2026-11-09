@@ -203,11 +203,11 @@
     {
       "id": "com.mypaste.code-edit",
       "name": "代码编辑",
-      "version": "3.3.1",
+      "version": "3.4.0",
       "kind": "ui",
-      "description": "在本地编辑代码或纯文本：行号、语法高亮、语言识别与格式化都随包提供；SQL、JSON、CSS、YAML 的格式化无需另装工具，「格式化」菜单按当前语言列出内置的格式化与 SQL 压缩，Go、Rust、PHP、Python、HTML、Shell 使用本机工具，缺少时原文不变；高亮完全本地，不依赖其它能力包。可另存为新的历史条目或复制到剪贴板，原条目保持不变，不联网、不读取其它条目。",
-      "fileName": "com.mypaste.code-edit-3.3.1.mypaste-plugin",
-      "sha256": "67732a9926c5db2a896ac9ada30115986bc9a42f94ec4c0847912f0cc41fb96d",
+      "description": "在本地编辑代码或纯文本：行号、语法高亮、语言识别与格式化都随包提供，所有语言的格式化都在扩展内完成，不依赖本机安装 gofmt、rustfmt、Python、Prettier 或其它工具；本机有 Node 时，CSS、YAML、JavaScript 与 TypeScript 会改用包内 Prettier 或内置脚本，排版更完整，没有也照常可用；「格式化」菜单按当前语言列出内置格式化与 SQL 压缩；高亮完全本地，不依赖其它能力包。可另存为新的历史条目或复制到剪贴板，原条目保持不变，不联网、不读取其它条目。",
+      "fileName": "com.mypaste.code-edit-3.4.0.mypaste-plugin",
+      "sha256": "88acf62e87d38c53b152078fe291b7f368de4c8c4c0a1eb869b992846943c42c",
       "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },

@@ -1,71 +1,103 @@
 package main
 
 import (
-	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 )
 
-// engineDirForTest is the engines directory the binary ships beside itself.
-const engineDirForTest = "../../engines"
-
-func request(t *testing.T, text string) []byte {
+// emptyEngines is a directory without the optional Node helpers: every
+// operation must still answer in process when the machine has no formatter.
+func emptyEngines(t *testing.T) string {
 	t.Helper()
-	payload, err := json.Marshal(map[string]any{
-		"id":      "test-id",
-		"method":  "invoke",
-		"commandId": "format.json",
-		"selection": map[string]any{
-			"id": 1, "kind": "text", "title": "x", "text": text,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return payload
+	return t.TempDir()
 }
 
-func TestJSONHelperFormatsAndKeepsTheRequestID(t *testing.T) {
-	line, err := runHelper(engineDirForTest, builtins["format.json"], request(t, `{"a":1,"b":[true,null]}`))
+func format(t *testing.T, command, text string) string {
+	t.Helper()
+	output, err := formatBuiltin(command, text, nil, emptyEngines(t))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("%s: %v", command, err)
 	}
-	var answer struct {
-		ID     string `json:"id"`
-		OK     bool   `json:"ok"`
-		Result struct {
-			Output string `json:"output"`
-			Effect string `json:"effect"`
-		} `json:"result"`
+	if strings.TrimSpace(output) == "" {
+		t.Fatalf("%s returned empty output", command)
 	}
-	if err := json.Unmarshal(line, &answer); err != nil {
-		t.Fatalf("helper answered invalid JSON: %v", err)
-	}
-	if answer.ID != "test-id" || !answer.OK || answer.Result.Effect != "copy" {
-		t.Fatalf("unexpected answer: %s", line)
-	}
-	if !strings.Contains(answer.Result.Output, "  \"a\": 1") {
-		t.Fatalf("output was not formatted: %q", answer.Result.Output)
+	return output
+}
+
+func TestGoFormatsWithoutALocalGofmt(t *testing.T) {
+	output := format(t, "format.go", "package main\nfunc main(){println(1)}\n")
+	if !strings.Contains(output, "func main() {") {
+		t.Fatalf("not gofmt output: %q", output)
 	}
 }
 
-func TestHelperReportsInvalidSourceWithoutPartialOutput(t *testing.T) {
-	line, err := runHelper(engineDirForTest, builtins["format.json"], request(t, `{"a":`))
-	if err != nil {
-		t.Fatal(err)
+func TestJSONFormatsAndRefusesBrokenSource(t *testing.T) {
+	output := format(t, "format.json", `{"a":1,"b":[true,null]}`)
+	if !strings.Contains(output, "  \"a\": 1") {
+		t.Fatalf("output was not formatted: %q", output)
 	}
-	var answer struct {
-		OK     bool   `json:"ok"`
-		Result any    `json:"result"`
-		Error  struct {
-			Message string `json:"message"`
-		} `json:"error"`
+	if _, err := formatBuiltin("format.json", `{"a":`, nil, emptyEngines(t)); err == nil {
+		t.Fatal("expected a refusal")
 	}
-	if err := json.Unmarshal(line, &answer); err != nil {
-		t.Fatal(err)
+}
+
+func TestCSSFallsBackToTheBuiltInReindenter(t *testing.T) {
+	output := format(t, "format.css", "a{color:red;margin:0}")
+	want := "a {\n  color:red;\n  margin:0;\n}\n"
+	if output != want {
+		t.Fatalf("got %q, want %q", output, want)
 	}
-	if answer.OK || answer.Result != nil || answer.Error.Message == "" {
-		t.Fatalf("expected a refusal, got %s", line)
+}
+
+func TestYAMLAndJavaScriptFallBackToWhitespaceNormalization(t *testing.T) {
+	yaml := format(t, "format.yaml", "a: 1   \r\nb:\r\n  - 2\r\n")
+	if yaml != "a: 1\nb:\n  - 2\n" {
+		t.Fatalf("yaml: %q", yaml)
+	}
+	javascript := format(t, "format.javascript", "const a = 1;   \r\n")
+	if javascript != "const a = 1;\n" {
+		t.Fatalf("javascript: %q", javascript)
+	}
+}
+
+func TestEveryBuiltinRunsWithoutExternalTools(t *testing.T) {
+	samples := map[string]string{
+		"format.go":         "package main\n",
+		"format.javascript": "const a = 1;\n",
+		"format.typescript": "const a: number = 1;\n",
+		"format.python":     "x = 1\n",
+		"format.rust":       "fn main() {}\n",
+		"format.php":        "<?php echo 1;\n",
+		"format.html":       "<p>hi</p>\n",
+		"format.css":        "a{color:red}\n",
+		"format.json":       `{"a":1}`,
+		"format.yaml":       "a: 1\n",
+		"format.shell":      "echo hi\n",
+		"format.sql":        "select 1;",
+		"compress.sql":      "select 1;",
+	}
+	for command, source := range samples {
+		format(t, command, source)
+	}
+	if _, err := formatBuiltin("format.unknown", "x", nil, emptyEngines(t)); err == nil {
+		t.Fatal("unknown command must be refused")
+	}
+}
+
+func TestBuiltinsCoverEveryEditorLanguage(t *testing.T) {
+	// The page's language table lists these; the manifest declares one command
+	// per entry. SQL also compresses.
+	for _, language := range []string{
+		"go", "javascript", "typescript", "python", "rust", "php",
+		"html", "css", "json", "yaml", "sql", "shell",
+	} {
+		if _, ok := builtins["format."+language]; !ok {
+			t.Fatalf("missing format.%s", language)
+		}
+	}
+	if _, ok := builtins["compress.sql"]; !ok {
+		t.Fatal("missing compress.sql")
 	}
 }
 
@@ -101,18 +133,12 @@ func TestSQLFormattingRefusesSyntaxErrors(t *testing.T) {
 	}
 }
 
-func TestBuiltinsCoverEveryEditorLanguage(t *testing.T) {
-	// The page's language table lists these; the manifest declares one command
-	// per entry. SQL also compresses.
-	for _, language := range []string{
-		"go", "javascript", "typescript", "python", "rust", "php",
-		"html", "css", "json", "yaml", "sql", "shell",
-	} {
-		if _, ok := builtins["format."+language]; !ok {
-			t.Fatalf("missing format.%s", language)
-		}
-	}
-	if _, ok := builtins["compress.sql"]; !ok {
-		t.Fatal("missing compress.sql")
+func TestEngineScriptsAreOptional(t *testing.T) {
+	// No helper may be required for any command: the engine directory here
+	// holds nothing, and every operation above still answered.
+	directory := emptyEngines(t)
+	entries, err := os.ReadDir(directory)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("test engine directory is not empty: %v %v", entries, err)
 	}
 }

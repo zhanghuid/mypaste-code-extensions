@@ -7,11 +7,13 @@
 // when no separate capability package is installed.
 //
 // The runtime speaks the plugin v2 line protocol (PLUGINS.md section 4): one
-// request line on stdin, one response line on stdout. Local formatting engines
-// stay the reviewed files shipped beside this binary under engines/: the
-// runtime only runs those fixed scripts with a fixed interpreter. The one
-// in-process engine is SQL, compiled from the shared sqlkit module that
-// com.mypaste.sql also uses.
+// request line on stdin, one response line on stdout. Formatting happens in
+// this binary: nothing looks up gofmt, rustfmt, black, php-cs-fixer, tidy or
+// shfmt on the user's machine. Go, JSON and SQL use real parsers; CSS gets a
+// conservative re-indenter; the other languages get a whitespace normalizer.
+// The bundled Node helpers (Prettier for CSS and YAML, js_format.mjs for
+// JavaScript and TypeScript) improve the result when Node happens to exist,
+// but every command has an in-process answer without it.
 package main
 
 import (
@@ -28,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	builtinformat "github.com/zhanghuid/mypaste-code-extensions/plugins/com.mypaste.code-edit/src/internal/format"
 	"github.com/zhanghuid/mypaste-code-extensions/shared/sqlkit"
 )
 
@@ -74,32 +77,135 @@ type errorShape struct {
 	Message string `json:"message"`
 }
 
-// builtin describes one internal command. `script` names a file under the
-// package's engines/ directory; an empty script means the operation runs in
-// process (only SQL does).
-type builtin struct {
-	script   string
-	arg      string
-	node     bool
-	compress bool
+// builtins is the closed command set the page knows. Ids are stable: the
+// manifest declares exactly these, and the page invokes them by id. Every
+// entry runs in this binary; only CSS, YAML and JavaScript/TypeScript may
+// consult the bundled helper when Node is available.
+var builtins = map[string]struct{}{
+	"format.go":         {},
+	"format.javascript": {},
+	"format.typescript": {},
+	"format.python":     {},
+	"format.rust":       {},
+	"format.php":        {},
+	"format.html":       {},
+	"format.css":        {},
+	"format.json":       {},
+	"format.yaml":       {},
+	"format.shell":      {},
+	"format.sql":        {},
+	"compress.sql":      {},
 }
 
-// builtins is the closed command set the page knows. Ids are stable: the
-// manifest declares exactly these, and the page invokes them by id.
-var builtins = map[string]builtin{
-	"format.go":         {script: "format_cli.py", arg: "go"},
-	"format.javascript": {script: "js_format.mjs", arg: "javascript", node: true},
-	"format.typescript": {script: "js_format.mjs", arg: "typescript", node: true},
-	"format.python":     {script: "format_cli.py", arg: "python"},
-	"format.rust":       {script: "format_cli.py", arg: "rust"},
-	"format.php":        {script: "format_cli.py", arg: "php"},
-	"format.html":       {script: "format_cli.py", arg: "html"},
-	"format.css":        {script: "format_cli.py", arg: "css"},
-	"format.json":       {script: "format_json.py"},
-	"format.yaml":       {script: "format_cli.py", arg: "yaml"},
-	"format.shell":      {script: "format_cli.py", arg: "shell"},
-	"format.sql":        {},
-	"compress.sql":      {compress: true},
+// formatBuiltin runs one editor operation without asking the machine for a
+// formatter. The engine directory only holds the optional Prettier wrapper;
+// when it or Node is absent the in-process implementation answers instead.
+func formatBuiltin(commandID, text string, settings map[string]any, engineDir string) (string, error) {
+	switch commandID {
+	case "format.go":
+		return builtinformat.Go(text)
+	case "format.json":
+		return builtinformat.JSON(text)
+	case "format.python", "format.rust", "format.php", "format.html", "format.shell":
+		return builtinformat.Hygiene(text)
+	case "format.css":
+		if output, available, err := runNodeEngine(engineDir, "prettier.mjs", "css", text); err != nil {
+			return "", err
+		} else if available {
+			return output, nil
+		}
+		return builtinformat.CSS(text)
+	case "format.yaml":
+		if output, available, err := runNodeEngine(engineDir, "prettier.mjs", "yaml", text); err != nil {
+			return "", err
+		} else if available {
+			return output, nil
+		}
+		return builtinformat.Hygiene(text)
+	case "format.javascript", "format.typescript":
+		language := "javascript"
+		if commandID == "format.typescript" {
+			language = "typescript"
+		}
+		if output, available, err := runNodeEngine(engineDir, "js_format.mjs", language, text); err != nil {
+			return "", err
+		} else if available {
+			return output, nil
+		}
+		return builtinformat.Hygiene(text)
+	case "format.sql":
+		return formatSQL(text, false, settings)
+	case "compress.sql":
+		return formatSQL(text, true, settings)
+	default:
+		return "", errors.New("不支持的内置格式化操作")
+	}
+}
+
+// runNodeEngine runs a reviewed helper with Node when both exist. `available`
+// is false only when Node or the script is missing, which is the one case the
+// caller may answer in process; an engine that ran and refused the text keeps
+// its error so a broken source never gets a partial answer.
+func runNodeEngine(engineDir, script, arg, text string) (string, bool, error) {
+	node := findTool("node")
+	if node == "" {
+		return "", false, nil
+	}
+	path := filepath.Join(engineDir, script)
+	if _, err := os.Stat(path); err != nil {
+		return "", false, nil
+	}
+	request, err := json.Marshal(map[string]any{
+		"id": "engine", "selection": map[string]any{"text": text},
+	})
+	if err != nil {
+		return "", true, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), toolTimeout)
+	defer cancel()
+	command := exec.CommandContext(ctx, node, path, arg)
+	command.Stdin = bytes.NewReader(append(request, '\n'))
+	var stdout, stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Run(); err != nil {
+		detail := strings.TrimSpace(stderr.String())
+		if detail == "" {
+			detail = err.Error()
+		}
+		return "", true, fmt.Errorf("%s", firstLine(detail))
+	}
+	var answer struct {
+		OK     bool `json:"ok"`
+		Result struct {
+			Output string `json:"output"`
+		} `json:"result"`
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &answer); err != nil {
+		return "", true, errors.New("格式化引擎返回了无法解析的结果")
+	}
+	if !answer.OK {
+		message := strings.TrimSpace(answer.Error.Message)
+		if message == "" {
+			message = "格式化引擎失败"
+		}
+		return "", true, errors.New(message)
+	}
+	if strings.TrimSpace(answer.Result.Output) == "" {
+		return "", true, errors.New("格式化结果为空")
+	}
+	return answer.Result.Output, true, nil
+}
+
+func firstLine(value string) string {
+	line := strings.TrimSpace(strings.SplitN(value, "\n", 2)[0])
+	if len(line) > 160 {
+		line = line[:160]
+	}
+	return line
 }
 
 func main() {
@@ -123,8 +229,7 @@ func main() {
 		respond(failure(call.ID, "调用已超时"))
 		return
 	}
-	spec, ok := builtins[call.CommandID]
-	if !ok {
+	if _, ok := builtins[call.CommandID]; !ok {
 		respond(failure(call.ID, "不支持的内置格式化操作"))
 		return
 	}
@@ -133,27 +238,16 @@ func main() {
 		respond(failure(call.ID, "没有可格式化的文本"))
 		return
 	}
-	if spec.script == "" {
-		output, err := formatSQL(text, spec.compress, call.Settings)
-		if err != nil {
-			respond(failure(call.ID, err.Error()))
-			return
-		}
-		respond(response{
-			ID:     call.ID,
-			OK:     true,
-			Result: &resultShape{Output: output, Effect: "copy"},
-		})
-		return
-	}
-	helper, err := runHelper(resolveEngineDir(), spec, request)
+	output, err := formatBuiltin(call.CommandID, text, call.Settings, resolveEngineDir())
 	if err != nil {
 		respond(failure(call.ID, err.Error()))
 		return
 	}
-	// The helper answers in the same line protocol, with the same request id.
-	// Forward its one validated line unchanged.
-	os.Stdout.Write(append(bytes.TrimSpace(helper), '\n'))
+	respond(response{
+		ID:     call.ID,
+		OK:     true,
+		Result: &resultShape{Output: output, Effect: "copy"},
+	})
 }
 
 func (call invocation) text() string {
@@ -214,61 +308,6 @@ func findTool(name string) string {
 		return path
 	}
 	return ""
-}
-
-// runHelper runs one shipped engine script with the fixed interpreter its
-// language needs. User text travels only through stdin; nothing is
-// interpolated into a shell.
-func runHelper(engineDir string, spec builtin, request []byte) ([]byte, error) {
-	interpreter := "python3"
-	if spec.node {
-		interpreter = "node"
-	}
-	tool := findTool(interpreter)
-	if tool == "" {
-		return nil, fmt.Errorf("%s is not installed", interpreter)
-	}
-	script := filepath.Join(engineDir, spec.script)
-	if info, err := os.Stat(script); err != nil || info.IsDir() {
-		return nil, errors.New("内置格式化引擎缺失")
-	}
-	args := []string{script}
-	if spec.arg != "" {
-		args = append(args, spec.arg)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), toolTimeout)
-	defer cancel()
-	command := exec.CommandContext(ctx, tool, args...)
-	command.Stdin = bytes.NewReader(request)
-	var stdout, stderr bytes.Buffer
-	command.Stdout = &stdout
-	command.Stderr = &stderr
-	if err := command.Run(); err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, errors.New("格式化超时")
-		}
-		message := firstLine(stderr.String())
-		if message == "" {
-			message = err.Error()
-		}
-		return nil, errors.New("内置格式化失败：" + message)
-	}
-	line := bytes.TrimSpace(stdout.Bytes())
-	if len(line) == 0 {
-		return nil, errors.New("内置格式化没有返回结果")
-	}
-	if !json.Valid(line) {
-		return nil, errors.New("内置格式化返回了无法解析的结果")
-	}
-	return line, nil
-}
-
-func firstLine(value string) string {
-	line := strings.TrimSpace(strings.SplitN(value, "\n", 2)[0])
-	if len(line) > 160 {
-		line = line[:160]
-	}
-	return line
 }
 
 // formatSQL runs the shared sqlkit engine in process. It is the same

@@ -23,16 +23,14 @@ under `src/`).
 
 OFFICIAL = {
     "com.mypaste.code-edit": {
-        # A UI package with a runtime of its own: the page plus the private
-        # formatting engines and the Go dispatcher that runs them. Only this
-        # package's surface can reach these internal commands.
+        # A UI package with a runtime of its own: the page plus the Go
+        # formatter that runs in process. Only this package's surface can
+        # reach these internal commands.
         "surface": True,
         "module": "plugins/com.mypaste.code-edit/src",
         "entrypoint": "code-edit",
         "package": "./cmd/mypaste-code-edit",
         "assets": {
-            "src/engines/format_cli.py": "engines/format_cli.py",
-            "src/engines/format_json.py": "engines/format_json.py",
             "src/engines/js_format.mjs": "engines/js_format.mjs",
             "src/engines/prettier.mjs": "engines/prettier.mjs",
         },

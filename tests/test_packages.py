@@ -7,6 +7,7 @@ import json
 import hashlib
 import os
 from pathlib import Path
+import platform
 import re
 import shutil
 import subprocess
@@ -554,9 +555,12 @@ class PackageTests(unittest.TestCase):
             self.assertIn("mypaste.plugin.json", names)
             self.assertIn("preview.html", names)
             self.assertIn("code-edit", names)
-            for engine in ("format_cli.py", "format_json.py", "js_format.mjs",
-                           "prettier.mjs"):
+            for engine in ("js_format.mjs", "prettier.mjs"):
                 self.assertIn(f"engines/{engine}", names)
+            # The formatting engines are Go code inside the binary; the old
+            # Python helpers are gone and must not come back.
+            for retired in ("format_cli.py", "format_json.py"):
+                self.assertNotIn(f"engines/{retired}", names)
             self.assertNotIn("<!--bundle-->", bundle.read("preview.html").decode())
 
     def test_code_edit_archive_carries_the_pinned_prettier(self) -> None:
@@ -587,64 +591,114 @@ class PackageTests(unittest.TestCase):
             for item in bundle.infolist():
                 self.assertLessEqual(item.file_size, 16 * 1024 * 1024, item.filename)
 
-    def test_css_and_yaml_format_without_a_system_prettier(self) -> None:
-        # The packaged engine is the first choice; a PATH that holds node but
-        # no prettier proves the formatter never comes from the machine.
-        package = PLUGINS / "com.mypaste.code-edit" / "src" / "engines"
+    def extracted_code_edit(self) -> tuple[Path, tempfile.TemporaryDirectory]:
+        # The archive's own binary, unpacked next to its page and engines.
+        package = PLUGINS / "com.mypaste.code-edit"
+        manifest = json.loads(
+            (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
+        archive = DIST / f"{package.name}-{manifest['version']}.mypaste-plugin"
+        temp = tempfile.TemporaryDirectory(prefix="mypaste-code-edit-")
+        with zipfile.ZipFile(archive) as bundle:
+            bundle.extractall(temp.name)
+        runtime = Path(temp.name) / "code-edit"
+        runtime.chmod(0o755)
+        return runtime, temp
+
+    def hermetic_environment(self, temp: str) -> dict[str, str]:
+        # No formatter on PATH: the only tools this runtime may reach are the
+        # ones in its own package.
+        empty = Path(temp) / "empty-path"
+        empty.mkdir(exist_ok=True)
+        return {
+            "PATH": str(empty),
+            "HOME": temp,
+            "TMPDIR": temp,
+            "LANG": "en_US.UTF-8",
+        }
+
+    def invoke_packaged(
+        self, runtime: Path, command: str, source: str, environment: dict[str, str]
+    ) -> dict:
+        done = subprocess.run(
+            [str(runtime)],
+            input=json.dumps({
+                "protocolVersion": 2,
+                "id": "test",
+                "method": "invoke",
+                "commandId": command,
+                "selection": {"text": source},
+            }) + "\n",
+            text=True, capture_output=True, timeout=30,
+            cwd=str(runtime.parent), env=environment,
+        )
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return json.loads(done.stdout)
+
+    def test_packaged_runtime_formats_every_language_without_helpers(self) -> None:
+        # Every formatter is compiled into the binary. This copy has its
+        # optional Node helpers removed and a PATH with no formatter tool, so
+        # only the in-process engines can answer — the case of a machine with
+        # nothing installed.
+        if sys.platform != "darwin" or platform.machine() != "arm64":
+            self.skipTest("official binaries target darwin/arm64")
+        runtime, temp = self.extracted_code_edit()
+        with temp:
+            shutil.rmtree(Path(temp.name) / "engines")
+            environment = self.hermetic_environment(temp.name)
+            cases = [
+                ("format.go", "package main\nfunc main(){println(1)}\n",
+                 "package main\n\nfunc main() { println(1) }\n"),
+                ("format.javascript", "const a = 1;  \r\n", "const a = 1;\n"),
+                ("format.typescript", "const a: number = 1;\n", "const a: number = 1;\n"),
+                ("format.python", "def f():\r\n    x = 1   \r\n", "def f():\n    x = 1\n"),
+                ("format.rust", "fn main() {}\n", "fn main() {}\n"),
+                ("format.php", "<?php echo 1;\n", "<?php echo 1;\n"),
+                ("format.html", "<p>hi</p>\n", "<p>hi</p>\n"),
+                ("format.css", "a{color:red}", "a {\n  color:red;\n}\n"),
+                ("format.json", '{"a":1}', '{\n  "a": 1\n}\n'),
+                ("format.yaml", "a: 1\r\nb:\r\n  - 2\r\n", "a: 1\nb:\n  - 2\n"),
+                ("format.shell", "echo hi  \r\n", "echo hi\n"),
+                ("format.sql", "select 1;", "select 1;"),
+                ("compress.sql", "select  1;", "select 1;"),
+            ]
+            for command, source, expected in cases:
+                payload = self.invoke_packaged(runtime, command, source, environment)
+                self.assertTrue(payload["ok"], (command, payload))
+                self.assertEqual(payload["result"]["output"], expected, command)
+
+    def test_bundled_prettier_formats_css_and_yaml_when_node_exists(self) -> None:
+        # Node is optional: when it exists the package's own Prettier build
+        # improves CSS and YAML. PATH holds node and nothing else, so the
+        # formatter still cannot come from the machine.
         node = shutil.which("node")
-        assert node, "node is required to run the packaging engines"
-        with tempfile.TemporaryDirectory(prefix="mypaste-prettier-") as temp:
-            work = Path(temp)
-            engines = work / "engines"
-            engines.mkdir()
-            for name in ("format_cli.py", "prettier.mjs"):
-                shutil.copyfile(package / name, engines / name)
-            vendor_prettier.vendor(ROOT, engines / "prettier")
-            path_dir = work / "bin"
-            path_dir.mkdir()
-            os.symlink(node, path_dir / "node")
-            environment = dict(os.environ, PATH=str(path_dir))
-            cases = {
-                "css": ("a{color:red;margin:0}", "a {\n  color: red;\n  margin: 0;\n}\n"),
-                "yaml": ("a: 1\nb:\n  - 2", "a: 1\nb:\n  - 2\n"),
-            }
-            for language, (source, expected) in cases.items():
-                done = subprocess.run(
-                    [sys.executable, str(engines / "format_cli.py"), language],
-                    input=json.dumps({"id": "test", "selection": {"text": source}}),
-                    capture_output=True, text=True, cwd=temp, env=environment,
-                    timeout=30, check=True,
-                )
-                payload = json.loads(done.stdout)
-                self.assertTrue(payload["ok"], payload)
-                self.assertEqual(payload["result"]["output"], expected, language)
-            # Without the bundled files the same PATH cannot format at all:
-            # the fallback to a local CLI is the only other route.
-            shutil.rmtree(engines / "prettier")
-            done = subprocess.run(
-                [sys.executable, str(engines / "format_cli.py"), "css"],
-                input=json.dumps({"id": "test", "selection": {"text": "a{color:red}"}}),
-                capture_output=True, text=True, cwd=temp, env=environment,
-                timeout=30, check=True,
-            )
-            payload = json.loads(done.stdout)
-            self.assertFalse(payload["ok"])
-            self.assertIn("prettier is not installed", payload["error"]["message"])
+        if not node:
+            self.skipTest("node is not installed")
+        if sys.platform != "darwin" or platform.machine() != "arm64":
+            self.skipTest("official binaries target darwin/arm64")
+        runtime, temp = self.extracted_code_edit()
+        with temp:
+            environment = self.hermetic_environment(temp.name)
+            environment["PATH"] = str(Path(node).parent)
+            cases = [
+                ("format.css", "a{color:red;margin:0}",
+                 "a {\n  color: red;\n  margin: 0;\n}\n"),
+                ("format.yaml", "a:   1\nb:\n  - 2", "a: 1\nb:\n  - 2\n"),
+            ]
+            for command, source, expected in cases:
+                payload = self.invoke_packaged(runtime, command, source, environment)
+                self.assertTrue(payload["ok"], (command, payload))
+                self.assertEqual(payload["result"]["output"], expected, command)
 
     def test_shared_engines_have_one_owner(self) -> None:
-        # The private copies are the shipping assets; their sources stay in
-        # shared/ so the editor cannot drift from the reviewed engines.
-        pairs = {
-            "engines/format_cli.py": "shared/format_cli.py",
-            "engines/format_json.py": "shared/format.py",
-            "engines/js_format.mjs": "shared/js_format.mjs",
-        }
-        for private, shared in pairs.items():
-            self.assertEqual(
-                (PLUGINS / "com.mypaste.code-edit" / "src" / private).read_bytes(),
-                (ROOT / shared).read_bytes(),
-                private,
-            )
+        # The private copy is the shipping asset; its source stays in shared/
+        # so the editor cannot drift from the reviewed engine. The Python
+        # predecessors are gone from code-edit: formatting now runs in the Go
+        # binary.
+        self.assertEqual(
+            (PLUGINS / "com.mypaste.code-edit" / "src" / "engines" / "js_format.mjs").read_bytes(),
+            (ROOT / "shared" / "js_format.mjs").read_bytes(),
+            "engines/js_format.mjs",
+        )
         # SQL has exactly one implementation: both modules compile the shared
         # sqlkit package through a local replace.
         for module in ("plugins/com.mypaste.sql/src", "plugins/com.mypaste.code-edit/src"):

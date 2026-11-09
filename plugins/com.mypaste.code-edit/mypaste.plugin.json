@@ -2,9 +2,9 @@
   "manifestVersion": 3,
   "id": "com.mypaste.code-edit",
   "name": "代码编辑",
-  "version": "3.3.1",
+  "version": "3.4.0",
   "kind": "ui",
-  "description": "在本地编辑代码或纯文本：行号、语法高亮、语言识别与格式化都随包提供；SQL、JSON、CSS、YAML 的格式化无需另装工具，「格式化」菜单按当前语言列出内置的格式化与 SQL 压缩，Go、Rust、PHP、Python、HTML、Shell 使用本机工具，缺少时原文不变；高亮完全本地，不依赖其它能力包。可另存为新的历史条目或复制到剪贴板，原条目保持不变，不联网、不读取其它条目。",
+  "description": "在本地编辑代码或纯文本：行号、语法高亮、语言识别与格式化都随包提供，所有语言的格式化都在扩展内完成，不依赖本机安装 gofmt、rustfmt、Python、Prettier 或其它工具；本机有 Node 时，CSS、YAML、JavaScript 与 TypeScript 会改用包内 Prettier 或内置脚本，排版更完整，没有也照常可用；「格式化」菜单按当前语言列出内置格式化与 SQL 压缩；高亮完全本地，不依赖其它能力包。可另存为新的历史条目或复制到剪贴板，原条目保持不变，不联网、不读取其它条目。",
   "capabilities": [
     "entity.read",
     "entity.save",
@@ -36,7 +36,7 @@
     {
       "id": "format.go",
       "title": "格式化 Go",
-      "description": "用本机 gofmt 格式化 Go 源码；失败时原文不变。",
+      "description": "用扩展内置的 Go 格式化器排版，不依赖本机 gofmt；语法错误时原文不变。",
       "forms": [
         "text"
       ],
@@ -47,7 +47,7 @@
     {
       "id": "format.javascript",
       "title": "格式化 JavaScript",
-      "description": "校验分隔符并规范化缩进；失败时原文不变。",
+      "description": "内置校验分隔符并按括号层级缩进，不依赖本机工具；失败时原文不变。",
       "forms": [
         "text"
       ],
@@ -58,7 +58,7 @@
     {
       "id": "format.typescript",
       "title": "格式化 TypeScript",
-      "description": "校验分隔符并规范化缩进；失败时原文不变。",
+      "description": "内置校验分隔符并按括号层级缩进，不依赖本机工具；失败时原文不变。",
       "forms": [
         "text"
       ],
@@ -69,7 +69,7 @@
     {
       "id": "format.python",
       "title": "格式化 Python",
-      "description": "用本机 Python 格式化工具排版；失败时原文不变。",
+      "description": "内置整理换行与行尾空白，不改变缩进层级，不依赖本机 Python；失败时原文不变。",
       "forms": [
         "text"
       ],
@@ -80,7 +80,7 @@
     {
       "id": "format.rust",
       "title": "格式化 Rust",
-      "description": "用本机 rustfmt 格式化 Rust 源码；失败时原文不变。",
+      "description": "内置整理换行与行尾空白，不改变缩进层级，不依赖本机 rustfmt；失败时原文不变。",
       "forms": [
         "text"
       ],
@@ -91,7 +91,7 @@
     {
       "id": "format.php",
       "title": "格式化 PHP",
-      "description": "先做语法检查，再规范化缩进；失败时原文不变。",
+      "description": "内置整理换行与行尾空白，不依赖本机 PHP 工具；失败时原文不变。",
       "forms": [
         "text"
       ],
@@ -102,7 +102,7 @@
     {
       "id": "format.html",
       "title": "格式化 HTML",
-      "description": "规范化标签缩进；失败时原文不变。",
+      "description": "内置整理换行与行尾空白，不重排标签层级；失败时原文不变。",
       "forms": [
         "text"
       ],
@@ -113,7 +113,7 @@
     {
       "id": "format.css",
       "title": "格式化 CSS",
-      "description": "用本机 Prettier 格式化 CSS；缺少工具时原文不变。",
+      "description": "本机有 Node 时用包内 Prettier 排版，否则用内置缩进整理，不依赖本机工具；失败时原文不变。",
       "forms": [
         "text"
       ],
@@ -135,7 +135,7 @@
     {
       "id": "format.yaml",
       "title": "格式化 YAML",
-      "description": "用本机 Prettier 格式化 YAML；缺少工具时原文不变。",
+      "description": "本机有 Node 时用包内 Prettier 排版，否则用内置空白整理，不依赖本机工具；失败时原文不变。",
       "forms": [
         "text"
       ],
@@ -146,7 +146,7 @@
     {
       "id": "format.shell",
       "title": "格式化 Shell",
-      "description": "用本机 shfmt 格式化 Shell 脚本；缺少工具时原文不变。",
+      "description": "内置整理换行与行尾空白，不改变缩进层级，不依赖本机 shfmt；失败时原文不变。",
       "forms": [
         "text"
       ],

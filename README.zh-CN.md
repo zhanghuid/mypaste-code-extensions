@@ -133,8 +133,9 @@ v3 移除了宿主工作台：没有缓冲区交换、没有宿主画的编辑�
 「高亮」下拉。「格式化」始终带有编辑器自带的、针对识别语言的内置操作——Go、
 JavaScript、TypeScript、Python、Rust、PHP、HTML、CSS、JSON、YAML、SQL 与
 Shell，外加 SQL 压缩——通过本包 runtime 以 `format.go`、`compress.sql` 之类
-的命令 id 调用，因此不安装任何其他包也能格式化（Go、Rust、PHP、Python、HTML、
-Shell 仍使用本机对应的工具）。每个操作各生成「全文」与
+的命令 id 调用，因此不安装任何其他包也能格式化；所有语言都在扩展内完成，
+不依赖本机是否安装 gofmt、rustfmt、Python、Prettier 或其它工具。每个操作
+各生成「全文」与
 「选区」两个动作，按格式化 / 压缩分组（未知能力 id 进入「其它」）；关键字
 大小写是「本地」动作，不需要 runtime。其他包提供的格式化能力会作为额外一行
 加入菜单并标注来源，但内置已经为该语言提供的操作绝不重复出现：内置优先。
@@ -231,13 +232,17 @@ manifest 与构建出的 `ferry` 二进制，绝无源码树。它对话的中�
 页面与编译后的 runtime，并声明不带 `placement`、`output: ["text"]` 的内部
 格式化命令。协议 v3 只让本包自己的表面看到这些命令；它们不会出现在 Cmd+K
 命令面板或其他表面的注册表里。runtime 在 stdin/stdout 上使用与 v2 进程相同
-的逐行 JSON 协议。格式化引擎都是归档内的固定文件：`engines/` 下经过审查的
-Python/Node 脚本（从 `shared/` 复制，测试保证逐字节一致）、SQL 用的 `sqlkit`
-Go 包、CSS 与 YAML 用的固定版本 Prettier 3.6.2 standalone 构建
+的逐行 JSON 协议。格式化在编译进 runtime 的代码里完成：Go 用 `go/format`，
+JSON 用 `encoding/json`，SQL 用共享的 `sqlkit`，CSS 用按花括号层级重排的
+缩进器，其余语言只整理换行与行尾空白、绝不重排缩进层级。运行时不会在机器上
+查找 gofmt、rustfmt、php、python3、tidy、shfmt 或 Prettier CLI，因此本机没有
+安装任何格式化工具也能用。若本机恰好有 Node，runtime 可以改用归档自带的
+辅助脚本：经过审查的 `js_format.mjs`（从 `shared/` 复制，测试保证逐字节一致）
+与 CSS、YAML 用的固定版本 Prettier 3.6.2 standalone 构建
 （`engines/prettier/`，MIT，见
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)），以及按名称定位的本机
-Go、Rust、PHP、Python、HTML、Shell 格式化工具。请求文本只走 stdin，从不经过
-shell，runtime 也不读取自己目录以外的任何文件。SQL 只有一个所有者：
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）；没有 Node 时由内置引擎
+回答。请求文本只走 stdin，从不经过 shell，runtime 也不读取自己目录以外的
+任何文件。SQL 只有一个所有者：
 `shared/sqlkit` 是一个 Go 模块，`com.mypaste.sql` 与 code-edit runtime 都
 `replace` 到同一份源码，因此两个包编译并交付同一套分析、格式化与压缩实现，
 不会各自漂移。
@@ -311,8 +316,8 @@ sh scripts/release.sh
 
 ## 格式化依赖
 
-源码仓库不自带编译工具链。格式化适配器使用用户已安装的工具，依赖缺失时
-返回可见、可操作的错误。当前适配器：
+独立的能力包（`mypaste.format-*`）使用用户已安装的工具，依赖缺失时返回
+可见、可操作的错误。当前适配器：
 
 - JSON：Python 标准库 `json`
 - JavaScript / TypeScript / HTML：`node` 加本地、经审查的格式化代码
@@ -321,7 +326,9 @@ sh scripts/release.sh
 - Go：`gofmt`
 - Rust：`rustfmt`
 
-所有格式化器从 stdin 读一个 JSON 请求，返回纯文本。它们从不执行被格式化的
+组合包 `com.mypaste.code-edit` 不依赖其中任何一项：格式化编译在它自己的
+runtime 里，Node 只是让它启用归档内自带的辅助脚本（见上）。所有格式化器
+从 stdin 读一个 JSON 请求，返回纯文本。它们从不执行被格式化的
 代码。发布新版本前，跑一遍语言夹具与归档校验器。
 
 ## 安全模型
@@ -376,5 +383,6 @@ manifest 严格校验，旧宿主不认识的 manifest 字段会让整个包在�
 
 ## 许可证
 
-MIT，见 [LICENSE](LICENSE)。各工具链依赖仍归其自身许可所有；格式化适配器
-调用本地安装的工具，不重新分发它们。
+MIT，见 [LICENSE](LICENSE)。各工具链依赖仍归其自身许可所有；独立格式化
+适配器调用本地安装的工具，不重新分发它们；唯一随包分发的是 code-edit 内
+固定版本的 Prettier 构建，见上。
