@@ -2,13 +2,14 @@
   "manifestVersion": 3,
   "id": "mypaste.format-json",
   "name": "JSON Format",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "kind": "command",
   "description": "使用本机 Python 标准库保守格式化 JSON；缩进可在扩展设置里调整，失败时保留原文。",
   "capabilities": [
     "entity.read"
   ],
   "runtime": {
+    "protocolVersion": 2,
     "mode": "command",
     "entrypoint": "run"
   },

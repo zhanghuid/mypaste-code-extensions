@@ -150,6 +150,9 @@ class PackageTests(unittest.TestCase):
             self.assertLessEqual(capabilities, packaging.SERVICES, manifest["id"])
             runtime = manifest.get("runtime")
             if runtime:
+                # The host refuses a package whose runtime does not name the
+                # process protocol; v3 keeps v2's, so the number is 2.
+                self.assertEqual(runtime.get("protocolVersion"), 2, manifest["id"])
                 self.assertIn(runtime["mode"], {"command", "resident"})
                 self.assertTrue(runtime.get("entrypoint"))
             # Protocol v3 derives a package's kind from its shape, but every
@@ -532,7 +535,7 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(entry["kind"], "ui")
         self.assertEqual(entry["runtimeProtocol"], 2)
         self.assertEqual(manifest["runtime"], {
-            "mode": "command", "entrypoint": "code-edit",
+            "protocolVersion": 2, "mode": "command", "entrypoint": "code-edit",
         })
         internal = [
             command for command in manifest["commands"]

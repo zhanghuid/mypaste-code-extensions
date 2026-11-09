@@ -58,8 +58,11 @@ parses.
 
 A command package runs in a short-lived child process: the host writes one JSON
 request on stdin and reads one JSON response on stdout. The manifest declares
-this with `"runtime": {"mode": "command", "entrypoint": "run"}`; `mode` is
-`command` (start per invocation) or `resident` (kept alive with backoff). The
+this with
+`"runtime": {"protocolVersion": 2, "mode": "command", "entrypoint": "run"}`;
+`mode` is `command` (start per invocation) or `resident` (kept alive with
+backoff). Protocol v3 keeps v2's process protocol, so `protocolVersion` stays
+`2`; a runtime block without it is invalid and the host refuses the package. The
 same runtime block may sit beside a `surface` in a `ui` package: code-edit
 declares one for its internal `format.*` / `compress.sql` commands, and only
 its own page can invoke them. The process protocol itself is unchanged from v2:

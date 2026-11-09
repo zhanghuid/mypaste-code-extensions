@@ -31,7 +31,9 @@ plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
   (`palette`, `card-action`, `trigger`). A command without `placement` is a
   pure capability the registry exposes to surfaces. Languages are an
   extension's internal concern: the host never infers one, and v3 has no
-  `languages` field.
+  `languages` field. Every `runtime` block declares
+  `"protocolVersion": 2` beside `mode` and `entrypoint`: v3 keeps the v2
+  process protocol, and the host rejects a package without the declaration.
 - Capabilities are the closed service list of PLUGINS.md section 6
   (`entity.read`, `entity.save`, `copy`, `clipboard.write`, `entry.payload`,
   `secret.read`, `network.outbound`, `storage.plugin`, `companion.read`,

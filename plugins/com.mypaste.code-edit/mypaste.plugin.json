@@ -2,7 +2,7 @@
   "manifestVersion": 3,
   "id": "com.mypaste.code-edit",
   "name": "代码编辑",
-  "version": "3.4.0",
+  "version": "3.4.1",
   "kind": "ui",
   "description": "在本地编辑代码或纯文本：行号、语法高亮、语言识别与格式化都随包提供，所有语言的格式化都在扩展内完成，不依赖本机安装 gofmt、rustfmt、Python、Prettier 或其它工具；本机有 Node 时，CSS、YAML、JavaScript 与 TypeScript 会改用包内 Prettier 或内置脚本，排版更完整，没有也照常可用；「格式化」菜单按当前语言列出内置格式化与 SQL 压缩；高亮完全本地，不依赖其它能力包。可另存为新的历史条目或复制到剪贴板，原条目保持不变，不联网、不读取其它条目。",
   "capabilities": [
@@ -11,6 +11,7 @@
     "clipboard.write"
   ],
   "runtime": {
+    "protocolVersion": 2,
     "mode": "command",
     "entrypoint": "code-edit"
   },

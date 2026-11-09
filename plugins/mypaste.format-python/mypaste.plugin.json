@@ -2,13 +2,14 @@
   "manifestVersion": 3,
   "id": "mypaste.format-python",
   "name": "Python Format",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "kind": "command",
   "description": "使用本机可用工具格式化 Python；依赖缺失或语法错误时保留原文。",
   "capabilities": [
     "entity.read"
   ],
   "runtime": {
+    "protocolVersion": 2,
     "mode": "command",
     "entrypoint": "run"
   },

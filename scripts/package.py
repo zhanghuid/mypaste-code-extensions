@@ -105,7 +105,11 @@ def validate(package: Path) -> dict:
     if legacy:
         fail(f"{package.name}: protocol v3 has no {sorted(legacy)}")
     runtime = manifest.get("runtime")
-    if not runtime or runtime.get("mode") not in {"command", "resident"}:
+    if not runtime or runtime.get("protocolVersion") != RUNTIME_PROTOCOL:
+        # The host refuses the whole package without this declaration; v3
+        # kept the v2 process protocol, so the number stays 2.
+        fail(f"{package.name}: runtime protocolVersion must be {RUNTIME_PROTOCOL}")
+    if runtime.get("mode") not in {"command", "resident"}:
         fail(f"{package.name}: runtime mode must be command or resident")
     entrypoint = runtime.get("entrypoint", "")
     if not entrypoint or entrypoint.startswith("/") or ".." in Path(entrypoint).parts:

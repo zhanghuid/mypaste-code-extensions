@@ -48,6 +48,9 @@ import vendor_prettier  # noqa: E402
 DIST = ROOT / "dist"
 INDEX_VERSION = 1
 ZIP_TIME = (2026, 1, 1, 0, 0, 0)
+# Protocol v3 keeps the v2 child-process line protocol. The host rejects a
+# runtime package whose manifest does not say so, before it reads any file.
+RUNTIME_PROTOCOL = 2
 
 
 def fail(message: str) -> None:
@@ -128,6 +131,9 @@ def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
     if manifest.get("id") != plugin_id:
         fail(f"{plugin_id}: manifest id does not match the directory")
     package_kind(manifest, plugin_id)
+    runtime = manifest.get("runtime")
+    if runtime is not None and runtime.get("protocolVersion") != RUNTIME_PROTOCOL:
+        fail(f"{plugin_id}: runtime protocolVersion must be {RUNTIME_PROTOCOL}")
     shutil.copyfile(manifest_path, staging / "mypaste.plugin.json")
     if spec.get("surface"):
         # The page's own path comes from the manifest: the host reads it from

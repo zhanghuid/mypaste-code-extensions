@@ -2,13 +2,14 @@
   "manifestVersion": 3,
   "id": "com.mypaste.sql",
   "name": "SQL Toolkit",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "kind": "command",
   "description": "SQL 语法高亮、语法错误提示、格式化与压缩：七种方言，跨平台官方包；失败时回退内置高亮、不写剪贴板。",
   "capabilities": [
     "entity.read"
   ],
   "runtime": {
+    "protocolVersion": 2,
     "mode": "command",
     "entrypoint": "sql"
   },

@@ -2,7 +2,7 @@
   "manifestVersion": 3,
   "id": "com.mypaste.ferry",
   "name": "跨设备同步",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "kind": "command",
   "description": "在已配对的 Mac 之间同步文本、图片与文件条目：端到端加密、离线排队、经你自己的中继转发；文件与目录由你在落盘前确认。中继只能看到设备 ID、消息大小与时间，看不到正文；扩展密钥由扩展私有目录的文件权限保护；自建中继的 TLS 证书由你负责；接收的文件不做病毒扫描。交互思路参考 PasteFerry（AGPL-3.0），未使用其源码或协议实现。",
   "capabilities": [
@@ -12,6 +12,7 @@
     "storage.plugin"
   ],
   "runtime": {
+    "protocolVersion": 2,
     "entrypoint": "ferry",
     "mode": "command",
     "configuredHosts": true
