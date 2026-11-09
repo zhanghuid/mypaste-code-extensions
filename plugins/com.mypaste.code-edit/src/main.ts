@@ -4,16 +4,16 @@
  * 自带的 tokenizer（协议 v3：高亮是表面自己的实现，不是宿主服务）。
  *
  * D-1069：宿主不再画编辑器命令栏，也不再交换缓冲区。复制、保存与关闭按钮由
- * 这个页面自己画。页面在运行时向注册表查询 `list("text")`：
+ * 这个页面自己画。格式化与高亮都不依赖另行安装的能力包：
  *
- * - 「格式化」是一个按动作注册表画出的下拉面板。声明了文本输出的能力命令各
- *   生成「全文」与「选区」两个动作；选区动作由页面切片、调用同一条命令、再
- *   拼回缓冲区，命令本身不需要知道选区。本地动作（关键字大小写）不需要安装
- *   能力包，单独成组；一个能力包都没有时，面板给出空状态而不是表面插件命令。
- *   失败时缓冲区不变，状态行给出宿主的理由与诊断位置。
+ * - 「格式化」是一个按动作注册表画出的下拉面板。包内的内置操作按当前语言
+ *   生成「全文」与「选区」两个动作（SQL 另有压缩），由页面切片、调用本包
+ *   runtime 的命令、再拼回缓冲区，命令本身不需要知道选区。用户另装了格式化
+ *   能力包时，同名操作不会重复出现；其余的作为附加项标注来源。纯文本没有
+ *   内置格式化，菜单如实说明。失败时缓冲区不变，状态行给出理由与诊断位置。
  * - 「高亮」是只读的预览开关：选中后用返回的 token 渲染当前文本，失败或没有
- *   token 时回退本包自带的 tokenizer，并在状态行说明。没有高亮能力包时，
- *   下拉只有「内置」一项。
+ *   token 时回退本包自带的 tokenizer，并在状态行说明。默认始终是「内置」，
+ *   没有高亮能力包也一样可用。
  *
  * 动作面板只遍历注册表，不按语言或动作 id 分支。本地动作（关键字大小写）与
  * 能力动作共用同一条替换路径，因此一次动作就是一步撤销。页面不硬编码插件 ID，
@@ -27,9 +27,13 @@ import {
   type SurfaceToken,
 } from "./bridge";
 import {
+  OWN_PLUGIN_ID,
+  builtinActions,
+  builtinLabels,
   capabilityActions,
   groupActions,
   keywordCaseAction,
+  normalizeLabel,
   type EditorAction,
   type EditorContext,
 } from "./actions";
@@ -80,6 +84,8 @@ let choice: CodeLanguage | "auto" | "text" = "auto";
 let busy = false;
 let actionCommands: SurfaceCommand[] = [];
 let actions: EditorAction[] = [];
+/** The language `actions` was built for; undefined until the first build. */
+let actionLanguage: CodeLanguage | null | undefined;
 let menuOpen = false;
 let renderedActions: { action: EditorAction; button: HTMLButtonElement }[] = [];
 let highlightCommands: SurfaceCommand[] = [];
@@ -234,6 +240,10 @@ function renderLanguage(): void {
 }
 
 function render(): void {
+  // Detection can change with the text (the item arrives empty, then fills
+  // the buffer). The built-ins follow the language, so rebuild them when it
+  // changes; enable states are cheap and stay in refreshActionState.
+  if (resolvedLanguage() !== actionLanguage) rebuildActions();
   scheduleHighlight();
   renderGutter();
   renderCaret();
@@ -364,10 +374,16 @@ function renderFormatMenu(): void {
   formatMenu.replaceChildren();
   renderedActions = [];
   const context = actionContext();
-  if (actionCommands.length === 0) {
+  // The built-ins are the editor's own work: with no language there is
+  // nothing to format, and the menu says that plainly. It never tells the
+  // user to install a capability package, because formatting no longer
+  // depends on one.
+  if (builtinActions(context.language).length === 0 && actionCommands.length === 0) {
     const empty = document.createElement("div");
     empty.className = "format-empty";
-    empty.textContent = "未安装格式化能力包";
+    empty.textContent = context.language === null
+      ? "纯文本没有内置格式化操作"
+      : "当前语言没有内置格式化操作";
     formatMenu.append(empty);
   }
   for (const [groupIndex, group] of groupActions(actions).entries()) {
@@ -516,9 +532,32 @@ function isTextCapability(command: SurfaceCommand): boolean {
 }
 
 /**
+ * Rebuilds the menu from the built-ins for the current language plus whatever
+ * other packages offer. Built-in operations come first, and an external
+ * capability whose title names the same operation (格式化 SQL, 格式化 Go, …)
+ * is dropped: the editor already does that work, so the menu must not show
+ * the same language twice. The remaining external commands keep their source
+ * in the label.
+ */
+function rebuildActions(): void {
+  const language = resolvedLanguage();
+  actionLanguage = language;
+  const owned = builtinLabels(language);
+  const external = actionCommands.filter(
+    (command) => !owned.has(normalizeLabel(command.title)),
+  );
+  actions = [
+    ...builtinActions(language),
+    ...capabilityActions(external, 1000),
+    keywordCaseAction,
+  ];
+}
+
+/**
  * Splits the registry's text commands into the action menu and the highlight
  * picker. A command with a placement is the host's to show, not a capability
- * this page composes.
+ * this page composes, and this package's own internal commands are already
+ * the built-ins, so the registry never turns them into external entries.
  */
 async function loadCommandPickers(): Promise<void> {
   let commands: SurfaceCommand[] = [];
@@ -528,11 +567,12 @@ async function loadCommandPickers(): Promise<void> {
     commands = [];
   }
   const capabilities = commands.filter(
-    (command) => (command.placement?.length ?? 0) === 0,
+    (command) => (command.placement?.length ?? 0) === 0 &&
+      command.pluginId !== OWN_PLUGIN_ID,
   );
   actionCommands = capabilities.filter(isTextCapability);
   highlightCommands = capabilities.filter(isHighlightCapability);
-  actions = [...capabilityActions(actionCommands), keywordCaseAction];
+  rebuildActions();
   fillPicker(highlightSelect, "内置", highlightCommands);
   renderFormatMenu();
   updateButtons();
@@ -549,7 +589,10 @@ languageSelect.addEventListener("change", () => {
   choice = languageSelect.value as CodeLanguage | "auto" | "text";
   renderLanguage();
   scheduleHighlight();
-  refreshActionState();
+  // The built-in operations follow the language, so the menu is rebuilt even
+  // while it is open; renderFormatMenu keeps the closed state intact.
+  rebuildActions();
+  renderFormatMenu();
 });
 
 formatButton.addEventListener("click", () => {

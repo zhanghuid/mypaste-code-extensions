@@ -3,6 +3,7 @@
   "id": "mypaste.highlight-rust",
   "name": "Rust Syntax Highlight",
   "version": "3.0.0",
+  "kind": "command",
   "description": "为 MyPaste 提供 Rust 的有界语法高亮 token，不写入剪贴板。",
   "capabilities": [
     "entity.read"

@@ -8,8 +8,10 @@ two shapes, and the shipped archive never contains the source tree:
   a package with a `targets` list, one binary per platform under
   `bin/<goos>-<goarch>/`);
 - a surface document (manifest plus the one HTML page `surface.entry` names,
-  bundled from src/ by scripts/build-surfaces.mjs). A surface package runs no
-  process, so it carries no binary at all.
+  bundled from src/ by scripts/build-surfaces.mjs);
+- or both: a UI package that also declares a runtime and internal commands
+  (com.mypaste.code-edit), which ships its page, its binary and its private
+  engine files in one archive.
 
 Installation is the trust decision (D-1039 in the MyPaste host repository):
 the feed carries no signature, and the host does not read one. Publishing is
@@ -94,6 +96,28 @@ def build_surface(plugin_id: str, output: Path) -> None:
         fail(f"surface build failed:\n{done.stderr.strip()}")
 
 
+def package_kind(manifest: dict, plugin_id: str) -> str:
+    """The package's kind, which must agree with its shape (protocol v3)."""
+    expected = "ui" if manifest.get("surface") is not None else "command"
+    kind = manifest.get("kind", expected)
+    if kind not in {"ui", "command"} or kind != expected:
+        fail(f"{plugin_id}: kind {kind!r} does not match its shape "
+             f"({expected!r})")
+    return kind
+
+
+def copy_asset(source: Path, staging: Path, asset: str, destination: str) -> None:
+    if (not destination or destination.startswith("/")
+            or ".." in Path(destination).parts):
+        fail(f"{source.name}: invalid asset destination {destination}")
+    asset_path = source / asset
+    if not asset_path.is_file():
+        fail(f"{source.name}: missing asset {asset}")
+    target = staging / destination
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(asset_path, target)
+
+
 def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
     source = ROOT / "plugins" / plugin_id
     manifest_path = source / "mypaste.plugin.json"
@@ -102,6 +126,7 @@ def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("id") != plugin_id:
         fail(f"{plugin_id}: manifest id does not match the directory")
+    package_kind(manifest, plugin_id)
     shutil.copyfile(manifest_path, staging / "mypaste.plugin.json")
     if spec.get("surface"):
         # The page's own path comes from the manifest: the host reads it from
@@ -110,13 +135,20 @@ def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
         if not document:
             fail(f"{plugin_id}: spec declares a surface but the manifest has none")
         build_surface(plugin_id, staging / document)
-        return manifest
-    for asset in spec["assets"]:
-        asset_path = source / asset
-        if not asset_path.is_file():
-            fail(f"{plugin_id}: missing asset {asset}")
-        shutil.copyfile(asset_path, staging / asset)
-    build_binary(spec, staging)
+    if spec.get("module"):
+        # `assets` is either a list (copied at the same relative path) or a
+        # mapping (source path -> archive path) for packages whose private
+        # files should not ship under their source directory.
+        assets = spec.get("assets", [])
+        if isinstance(assets, dict):
+            for asset, destination in assets.items():
+                copy_asset(source, staging, asset, destination)
+        else:
+            for asset in assets:
+                copy_asset(source, staging, asset, asset)
+        build_binary(spec, staging)
+    if not spec.get("surface") and not spec.get("module"):
+        fail(f"{plugin_id}: spec declares neither a surface nor a module")
     return manifest
 
 
@@ -197,6 +229,7 @@ def main() -> None:
                 "id": manifest["id"],
                 "name": manifest["name"],
                 "version": manifest["version"],
+                "kind": package_kind(manifest, plugin_id),
                 "description": manifest.get("description", ""),
                 "fileName": target.name,
                 "sha256": sha256,

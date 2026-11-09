@@ -3,6 +3,7 @@
   "id": "mypaste.format-rust",
   "name": "Rust Format",
   "version": "3.0.0",
+  "kind": "command",
   "description": "使用本机可用工具格式化 Rust；依赖缺失或语法错误时保留原文。",
   "capabilities": [
     "entity.read"

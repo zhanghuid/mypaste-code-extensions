@@ -6,6 +6,8 @@ test sees exactly what the page sends and paints:
 
 - the registry fills the action menu from text-output capabilities and the
   highlight picker from token capabilities, never a placed command;
+- the built-in operations come from this package's own runtime, work with an
+  empty registry, and win over an external capability of the same name;
 - capability actions come in document/selection pairs, and the selection pair
   is disabled (not hidden) until the buffer has a selection;
 - a successful document action replaces the buffer exactly once, a successful
@@ -116,6 +118,7 @@ const input = elements["#editor-input"];
 const formatButton = elements["#doc-format"];
 const formatMenu = elements["#doc-format-menu"];
 const formatRoot = elements["#doc-format-root"];
+const languageSelect = elements["#doc-language"];
 const highlightSelect = elements["#doc-highlight"];
 const status = elements["#doc-status"];
 const overlay = elements["#editor-highlight"];
@@ -202,6 +205,10 @@ emit({
     { pluginId: "com.mypaste.sql", commandId: "format", title: "格式化 SQL", output: ["text"] },
     { pluginId: "com.mypaste.sql", commandId: "compress", title: "压缩 SQL", output: ["text"] },
     { pluginId: "com.mypaste.sql", commandId: "highlight", title: "高亮 SQL" },
+    // A 0.26 host answers its own surface with this package's internal
+    // commands too; the page must treat them as built-ins, never as external.
+    { pluginId: "com.mypaste.code-edit", commandId: "format.sql", title: "格式化 SQL", output: ["text"], outputDeclared: true },
+    { pluginId: "com.mypaste.code-edit", commandId: "compress.sql", title: "压缩 SQL", output: ["text"], outputDeclared: true },
     { pluginId: "com.mypaste.code-card", commandId: "clipboard.code-card", title: "导出代码卡片", placement: ["card-action"] },
     { pluginId: "mypaste.format-yaml", commandId: "format", title: "格式化 YAML", output: ["text"], outputDeclared: true },
     { pluginId: "mypaste.highlight-yaml", commandId: "highlight", title: "高亮 YAML", output: ["text"], outputDeclared: false },
@@ -210,37 +217,33 @@ emit({
 });
 await tick();
 
-// With no capability package installed the menu still opens: it says so in
-// one line, keeps the local action, and never shows a placed command. The
-// highlight picker remains a complete control with only 内置.
+// With no capability package installed the built-ins still fill the menu: the
+// editor owns formatting now. The highlight picker stays complete with only
+// 内置, and a placed command is never a row.
 if (EMPTY) {
-  emit({ v: 1, type: "item", item: { kind: "text", title: "main.sql", text: "SELECT 1" } });
+  emit({ v: 1, type: "item", item: { kind: "text", title: "main.sql", text: "SELECT id, name FROM t" } });
   showMenu();
   assert.equal(formatMenu.hidden, false);
-  assert.equal(formatMenu.children[0].className, "format-empty");
-  assert.equal(formatMenu.children[0].textContent, "未安装格式化能力包");
-  assert.deepEqual(groupTitles(), ["本地"]);
-  assert.deepEqual(menuButtons().map((button) => button.textContent), ["切换关键字大小写"]);
+  assert.equal(formatMenu.children[0].className, "format-group");
+  assert.deepEqual(groupTitles(), ["格式化", "压缩", "本地"]);
+  assert.deepEqual(menuButtons().map((button) => button.textContent), [
+    "格式化 SQL", "格式化 SQL（选区）",
+    "压缩 SQL", "压缩 SQL（选区）",
+    "切换关键字大小写",
+  ]);
+  assert.equal(menuButtons().some((button) => button.textContent.includes("未安装")), false);
   assert.equal(menuButtons().some((button) => button.textContent.includes("导出")), false);
   assert.deepEqual(optionLabels(highlightSelect), ["内置"]);
   assert.equal(highlightSelect.hidden, false);
-  checks.push("an empty registry shows the empty state, keeps the local action and offers only 内置");
+  clickAction("格式化 SQL");
+  assert.equal(last().type, "invoke");
+  assert.equal(last().pluginId, "com.mypaste.code-edit");
+  assert.equal(last().commandId, "format.sql");
+  assert.equal(last().text, "SELECT id, name FROM t");
+  checks.push("built-in formatting fills the menu with no capability package and invokes this package's runtime");
   console.log(JSON.stringify(checks));
   process.exit(0);
 }
-assert.deepEqual(groupTitles(), ["格式化", "压缩", "其它", "本地"]);
-assert.deepEqual(menuButtons().map((button) => button.textContent), [
-  "格式化 JSON", "格式化 JSON（选区）",
-  "格式化 SQL", "格式化 SQL（选区）",
-  "格式化 YAML", "格式化 YAML（选区）",
-  "压缩 SQL", "压缩 SQL（选区）",
-  "导出", "导出（选区）",
-  "切换关键字大小写",
-]);
-assert.deepEqual(optionLabels(highlightSelect), ["内置", "高亮 JSON", "高亮 SQL", "高亮 YAML"]);
-assert.equal(highlightSelect.hidden, false);
-assert.equal(menuButtons().some((button) => button.textContent === "导出代码卡片"), false);
-checks.push("the registry fills grouped action pairs and the highlight picker, not placed commands");
 
 emit({ v: 1, type: "item", item: { kind: "text", title: "main.sql", text: "SELECT id, name FROM t" } });
 assert.equal(input.value, "SELECT id, name FROM t");
@@ -250,9 +253,43 @@ assert.equal(formatMenu.hidden, false);
 assert.equal(formatButton.getAttribute("aria-expanded"), "true");
 assert.ok(formatMenu.style.top.endsWith("px"), "菜单使用视口坐标定位");
 assert.ok(formatMenu.style.left.endsWith("px"), "菜单使用视口坐标定位");
+assert.deepEqual(groupTitles(), ["格式化", "压缩", "其它", "本地"]);
+assert.deepEqual(menuButtons().map((button) => button.textContent), [
+  "格式化 SQL", "格式化 SQL（选区）",
+  "格式化 JSON（外部：mypaste.format-json）", "格式化 JSON（选区）（外部：mypaste.format-json）",
+  "格式化 YAML（外部：mypaste.format-yaml）", "格式化 YAML（选区）（外部：mypaste.format-yaml）",
+  "压缩 SQL", "压缩 SQL（选区）",
+  "导出（外部：mypaste.export-x）", "导出（选区）（外部：mypaste.export-x）",
+  "切换关键字大小写",
+]);
+assert.deepEqual(optionLabels(highlightSelect), ["内置", "高亮 JSON", "高亮 SQL", "高亮 YAML"]);
+assert.equal(highlightSelect.hidden, false);
+assert.equal(menuButtons().some((button) => button.textContent === "导出代码卡片"), false);
+checks.push("the registry fills grouped action pairs and the highlight picker, not placed commands");
+
+// The current language's built-in wins over every external capability of the
+// same name: exactly one 格式化 SQL document row, and it is not marked as
+// external. Other languages stay available as annotated extra rows.
+assert.equal(menuButtons().filter((button) => button.textContent === "格式化 SQL").length, 1);
+assert.equal(
+  menuButtons().some((button) => button.textContent.includes("格式化 SQL（外部")),
+  false,
+);
 assert.equal(menuButton("格式化 SQL").disabled, false);
 assert.equal(menuButton("格式化 SQL（选区）").disabled, true);
-checks.push("the item enables the menu and a selection action stays visible but disabled");
+checks.push("an external format package never repeats the language the built-ins own");
+
+// Switching the language rebuilds the built-ins and re-runs the same dedupe.
+languageSelect.value = "json";
+languageSelect.dispatch("change");
+showMenu();
+assert.equal(menuButton("格式化 JSON").disabled, false);
+assert.equal(menuButton("格式化 JSON（外部：mypaste.format-json）"), undefined);
+assert.ok(menuButtons().some((button) => button.textContent.includes("格式化 SQL（外部：com.mypaste.sql）")));
+languageSelect.value = "auto";
+languageSelect.dispatch("change");
+hideMenu();
+checks.push("changing the language moves the built-in operation and keeps external sources distinct");
 
 // Keyword casing is a local action: no invoke, one replacement, strings kept.
 hideMenu();
@@ -271,8 +308,8 @@ input.value = "SELECT id FROM t";
 input.setSelectionRange(0, 0);
 clickAction("格式化 SQL");
 assert.equal(last().type, "invoke");
-assert.equal(last().pluginId, "com.mypaste.sql");
-assert.equal(last().commandId, "format");
+assert.equal(last().pluginId, "com.mypaste.code-edit");
+assert.equal(last().commandId, "format.sql");
 assert.equal(last().text, "SELECT id FROM t");
 emit({ v: 1, type: "result", requestId: last().requestId, ok: true, output: "SELECT\n  id\nFROM t" });
 await tick();
@@ -288,7 +325,8 @@ input.value = "SELECT id, name FROM t";
 input.setSelectionRange(7, 15);
 clickAction("格式化 SQL（选区）");
 assert.equal(last().type, "invoke");
-assert.equal(last().commandId, "format");
+assert.equal(last().pluginId, "com.mypaste.code-edit");
+assert.equal(last().commandId, "format.sql");
 assert.equal(last().text, "id, name");
 emit({ v: 1, type: "result", requestId: last().requestId, ok: true, output: "id,\n  name" });
 await tick();
@@ -303,7 +341,8 @@ checks.push("a selection action invokes on the slice and splices the result back
 // A failed selection action reports the host's diagnostic and changes nothing.
 const before = input.value;
 clickAction("压缩 SQL（选区）");
-assert.equal(last().commandId, "compress");
+assert.equal(last().pluginId, "com.mypaste.code-edit");
+assert.equal(last().commandId, "compress.sql");
 emit({
   v: 1, type: "result", requestId: last().requestId, ok: false,
   render: { diagnostics: [{ line: 1, column: 3, message: "unexpected token" }] },
@@ -323,12 +362,13 @@ assert.equal(menuButton("压缩 SQL").disabled, false);
 checks.push("collapsing the selection disables selection actions without hiding them");
 
 // Opening the menu puts focus on the first enabled row; the arrow keys walk
-// enabled rows only, in visual order, and wrap at either end.
-assert.equal(document.activeElement, menuButton("格式化 JSON"));
-formatMenu.dispatch("keydown", { key: "ArrowDown" });
+// enabled rows only, in visual order, and wrap at either end. The built-in
+// row comes before the external ones.
 assert.equal(document.activeElement, menuButton("格式化 SQL"));
+formatMenu.dispatch("keydown", { key: "ArrowDown" });
+assert.equal(document.activeElement, menuButton("格式化 JSON（外部：mypaste.format-json）"));
 formatMenu.dispatch("keydown", { key: "ArrowUp" });
-assert.equal(document.activeElement, menuButton("格式化 JSON"));
+assert.equal(document.activeElement, menuButton("格式化 SQL"));
 
 // A disabled row is never activatable, even by a synthetic click.
 const disabledButton = menuButton("格式化 SQL（选区）");
@@ -428,7 +468,8 @@ class SurfacePageTest(unittest.TestCase):
         checks = json.loads(self.result.stdout.strip().splitlines()[-1])
         self.assertEqual(checks, [
             "the registry fills grouped action pairs and the highlight picker, not placed commands",
-            "the item enables the menu and a selection action stays visible but disabled",
+            "an external format package never repeats the language the built-ins own",
+            "changing the language moves the built-in operation and keeps external sources distinct",
             "the local keyword-case action rewrites keywords once and leaves the string alone",
             "a document action replaces the buffer once",
             "a selection action invokes on the slice and splices the result back",
@@ -456,7 +497,7 @@ class SurfacePageTest(unittest.TestCase):
             )
         checks = json.loads(result.stdout.strip().splitlines()[-1])
         self.assertEqual(checks, [
-            "an empty registry shows the empty state, keeps the local action and offers only 内置",
+            "built-in formatting fills the menu with no capability package and invokes this package's runtime",
         ])
 
 

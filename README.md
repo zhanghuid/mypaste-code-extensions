@@ -14,10 +14,16 @@ auto-runs, downloads code at runtime, or writes the clipboard directly.
 
 Every package speaks MyPaste plugin protocol v3. v3 has two roles:
 
-- **Surface** — has UI. It ships one page and runs no process; the page draws
-  its own interface and reaches the host only through the surface bridge.
+- **Surface** — has UI. It ships one page and draws its own interface, reaching
+  the host only through the surface bridge. A surface runs no process unless
+  its manifest also declares a `runtime` — code-edit does, for its built-in
+  formatting.
 - **Capability** — no UI, only commands. The host shows the commands that
   declare a placement, and surfaces reach the rest through the registry.
+
+Every manifest also declares `kind` (`"ui"` or `"command"`), naming the role
+the package was built for. The packaging scripts reject a manifest whose `kind`
+disagrees with its shape, and the feed (`dist/index.json`) carries the field.
 
 This repository holds:
 
@@ -92,6 +98,13 @@ A command may omit `placement`: it is then a **pure capability**, which the
 host never shows and only surfaces reach through the registry (0/1/N, keyed by
 entity type alone).
 
+`kind` is `"ui"` for a package that ships a `surface` and `"command"`
+otherwise. A manifest may omit it — the host derives it from the shape — but
+when present it must agree. A `ui` package may additionally declare a
+`runtime` and internal commands with no `placement`; the runtime speaks the v2
+line protocol, and only that package's own surface can see or invoke those
+commands.
+
 Capabilities use the host's closed service list and should ask for the least
 one that does the job: `entity.read`, `entity.save`, `copy`, `clipboard.write`,
 `entry.payload`, `secret.read`, `network.outbound`, `storage.plugin`,
@@ -105,7 +118,9 @@ declaration fails the build instead of shipping.
 ## Surface packages
 
 `com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view` and
-`com.mypaste.image-edit` ship a page instead of a process:
+`com.mypaste.image-edit` ship a page of their own. Code-edit additionally ships
+a runtime and internal commands for its built-in formatting (3.3.0); the other
+three run no process:
 
 ```json
 "surface": {
@@ -132,18 +147,26 @@ v3 removed the host workbench: there is no buffer exchange, no host-drawn
 editor toolbar and no host-drawn document action row (host D-1065, D-1068).
 Each page draws its own controls. Code-edit's page, for example, draws 复制文本
 and 保存为新条目 itself and turns the registry into a header 格式化 menu plus a
-高亮 picker: every text-output command becomes a document action and a
-selection action, grouped by the command's own protocol id (格式化, 压缩, then
-其它), while the page's own keyword-case action sits in a 本地 group that needs
-no package. With no formatting capability installed the menu says so in one
-line and still offers the local action; a command that declares a placement is
-the host's card action and never becomes a row here. Token commands become the
-高亮 picker, where 内置 (the page's own tokenizer) is the default and the
-fallback when a capability fails or returns no usable tokens; with no
-highlighter installed the picker still offers 内置. A selection action slices
-the buffer, invokes the same whole-text command on that slice and splices the
-answer back, so a capability never needs to know about selections. Actions that
-do not currently apply (a selection action with no selection, keyword casing in
+高亮 picker. The menu always carries the editor's own built-in operations for
+the detected language — Go, JavaScript, TypeScript, Python, Rust, PHP, HTML,
+CSS, JSON, YAML, SQL and Shell, plus SQL compression — invoked through this
+package's runtime under ids such as `format.go` and `compress.sql`, so
+formatting works with no other package installed. Every operation appears as a
+document action and a selection action, grouped 格式化 / 压缩 (an unknown
+capability id falls into 其它); keyword casing is
+a 本地 action that needs no runtime. A formatting capability from another
+package joins the menu as an extra row annotated with its source, but an
+operation the built-ins already own for that language is never duplicated: the
+built-in wins. A command that declares a placement is the host's card action
+and never becomes a row here. When nothing applies — plain text has no
+formatter — the menu says that in one line instead of blaming a missing
+package. Token commands become the 高亮 picker, where 内置 (the page's own
+tokenizer) is the default and the fallback when a capability fails or returns
+no usable tokens; highlighting never depends on an installed package. A
+selection action slices the buffer, invokes the same whole-text command on that
+slice and splices the answer back, so a capability never needs to know about
+selections. Actions that do not currently apply (a selection action with no
+selection, keyword casing in
 a language without keywords) stay in the menu disabled rather than
 disappearing. Today the host fills an omitted
 output from `forms`, so both shapes arrive as text; code-edit also accepts the
@@ -208,7 +231,8 @@ plugins/com.mypaste.code-card/
 
 plugins/com.mypaste.code-edit/   the editor (its own tokenizer, language
                                  table and bridge; registry-driven 格式化
-                                 and 高亮 pickers)
+                                 and 高亮 pickers; cmd/ is its runtime and
+                                 engines/ the formatting scripts it ships)
 plugins/com.mypaste.diff-view/   the comparison page (its own diff engine and
                                  language table; reads a companion)
 plugins/com.mypaste.image-edit/  the image editor (canvas tools of its own)
@@ -244,6 +268,21 @@ contains only the manifest and the built binaries, never the source tree. Its
 spec declares a `targets` list, so the archive nests one binary per platform
 under `bin/<goos>/<goarch>/` (`.exe` on windows); the host resolves the declared
 entrypoint through that layout (D-1057 in the host repository).
+
+`com.mypaste.code-edit` is the one combined official package: `kind` is `"ui"`,
+it ships its page and a compiled runtime, and it declares internal formatting
+commands with no `placement` and `output: ["text"]`. Protocol v3 exposes those
+commands only to the package's own surface; they never appear in the command
+palette or another surface's registry. The runtime speaks the same newline
+JSON protocol as a v2 process on stdin/stdout. Its formatting engines are fixed
+files in the archive: the reviewed Python/Node scripts under `engines/` (copied
+from `shared/`, which a test keeps byte-identical), the `sqlkit` Go package for
+SQL, and installed formatters it locates by name for the rest. Request text
+travels on stdin, never through a shell, and the runtime reads nothing outside
+its own directory. SQL has one owner: `shared/sqlkit` is a Go module that both
+`com.mypaste.sql` and the code-edit runtime `replace` to the same source tree,
+so the two packages compile and ship the same analyzer, formatter and
+compressor rather than drifting apart.
 
 Build the official packages locally:
 
@@ -367,9 +406,9 @@ dist/
 `index.json` is generated deterministically: `scripts/package.py` writes the
 script-package entries and carries official entries over, and
 `scripts/build-official.py` writes (or refreshes) the official entries.
-Each entry lists the package's ID, display name, version, description, archive
-file name, SHA-256 and runtime protocol, and every entry carries the project's
-`repository` address
+Each entry lists the package's ID, display name, version, kind, description,
+archive file name, SHA-256 and runtime protocol, and every entry carries the
+project's `repository` address
 (`https://github.com/zhanghuid/mypaste-code-extensions`, owned by
 `scripts/index_metadata.py`) so the marketplace detail page can link back to the
 sources. The feed carries no signature (D-1039). `repository` lives in the
@@ -383,10 +422,11 @@ know — an older MyPaste simply does not show the repository link.
 | `id` | yes | Plugin ID the host installs under. |
 | `name` | yes | Display name. |
 | `version` | yes | Package version. |
+| `kind` | yes | `ui` or `command`, matching the package's shape. |
 | `description` | yes | One-line description. |
 | `fileName` | yes | Archive name inside `dist/`. |
 | `sha256` | yes | Digest of the archive the host verifies before installing. |
-| `runtimeProtocol` | yes | Runtime protocol the package speaks (`2`, or `0` for a surface package with no runtime). |
+| `runtimeProtocol` | yes | Runtime protocol the package speaks (`2`, or `0` for a package with no runtime). |
 | `repository` | no | Project address, HTTPS, shown on the marketplace detail page. The host opens it only after resolving the address from its own copy of this index, keyed by plugin ID — the page never supplies a URL. |
 
 The app fetches only

@@ -4,7 +4,7 @@
 // line on stdin, one response line on stdout. The highlight command returns
 // render tokens plus diagnostics; the format command returns formatted text
 // for the host to copy, or refuses with the first finding when the SQL has an
-// error. All SQL work lives in internal/sqlkit.
+// error. All SQL work lives in the shared sqlkit module.
 package main
 
 import (
@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zhanghuid/mypaste-code-extensions/plugins/com.mypaste.sql/src/internal/sqlkit"
+	"github.com/zhanghuid/mypaste-code-extensions/shared/sqlkit"
 )
 
 // errorCode names the failure family. The format family's code is the one the

@@ -2,13 +2,18 @@
   "manifestVersion": 3,
   "id": "com.mypaste.code-edit",
   "name": "代码编辑",
-  "version": "3.2.0",
-  "description": "在本地编辑代码或纯文本：行号、语法高亮与语言识别都随包提供，可另存为新的历史条目或复制到剪贴板；头部的「格式化」菜单从已安装的能力包中格式化或压缩全文与选区，本地切换关键字大小写，没有能力包时给出空状态，「高亮」只改变预览。原条目保持不变，不联网、不读取其它条目。",
+  "version": "3.3.0",
+  "kind": "ui",
+  "description": "在本地编辑代码或纯文本：行号、语法高亮、语言识别与格式化都随包提供；「格式化」菜单按当前语言列出内置的格式化与 SQL 压缩，本机缺少某个格式化工具时原文不变；高亮完全本地，不依赖其它能力包。可另存为新的历史条目或复制到剪贴板，原条目保持不变，不联网、不读取其它条目。",
   "capabilities": [
     "entity.read",
     "entity.save",
     "clipboard.write"
   ],
+  "runtime": {
+    "mode": "command",
+    "entrypoint": "code-edit"
+  },
   "surface": {
     "entry": "preview.html",
     "forms": [
@@ -26,6 +31,149 @@
       ],
       "placement": [
         "card-action"
+      ]
+    },
+    {
+      "id": "format.go",
+      "title": "格式化 Go",
+      "description": "用本机 gofmt 格式化 Go 源码；失败时原文不变。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "format.javascript",
+      "title": "格式化 JavaScript",
+      "description": "校验分隔符并规范化缩进；失败时原文不变。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "format.typescript",
+      "title": "格式化 TypeScript",
+      "description": "校验分隔符并规范化缩进；失败时原文不变。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "format.python",
+      "title": "格式化 Python",
+      "description": "用本机 Python 格式化工具排版；失败时原文不变。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "format.rust",
+      "title": "格式化 Rust",
+      "description": "用本机 rustfmt 格式化 Rust 源码；失败时原文不变。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "format.php",
+      "title": "格式化 PHP",
+      "description": "先做语法检查，再规范化缩进；失败时原文不变。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "format.html",
+      "title": "格式化 HTML",
+      "description": "规范化标签缩进；失败时原文不变。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "format.css",
+      "title": "格式化 CSS",
+      "description": "用本机 Prettier 格式化 CSS；缺少工具时原文不变。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "format.json",
+      "title": "格式化 JSON",
+      "description": "严格校验并缩进 JSON；语法错误时原文不变。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "format.yaml",
+      "title": "格式化 YAML",
+      "description": "用本机 Prettier 格式化 YAML；缺少工具时原文不变。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "format.shell",
+      "title": "格式化 Shell",
+      "description": "用本机 shfmt 格式化 Shell 脚本；缺少工具时原文不变。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "format.sql",
+      "title": "格式化 SQL",
+      "description": "用包内 SQL 引擎排版 SQL；有语法错误时不改动原文。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "compress.sql",
+      "title": "压缩 SQL",
+      "description": "用包内 SQL 引擎去掉注释并折叠空白；有语法错误时不改动原文。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
       ]
     }
   ]

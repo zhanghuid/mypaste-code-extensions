@@ -109,6 +109,25 @@ class PackageTests(unittest.TestCase):
             with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit):
                 packaging.validate_target(command, "mypaste.format-json")
 
+    def test_packaging_validates_package_kind(self) -> None:
+        packaging = load_packaging()
+        surface = {"entry": "preview.html", "forms": ["text"], "role": "open"}
+        # The protocol lets a manifest omit `kind`; the shape then decides.
+        self.assertEqual(packaging.resolve_kind({"surface": surface}, "p"), "ui")
+        self.assertEqual(packaging.resolve_kind({}, "p"), "command")
+        self.assertEqual(
+            packaging.resolve_kind({"surface": surface, "kind": "ui"}, "p"), "ui")
+        self.assertEqual(packaging.resolve_kind({"kind": "command"}, "p"), "command")
+        invalid = [
+            {"kind": "ui"},                      # no surface
+            {"kind": "command", "surface": surface},
+            {"kind": "worker"},
+        ]
+        stderr = io.StringIO()
+        for manifest in invalid:
+            with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit):
+                packaging.resolve_kind(manifest, "p")
+
     def test_every_package_has_valid_manifest(self) -> None:
         packaging = load_packaging()
         legacy_keys = {"menu", "menus", "workbench", "appliesTo", "global"}
@@ -129,6 +148,15 @@ class PackageTests(unittest.TestCase):
             if runtime:
                 self.assertIn(runtime["mode"], {"command", "resident"})
                 self.assertTrue(runtime.get("entrypoint"))
+            # Protocol v3 derives a package's kind from its shape, but every
+            # manifest here declares it and must agree: a page makes a `ui`
+            # package, no page makes a `command` package.
+            self.assertIn(manifest.get("kind"), {"ui", "command"}, manifest["id"])
+            self.assertEqual(
+                manifest["kind"],
+                "ui" if manifest.get("surface") is not None else "command",
+                manifest["id"],
+            )
             # A surface names its page, the entity subtree it adapts and one of
             # the two roles. Languages are the surface's own concern, never a
             # manifest declaration (protocol v3 has no `languages`).
@@ -413,13 +441,14 @@ class PackageTests(unittest.TestCase):
             # D-1039: installation is the trust decision, so the feed carries
             # no signature and every entry has the same field set.
             entry_keys = {
-                "id", "name", "version", "description", "fileName", "sha256",
-                "runtimeProtocol", "repository",
+                "id", "name", "version", "kind", "description", "fileName",
+                "sha256", "runtimeProtocol", "repository",
             }
             # The project address belongs to the feed, not to any package: one
             # module owns it, and every entry must declare the same one.
             self.assertEqual(entry["repository"], index_metadata.repository())
             self.assertEqual(set(entry), entry_keys)
+            self.assertEqual(entry["kind"], manifest.get("kind", "command"))
             self.assertLessEqual(len(entry["id"]), 96)
             self.assertLessEqual(len(entry["name"]), 72)
             self.assertLessEqual(len(entry["description"]), 280)
@@ -444,7 +473,6 @@ class PackageTests(unittest.TestCase):
         by_id = {entry["id"]: entry for entry in index["packages"]}
         roles = {
             "com.mypaste.code-card": "preview",
-            "com.mypaste.code-edit": "open",
             "com.mypaste.diff-view": "open",
             "com.mypaste.image-edit": "open",
         }
@@ -485,6 +513,68 @@ class PackageTests(unittest.TestCase):
 
             entry = by_id[plugin_id]
             self.assertEqual(entry["runtimeProtocol"], 0, plugin_id)
+
+    def test_code_edit_ships_its_page_runtime_and_private_engines(self) -> None:
+        # Protocol v3's UI package with a runtime: one archive holds the page,
+        # the dispatcher and the private formatting engines, and only this
+        # package's surface can reach the internal commands.
+        package = PLUGINS / "com.mypaste.code-edit"
+        manifest = json.loads(
+            (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["kind"], "ui")
+        index = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
+        entry = next(item for item in index["packages"]
+                     if item["id"] == "com.mypaste.code-edit")
+        self.assertEqual(entry["kind"], "ui")
+        self.assertEqual(entry["runtimeProtocol"], 2)
+        self.assertEqual(manifest["runtime"], {
+            "mode": "command", "entrypoint": "code-edit",
+        })
+        internal = [
+            command for command in manifest["commands"]
+            if not command.get("placement")
+        ]
+        self.assertTrue(internal)
+        for command in internal:
+            self.assertEqual(command["forms"], ["text"])
+            self.assertEqual(command["output"], ["text"])
+        placed = [
+            command for command in manifest["commands"] if command.get("placement")
+        ]
+        self.assertEqual([command["id"] for command in placed],
+                         ["clipboard.code-edit"])
+
+        archive = DIST / f"{package.name}-{manifest['version']}.mypaste-plugin"
+        self.assertLess(archive.stat().st_size, 16 * 1024 * 1024)
+        with zipfile.ZipFile(archive) as bundle:
+            names = set(bundle.namelist())
+            self.assertIn("mypaste.plugin.json", names)
+            self.assertIn("preview.html", names)
+            self.assertIn("code-edit", names)
+            for engine in ("format_cli.py", "format_json.py", "js_format.mjs"):
+                self.assertIn(f"engines/{engine}", names)
+            self.assertNotIn("<!--bundle-->", bundle.read("preview.html").decode())
+
+    def test_shared_engines_have_one_owner(self) -> None:
+        # The private copies are the shipping assets; their sources stay in
+        # shared/ so the editor cannot drift from the reviewed engines.
+        pairs = {
+            "engines/format_cli.py": "shared/format_cli.py",
+            "engines/format_json.py": "shared/format.py",
+            "engines/js_format.mjs": "shared/js_format.mjs",
+        }
+        for private, shared in pairs.items():
+            self.assertEqual(
+                (PLUGINS / "com.mypaste.code-edit" / "src" / private).read_bytes(),
+                (ROOT / shared).read_bytes(),
+                private,
+            )
+        # SQL has exactly one implementation: both modules compile the shared
+        # sqlkit package through a local replace.
+        for module in ("plugins/com.mypaste.sql/src", "plugins/com.mypaste.code-edit/src"):
+            go_mod = (ROOT / module / "go.mod").read_text(encoding="utf-8")
+            self.assertIn("shared/sqlkit", go_mod, module)
+            self.assertIn("=> ../../../shared/sqlkit", go_mod, module)
 
     def test_dist_index_is_deterministic(self) -> None:
         build_packages()

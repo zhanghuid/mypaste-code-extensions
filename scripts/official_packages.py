@@ -11,14 +11,32 @@ platform (`goos`/`goarch`, the host's first shipping platform; see the README)
 or a `targets` list: a multi-target package ships one binary per platform
 under `bin/<goos>-<goarch>/<entrypoint>` (`.exe` appended on windows), and the
 host resolves the entrypoint through that layout (D-1057 in the host
-repository). A surface package's spec is `{"surface": True}`: the archive holds
-the manifest and the one page `surface.entry` names, and no process runs at
-all.
+repository). A binary package may also carry `surface: True` and its page
+(protocol v3's UI package with a runtime of its own).
+
+A surface-only package's spec is `{"surface": True}`: the archive holds the
+manifest and the one page `surface.entry` names, and no process runs at all.
+Either shape's `assets` may be a list (copied at the same relative path) or a
+mapping from source path to archive path (private files that should not ship
+under `src/`).
 """
 
 OFFICIAL = {
     "com.mypaste.code-edit": {
+        # A UI package with a runtime of its own: the page plus the private
+        # formatting engines and the Go dispatcher that runs them. Only this
+        # package's surface can reach these internal commands.
         "surface": True,
+        "module": "plugins/com.mypaste.code-edit/src",
+        "entrypoint": "code-edit",
+        "package": "./cmd/mypaste-code-edit",
+        "assets": {
+            "src/engines/format_cli.py": "engines/format_cli.py",
+            "src/engines/format_json.py": "engines/format_json.py",
+            "src/engines/js_format.mjs": "engines/js_format.mjs",
+        },
+        "goos": "darwin",
+        "goarch": "arm64",
     },
     "com.mypaste.code-card": {
         "surface": True,

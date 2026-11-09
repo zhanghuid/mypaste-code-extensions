@@ -3,6 +3,7 @@
   "id": "mypaste.format-html",
   "name": "Html Format",
   "version": "3.0.0",
+  "kind": "command",
   "description": "使用本机可用工具格式化 Html；依赖缺失或语法错误时保留原文。",
   "capabilities": [
     "entity.read"

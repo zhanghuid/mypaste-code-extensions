@@ -7,14 +7,19 @@
  * action — or a language — is one more object here, not another branch in the
  * toolbar.
  *
- * Two sources feed the registry:
+ * Three sources feed the registry:
  *
+ * - Built-in operations, one per language the page's tokenizer knows. They run
+ *   in this package's own runtime through the host registry (protocol v3 lets
+ *   a UI package expose internal commands to its own surface), so formatting
+ *   works with no other package installed.
  * - Capability commands from the host's `list("text")` answer. A command that
  *   declares text output becomes a document action; the same command also
  *   becomes a selection action, because a surface only ever invokes a command
  *   on the text it sends. The page slices the selection, invokes the command on
  *   that slice and splices the answer back, so the capability never needs to
- *   know about selections.
+ *   know about selections. An external command whose title names an operation
+ *   the built-ins already own is dropped before it reaches this registry.
  * - Local actions that need no package. Keyword-case toggling uses the page's
  *   own tokenizer, which already knows strings and comments and therefore
  *   never rewrites a keyword-looking word inside either.
@@ -22,9 +27,7 @@
  * Groups keep their order (格式化 / 压缩 / 其它 / 本地) whether or not an
  * action currently applies: an inapplicable action is disabled, never hidden,
  * so the menu does not move under the pointer when a selection appears. The
- * 本地 group is last because it is the only one that exists without a
- * capability package; an empty capability area reads as an empty state above
- * it, not as a missing menu.
+ * 本地 group is last because it is the only one that never needs a runtime.
  */
 
 import type { CommandResult, SurfaceCommand } from "./bridge";
@@ -108,19 +111,112 @@ async function runCapability(
   );
 }
 
+/** The package whose runtime serves the built-in operations. */
+export const OWN_PLUGIN_ID = "com.mypaste.code-edit";
+
 /**
- * One document action and one selection action per text capability. The
- * command's own title is the only label source: the page does not know which
- * language a package targets, and it must not guess from a plugin id.
+ * One formatting operation the editor ships in its own runtime. The page
+ * invokes these by id through the host's registry, which protocol v3 lets a
+ * surface use for its own package only; no other surface and no command
+ * palette sees them.
  */
-export function capabilityActions(commands: readonly SurfaceCommand[]): EditorAction[] {
-  return commands.flatMap((command, index) => {
-    const group = actionGroup(command.commandId);
+export interface BuiltinOperation {
+  readonly commandId: string;
+  readonly label: string;
+  readonly language: CodeLanguage;
+  readonly group: "格式化" | "压缩";
+}
+
+/**
+ * Everything the editor can format without another package installed. The
+ * table is keyed by the page's own language codes, so a menu can never offer
+ * an operation the tokenizer does not know. Plain text has no formatter; its
+ * menu says so instead of pretending a capability package is missing.
+ */
+const BUILTIN_OPERATIONS: readonly BuiltinOperation[] = [
+  { commandId: "format.go", label: "格式化 Go", language: "go", group: "格式化" },
+  { commandId: "format.javascript", label: "格式化 JavaScript", language: "javascript", group: "格式化" },
+  { commandId: "format.typescript", label: "格式化 TypeScript", language: "typescript", group: "格式化" },
+  { commandId: "format.python", label: "格式化 Python", language: "python", group: "格式化" },
+  { commandId: "format.rust", label: "格式化 Rust", language: "rust", group: "格式化" },
+  { commandId: "format.php", label: "格式化 PHP", language: "php", group: "格式化" },
+  { commandId: "format.html", label: "格式化 HTML", language: "html", group: "格式化" },
+  { commandId: "format.css", label: "格式化 CSS", language: "css", group: "格式化" },
+  { commandId: "format.json", label: "格式化 JSON", language: "json", group: "格式化" },
+  { commandId: "format.yaml", label: "格式化 YAML", language: "yaml", group: "格式化" },
+  { commandId: "format.sql", label: "格式化 SQL", language: "sql", group: "格式化" },
+  { commandId: "format.shell", label: "格式化 Shell", language: "shell", group: "格式化" },
+  { commandId: "compress.sql", label: "压缩 SQL", language: "sql", group: "压缩" },
+];
+
+/** A label compared without spacing and case, for cross-source deduplication. */
+export function normalizeLabel(label: string): string {
+  return label.replace(/\s+/g, "").toLowerCase();
+}
+
+/** The labels the built-ins already own for this language. */
+export function builtinLabels(language: CodeLanguage | null): Set<string> {
+  if (!language) return new Set();
+  return new Set(
+    BUILTIN_OPERATIONS
+      .filter((operation) => operation.language === language)
+      .map((operation) => normalizeLabel(operation.label)),
+  );
+}
+
+/** Document and selection actions for the current language's built-ins. */
+export function builtinActions(language: CodeLanguage | null): EditorAction[] {
+  if (!language) return [];
+  const operations = BUILTIN_OPERATIONS.filter(
+    (operation) => operation.language === language,
+  );
+  return operations.flatMap((operation, index) => {
+    const command: SurfaceCommand = {
+      pluginId: OWN_PLUGIN_ID,
+      commandId: operation.commandId,
+      title: operation.label,
+    };
     const base = index * 2;
     return [
       {
+        id: `${OWN_PLUGIN_ID}/${operation.commandId}:document`,
+        label: operation.label,
+        group: operation.group,
+        order: base,
+        isEnabled: (context) => context.text.length > 0,
+        run: (context) => runCapability(context, command, false),
+      },
+      {
+        id: `${OWN_PLUGIN_ID}/${operation.commandId}:selection`,
+        label: `${operation.label}（选区）`,
+        group: operation.group,
+        order: base + 1,
+        isEnabled: (context) => hasSelection(context),
+        run: (context) => runCapability(context, command, true),
+      },
+    ];
+  });
+}
+
+/**
+ * One document action and one selection action per text capability. The
+ * command's own title is the only label source: the page does not know which
+ * language a package targets, and it must not guess from a plugin id. Commands
+ * that come from another package are marked with their source, because a
+ * built-in operation of the same name already covers that language.
+ */
+export function capabilityActions(
+  commands: readonly SurfaceCommand[],
+  orderBase = 0,
+): EditorAction[] {
+  return commands.flatMap((command, index) => {
+    const group = actionGroup(command.commandId);
+    const base = orderBase + index * 2;
+    const source = `（外部：${command.pluginId}）`;
+    return [
+      {
         id: `${command.pluginId}/${command.commandId}:document`,
-        label: command.title,
+        label: `${command.title}${source}`,
         group,
         order: base,
         isEnabled: (context) => context.text.length > 0,
@@ -128,7 +224,7 @@ export function capabilityActions(commands: readonly SurfaceCommand[]): EditorAc
       },
       {
         id: `${command.pluginId}/${command.commandId}:selection`,
-        label: `${command.title}（选区）`,
+        label: `${command.title}（选区）${source}`,
         group,
         order: base + 1,
         isEnabled: (context) => hasSelection(context),

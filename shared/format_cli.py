@@ -227,6 +227,36 @@ def format_python(source: str) -> str:
     return "\n".join(normalized).rstrip() + "\n"
 
 
+def prettier(parser: str, source: str) -> str:
+    """Run an installed Prettier with one fixed parser over stdin."""
+    tool = find_tool("prettier")
+    if not tool:
+        raise RuntimeError("prettier is not installed")
+    result = subprocess.run(
+        [tool, "--parser", parser],
+        input=source, text=True, capture_output=True, timeout=8, check=False,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip().splitlines()
+        raise RuntimeError(detail[0][:160] if detail else "prettier failed")
+    return result.stdout
+
+
+def format_css(source: str) -> str:
+    return prettier("css", source)
+
+
+def format_yaml(source: str) -> str:
+    return prettier("yaml", source)
+
+
+def format_shell(source: str) -> str:
+    tool = find_tool("shfmt")
+    if not tool:
+        raise RuntimeError("shfmt is not installed")
+    return run_tool(tool, ["-i", "2"], source)
+
+
 FORMATTERS = {
     "go": format_go,
     "rust": format_rust,
@@ -235,6 +265,9 @@ FORMATTERS = {
     "php": format_php,
     "html": format_html,
     "python": format_python,
+    "css": format_css,
+    "yaml": format_yaml,
+    "shell": format_shell,
 }
 
 

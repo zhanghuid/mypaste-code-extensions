@@ -17,6 +17,14 @@ cannot silently acquire clipboard-write authority. A surface that offers saving
 or copying declares `entity.save` and `clipboard.write` itself, and the host
 performs the write.
 
+Every manifest names its role as `kind`: `"ui"` for a package with a `surface`,
+`"command"` for one without. The field may be omitted, in which case the host
+derives it from the shape, but an explicit value must match. A `ui` package may
+also declare a `runtime` and internal commands that carry no `placement`; only
+that package's own surface sees or invokes them, and they never reach the
+command palette or another surface's registry. Code-edit uses this to ship its
+built-in formatting without depending on the capability packages.
+
 ## What a command declares
 
 Every command in `mypaste.plugin.json` (manifest version 3) declares the entity
@@ -52,10 +60,12 @@ A command package runs in a short-lived child process: the host writes one JSON
 request on stdin and reads one JSON response on stdout. The manifest declares
 this with `"runtime": {"mode": "command", "entrypoint": "run"}`; `mode` is
 `command` (start per invocation) or `resident` (kept alive with backoff). The
-process protocol itself is unchanged from v2: the request carries
-`"protocolVersion": 2`, and the adapter reads the entire request before writing
-exactly one response. Diagnostics go to stderr only for the local developer;
-the host never displays raw stderr.
+same runtime block may sit beside a `surface` in a `ui` package: code-edit
+declares one for its internal `format.*` / `compress.sql` commands, and only
+its own page can invoke them. The process protocol itself is unchanged from v2:
+the request carries `"protocolVersion": 2`, and the adapter reads the entire
+request before writing exactly one response. Diagnostics go to stderr only for
+the local developer; the host never displays raw stderr.
 
 ### Highlight response
 
@@ -151,7 +161,8 @@ arguments. There is no shell interpolation of user clipboard text.
 ## Dependency policy
 
 - Highlighters are dependency-free local tokenizers.
-- Formatters use system tools already installed by the user.
+- Formatters use system tools already installed by the user; SQL and JSON ship
+  their own engines inside code-edit's archive.
 - No package downloads a formatter at runtime.
 - A missing dependency returns a clear failure and leaves the clipboard
   unchanged.
@@ -167,9 +178,10 @@ https://raw.githubusercontent.com/<owner>/mypaste-code-extensions/main/dist/inde
 ```
 
 The index is versioned repository metadata, not a dynamic marketplace API. It
-contains only package identity, display metadata, archive file names, SHA-256
-digests, the project address, and each package's `runtimeProtocol` (2 for a
-package with a runtime, 0 for a surface package with none). The app resolves
+contains only package identity, display metadata, each package's `kind` (`ui`
+or `command`), archive file names, SHA-256 digests, the project address, and
+`runtimeProtocol` (2 for a package with a runtime, 0 for a package with none —
+including the surface packages that ship no process). The app resolves
 package files relative to the same fixed directory and rejects redirects, path
 traversal and digest mismatches. A host drops catalog entries whose
 `runtimeProtocol` names a protocol it does not support before listing them, so

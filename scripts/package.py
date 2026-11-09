@@ -47,6 +47,12 @@ SERVICES = {
 # it is never shown, only reached through the registry by a surface.
 PLACEMENTS = {"palette", "card-action", "trigger"}
 SURFACE_ROLES = {"open", "preview"}
+# Protocol v3 gives every package one of two kinds: a UI package owns a page
+# (and may also own a runtime for its own surface), a command package has no
+# page and is reached as a capability. The field is optional in the protocol —
+# the host derives it from the shape — but a manifest that declares it must
+# agree with its shape, and every manifest in this repository declares it.
+KINDS = {"ui", "command"}
 # Vocabulary v3 removed. A package that still names it is a v2 manifest that
 # only changed its version number.
 LEGACY_KEYS = {"menu", "menus", "workbench", "appliesTo", "global"}
@@ -69,6 +75,23 @@ def plugin_dirs() -> list[Path]:
     return sorted(p for p in PLUGINS.iterdir()
                   if p.is_dir() and not p.name.startswith(".")
                   and p.name not in OFFICIAL)
+
+
+def resolve_kind(manifest: dict, package_name: str) -> str:
+    """The package's declared kind, checked against its shape.
+
+    A surface makes a package `ui`; no surface makes it `command`. The
+    protocol lets a manifest omit the field and have the host derive it, so an
+    omitted kind is accepted here and reported as the derived value.
+    """
+    expected = "ui" if manifest.get("surface") is not None else "command"
+    kind = manifest.get("kind", expected)
+    if kind not in KINDS:
+        fail(f"{package_name}: kind must be ui or command")
+    if kind != expected:
+        fail(f"{package_name}: kind {kind!r} does not match its shape "
+             f"({expected!r})")
+    return kind
 
 
 def validate(package: Path) -> dict:
@@ -100,6 +123,7 @@ def validate(package: Path) -> dict:
     surface = manifest.get("surface")
     if surface is not None:
         validate_surface(surface, package.name)
+    resolve_kind(manifest, package.name)
     for command in manifest.get("commands", []):
         validate_target(command, package.name)
     return manifest
@@ -227,6 +251,7 @@ def build(package: Path) -> dict:
         "id": plugin_id,
         "name": display_name,
         "version": version,
+        "kind": resolve_kind(manifest, name),
         "description": description,
         "fileName": target.name,
         "sha256": digest,

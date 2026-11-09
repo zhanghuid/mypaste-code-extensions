@@ -13,10 +13,15 @@
 
 所有包都使用 MyPaste 插件协议 v3。v3 有两种角色：
 
-- **表面**——有 UI。交付一个页面，不运行进程；页面自己画界面，只通过表面桥
-  接触宿主。
+- **表面**——有 UI。交付一个页面，页面自己画界面，只通过表面桥接触宿主。
+  除非 manifest 同时声明 `runtime`，表面不运行进程；code-edit 声明了，用于
+  它自带的格式化。
 - **能力**——没有 UI，只有命令。声明了展示位的命令由宿主展示，其余由表面
   通过注册表集成。
+
+每个 manifest 还声明 `kind`（`"ui"` 或 `"command"`），表明包的构建形态。
+打包脚本拒绝 `kind` 与形态不符的 manifest，feed（`dist/index.json`）也带
+这个字段。
 
 本仓库包含：
 
@@ -83,6 +88,11 @@ token 数组，从不返回 HTML 或 CSS。两者都不能读历史、用文件�
 命令可以不声明 `placement`：那它就是**纯能力**，宿主从不展示，只由表面通过
 注册表（0/1/N，命中键只有实体类型）集成。
 
+`kind` 对交付 `surface` 的包是 `"ui"`，其余是 `"command"`。manifest 可以
+省略它（宿主按形态推导），但写了就必须一致。`ui` 包还可以声明 `runtime` 与
+没有 `placement` 的内部命令；runtime 使用 v2 行协议，只有该包自己的表面
+能看到或调用这些命令。
+
 能力使用宿主的封闭服务清单，并只申请足以完成工作的最小一项：
 `entity.read`、`entity.save`、`copy`、`clipboard.write`、`entry.payload`、
 `secret.read`、`network.outbound`、`storage.plugin`、`companion.read`、
@@ -95,7 +105,8 @@ token 数组，从不返回 HTML 或 CSS。两者都不能读历史、用文件�
 ## 表面包
 
 `com.mypaste.code-card`、`com.mypaste.code-edit`、`com.mypaste.diff-view` 与
-`com.mypaste.image-edit` 交付页面而不是进程：
+`com.mypaste.image-edit` 各自交付一个页面。code-edit 另外交付 runtime 与内部
+命令，用于自带格式化（3.3.0）；其余三个不运行进程：
 
 ```json
 "surface": {
@@ -119,14 +130,19 @@ token 数组，从不返回 HTML 或 CSS。两者都不能读历史、用文件�
 v3 移除了宿主工作台：没有缓冲区交换、没有宿主画的编辑器工具栏、也没有宿主画
 的文档动作行（宿主 D-1065、D-1068）。每个页面自己画控件。例如 code-edit 的
 页面自己画「复制文本」与「保存为新条目」，把注册表变成头部的「格式化」菜单与
-「高亮」下拉：声明了文本输出的命令各生成「全文」与「选区」两个动作，按命令
-自己的协议 id 分组（格式化、压缩、其它）；页面自己的关键字大小写动作放在
-「本地」组，不需要安装任何能力包。一个格式化能力包都没有时，菜单用一行说明，
-并且仍保留「本地」动作；声明了 placement 的命令属于宿主的卡片动作，不会成为
-这里的菜单行。token 命令进入「高亮」，默认与失败回退都用页面自己的分词器；
-没有高亮能力包时，下拉仍保留「内置」。选区动作由页面切片、对切片调用同一条
-全文命令、再拼回缓冲区，能力本身不需要知道选区。当前不适用的动作（没有选区的
-选区动作、没有关键字的语言里的关键字大小写）留在菜单里置灰，而不是消失。当前
+「高亮」下拉。「格式化」始终带有编辑器自带的、针对识别语言的内置操作——Go、
+JavaScript、TypeScript、Python、Rust、PHP、HTML、CSS、JSON、YAML、SQL 与
+Shell，外加 SQL 压缩——通过本包 runtime 以 `format.go`、`compress.sql` 之类
+的命令 id 调用，因此不安装任何其他包也能格式化。每个操作各生成「全文」与
+「选区」两个动作，按格式化 / 压缩分组（未知能力 id 进入「其它」）；关键字
+大小写是「本地」动作，不需要 runtime。其他包提供的格式化能力会作为额外一行
+加入菜单并标注来源，但内置已经为该语言提供的操作绝不重复出现：内置优先。
+声明了 placement 的命令属于宿主的卡片动作，不会成为这里的菜单行。没有任何
+适用操作时（纯文本没有格式化器），菜单用一行说明，而不是声称缺少能力包。
+token 命令进入「高亮」，默认与失败回退都用页面自己的分词器；高亮从不依赖
+已安装的包。选区动作由页面切片、对切片调用同一条全文命令、再拼回缓冲区，
+能力本身不需要知道选区。当前不适用的动作（没有选区的选区动作、没有关键字的
+语言里的关键字大小写）留在菜单里置灰，而不是消失。当前
 宿主会用 `forms` 补全缺省的 `output`，两种命令在线上都是文本；在线上出现
 「是否声明」之前，code-edit 也接受协议固定的 `format` / `compress` /
 `highlight` 命令 id 作为声明形态。
@@ -177,7 +193,9 @@ plugins/com.mypaste.code-card/
   preview.html         生成物：归档里带的页面
 
 plugins/com.mypaste.code-edit/   编辑器（自己的分词器、语言表与桥；
-                                 注册表驱动的「格式化」与「高亮」下拉）
+                                 注册表驱动的「格式化」与「高亮」下拉；
+                                 cmd/ 是 runtime，engines/ 是随包交付的
+                                 格式化脚本）
 plugins/com.mypaste.diff-view/   对比页面（自己的 diff 引擎与语言表；
                                  读取 companion）
 plugins/com.mypaste.image-edit/  图片编辑器（自己的画布工具）
@@ -207,6 +225,18 @@ manifest 与构建出的 `ferry` 二进制，绝无源码树。它对话的中�
 出的二进制，绝无源码树。它的规格声明了 `targets` 列表，归档按平台在
 `bin/<goos>/<goarch>/` 下嵌套每平台一个二进制（Windows 为 `.exe`）；宿主按
 这个布局解析声明的入口（宿主 D-1057）。
+
+`com.mypaste.code-edit` 是唯一的组合型官方包：`kind` 为 `"ui"`，同时交付
+页面与编译后的 runtime，并声明不带 `placement`、`output: ["text"]` 的内部
+格式化命令。协议 v3 只让本包自己的表面看到这些命令；它们不会出现在 Cmd+K
+命令面板或其他表面的注册表里。runtime 在 stdin/stdout 上使用与 v2 进程相同
+的逐行 JSON 协议。格式化引擎都是归档内的固定文件：`engines/` 下经过审查的
+Python/Node 脚本（从 `shared/` 复制，测试保证逐字节一致）、SQL 用的 `sqlkit`
+Go 包，以及按名称定位的已安装格式化工具。请求文本只走 stdin，从不经过
+shell，runtime 也不读取自己目录以外的任何文件。SQL 只有一个所有者：
+`shared/sqlkit` 是一个 Go 模块，`com.mypaste.sql` 与 code-edit runtime 都
+`replace` 到同一份源码，因此两个包编译并交付同一套分析、格式化与压缩实现，
+不会各自漂移。
 
 本地构建官方包：
 
@@ -312,7 +342,7 @@ dist/
 
 `index.json` 是确定性生成的：`scripts/package.py` 写脚本包条目并沿用官方
 条目，`scripts/build-official.py` 写（或刷新）官方条目。每个条目列出包的
-ID、显示名、版本、描述、归档文件名、SHA-256 与运行协议，且每个条目都带
+ID、显示名、版本、类型、描述、归档文件名、SHA-256 与运行协议，且每个条目都带
 项目的 `repository` 地址
 （`https://github.com/zhanghuid/mypaste-code-extensions`，由
 `scripts/index_metadata.py` 持有），市场详情页靠它链接回源码。feed 不带
@@ -325,10 +355,11 @@ manifest 严格校验，旧宿主不认识的 manifest 字段会让整个包在�
 | `id` | 是 | 宿主安装该插件所用的插件 ID。 |
 | `name` | 是 | 显示名。 |
 | `version` | 是 | 包版本。 |
+| `kind` | 是 | `ui` 或 `command`，与包的形态一致。 |
 | `description` | 是 | 一行描述。 |
 | `fileName` | 是 | `dist/` 内的归档名。 |
 | `sha256` | 是 | 归档摘要，宿主安装前校验。 |
-| `runtimeProtocol` | 是 | 包使用的运行协议（`2`；无运行时的表面包为 `0`）。 |
+| `runtimeProtocol` | 是 | 包使用的运行协议（`2`；无运行时的包为 `0`）。 |
 | `repository` | 否 | 项目地址，HTTPS，显示在市场详情页。宿主只在自己持有的这份索引里按插件 ID 解析出地址后才打开它——页面永远不提供 URL。 |
 
 应用只抓取
