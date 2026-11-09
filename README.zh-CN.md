@@ -133,7 +133,8 @@ v3 移除了宿主工作台：没有缓冲区交换、没有宿主画的编辑�
 「高亮」下拉。「格式化」始终带有编辑器自带的、针对识别语言的内置操作——Go、
 JavaScript、TypeScript、Python、Rust、PHP、HTML、CSS、JSON、YAML、SQL 与
 Shell，外加 SQL 压缩——通过本包 runtime 以 `format.go`、`compress.sql` 之类
-的命令 id 调用，因此不安装任何其他包也能格式化。每个操作各生成「全文」与
+的命令 id 调用，因此不安装任何其他包也能格式化（Go、Rust、PHP、Python、HTML、
+Shell 仍使用本机对应的工具）。每个操作各生成「全文」与
 「选区」两个动作，按格式化 / 压缩分组（未知能力 id 进入「其它」）；关键字
 大小写是「本地」动作，不需要 runtime。其他包提供的格式化能力会作为额外一行
 加入菜单并标注来源，但内置已经为该语言提供的操作绝不重复出现：内置优先。
@@ -232,7 +233,10 @@ manifest 与构建出的 `ferry` 二进制，绝无源码树。它对话的中�
 命令面板或其他表面的注册表里。runtime 在 stdin/stdout 上使用与 v2 进程相同
 的逐行 JSON 协议。格式化引擎都是归档内的固定文件：`engines/` 下经过审查的
 Python/Node 脚本（从 `shared/` 复制，测试保证逐字节一致）、SQL 用的 `sqlkit`
-Go 包，以及按名称定位的已安装格式化工具。请求文本只走 stdin，从不经过
+Go 包、CSS 与 YAML 用的固定版本 Prettier 3.6.2 standalone 构建
+（`engines/prettier/`，MIT，见
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)），以及按名称定位的本机
+Go、Rust、PHP、Python、HTML、Shell 格式化工具。请求文本只走 stdin，从不经过
 shell，runtime 也不读取自己目录以外的任何文件。SQL 只有一个所有者：
 `shared/sqlkit` 是一个 Go 模块，`com.mypaste.sql` 与 code-edit runtime 都
 `replace` 到同一份源码，因此两个包编译并交付同一套分析、格式化与压缩实现，

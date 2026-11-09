@@ -10,8 +10,8 @@ two shapes, and the shipped archive never contains the source tree:
 - a surface document (manifest plus the one HTML page `surface.entry` names,
   bundled from src/ by scripts/build-surfaces.mjs);
 - or both: a UI package that also declares a runtime and internal commands
-  (com.mypaste.code-edit), which ships its page, its binary and its private
-  engine files in one archive.
+  (com.mypaste.code-edit), which ships its page, its binary, its private
+  engine files and the pinned Prettier runtime in one archive.
 
 Installation is the trust decision (D-1039 in the MyPaste host repository):
 the feed carries no signature, and the host does not read one. Publishing is
@@ -43,6 +43,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from index_metadata import repository  # noqa: E402
 from official_packages import OFFICIAL  # noqa: E402
+import vendor_prettier  # noqa: E402
 
 DIST = ROOT / "dist"
 INDEX_VERSION = 1
@@ -147,6 +148,14 @@ def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
             for asset in assets:
                 copy_asset(source, staging, asset, asset)
         build_binary(spec, staging)
+    if spec.get("prettier"):
+        # A build dependency whose runtime subset ships beside the package's
+        # engines; the version is pinned by package.json and checked here.
+        destination = spec["prettier"]
+        if (not destination or destination.startswith("/")
+                or ".." in Path(destination).parts):
+            fail(f"{plugin_id}: invalid prettier destination {destination}")
+        vendor_prettier.vendor(ROOT, staging / destination)
     if not spec.get("surface") and not spec.get("module"):
         fail(f"{plugin_id}: spec declares neither a surface nor a module")
     return manifest

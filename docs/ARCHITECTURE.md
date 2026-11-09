@@ -161,8 +161,10 @@ arguments. There is no shell interpolation of user clipboard text.
 ## Dependency policy
 
 - Highlighters are dependency-free local tokenizers.
-- Formatters use system tools already installed by the user; SQL and JSON ship
-  their own engines inside code-edit's archive.
+- Formatters use system tools already installed by the user; SQL, JSON, CSS
+  and YAML ship their own engines inside code-edit's archive. CSS and YAML use
+  a pinned Prettier standalone build, copied from node_modules at package time
+  by `scripts/vendor_prettier.py`.
 - No package downloads a formatter at runtime.
 - A missing dependency returns a clear failure and leaves the clipboard
   unchanged.

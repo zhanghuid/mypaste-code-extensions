@@ -8,8 +8,10 @@ import hashlib
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 import zipfile
 
@@ -19,6 +21,7 @@ DIST = ROOT / "dist"
 
 sys.path.insert(0, str(ROOT / "scripts"))
 import index_metadata  # noqa: E402
+import vendor_prettier  # noqa: E402
 
 
 def official_ids() -> set[str]:
@@ -551,9 +554,82 @@ class PackageTests(unittest.TestCase):
             self.assertIn("mypaste.plugin.json", names)
             self.assertIn("preview.html", names)
             self.assertIn("code-edit", names)
-            for engine in ("format_cli.py", "format_json.py", "js_format.mjs"):
+            for engine in ("format_cli.py", "format_json.py", "js_format.mjs",
+                           "prettier.mjs"):
                 self.assertIn(f"engines/{engine}", names)
             self.assertNotIn("<!--bundle-->", bundle.read("preview.html").decode())
+
+    def test_code_edit_archive_carries_the_pinned_prettier(self) -> None:
+        # CSS and YAML must format without a tool on the user's machine, so
+        # the archive carries Prettier's standalone build, the two parser
+        # plugins and the MIT license — never the CLI or all of node_modules.
+        package = PLUGINS / "com.mypaste.code-edit"
+        manifest = json.loads(
+            (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
+        version = vendor_prettier.pinned_version(ROOT)
+        archive = DIST / f"{package.name}-{manifest['version']}.mypaste-plugin"
+        self.assertLess(archive.stat().st_size, 16 * 1024 * 1024)
+        with zipfile.ZipFile(archive) as bundle:
+            names = set(bundle.namelist())
+            for name in ("standalone.mjs", "plugins/postcss.mjs",
+                         "plugins/yaml.mjs", "LICENSE", "VERSION"):
+                self.assertIn(f"engines/prettier/{name}", names)
+            self.assertEqual(
+                bundle.read("engines/prettier/VERSION").decode("utf-8"),
+                f"prettier {version}\nhttps://github.com/prettier/prettier\n",
+            )
+            license_text = bundle.read("engines/prettier/LICENSE").decode("utf-8")
+            self.assertIn("James Long and contributors", license_text)
+            self.assertIn("Permission is hereby granted", license_text)
+            self.assertNotIn("engines/prettier/bin/prettier.cjs", names)
+            total = sum(item.file_size for item in bundle.infolist())
+            self.assertLessEqual(total, 64 * 1024 * 1024)
+            for item in bundle.infolist():
+                self.assertLessEqual(item.file_size, 16 * 1024 * 1024, item.filename)
+
+    def test_css_and_yaml_format_without_a_system_prettier(self) -> None:
+        # The packaged engine is the first choice; a PATH that holds node but
+        # no prettier proves the formatter never comes from the machine.
+        package = PLUGINS / "com.mypaste.code-edit" / "src" / "engines"
+        node = shutil.which("node")
+        assert node, "node is required to run the packaging engines"
+        with tempfile.TemporaryDirectory(prefix="mypaste-prettier-") as temp:
+            work = Path(temp)
+            engines = work / "engines"
+            engines.mkdir()
+            for name in ("format_cli.py", "prettier.mjs"):
+                shutil.copyfile(package / name, engines / name)
+            vendor_prettier.vendor(ROOT, engines / "prettier")
+            path_dir = work / "bin"
+            path_dir.mkdir()
+            os.symlink(node, path_dir / "node")
+            environment = dict(os.environ, PATH=str(path_dir))
+            cases = {
+                "css": ("a{color:red;margin:0}", "a {\n  color: red;\n  margin: 0;\n}\n"),
+                "yaml": ("a: 1\nb:\n  - 2", "a: 1\nb:\n  - 2\n"),
+            }
+            for language, (source, expected) in cases.items():
+                done = subprocess.run(
+                    [sys.executable, str(engines / "format_cli.py"), language],
+                    input=json.dumps({"id": "test", "selection": {"text": source}}),
+                    capture_output=True, text=True, cwd=temp, env=environment,
+                    timeout=30, check=True,
+                )
+                payload = json.loads(done.stdout)
+                self.assertTrue(payload["ok"], payload)
+                self.assertEqual(payload["result"]["output"], expected, language)
+            # Without the bundled files the same PATH cannot format at all:
+            # the fallback to a local CLI is the only other route.
+            shutil.rmtree(engines / "prettier")
+            done = subprocess.run(
+                [sys.executable, str(engines / "format_cli.py"), "css"],
+                input=json.dumps({"id": "test", "selection": {"text": "a{color:red}"}}),
+                capture_output=True, text=True, cwd=temp, env=environment,
+                timeout=30, check=True,
+            )
+            payload = json.loads(done.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertIn("prettier is not installed", payload["error"]["message"])
 
     def test_shared_engines_have_one_owner(self) -> None:
         # The private copies are the shipping assets; their sources stay in

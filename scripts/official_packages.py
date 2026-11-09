@@ -34,7 +34,12 @@ OFFICIAL = {
             "src/engines/format_cli.py": "engines/format_cli.py",
             "src/engines/format_json.py": "engines/format_json.py",
             "src/engines/js_format.mjs": "engines/js_format.mjs",
+            "src/engines/prettier.mjs": "engines/prettier.mjs",
         },
+        # The pinned Prettier runtime (standalone plus the postcss and yaml
+        # plugins) is copied from node_modules at build time, never hand-copied
+        # into src/.
+        "prettier": "engines/prettier",
         "goos": "darwin",
         "goarch": "arm64",
     },

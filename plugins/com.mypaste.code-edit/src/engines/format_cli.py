@@ -227,8 +227,47 @@ def format_python(source: str) -> str:
     return "\n".join(normalized).rstrip() + "\n"
 
 
+def packaged_prettier(parser: str, source: str) -> str | None:
+    """Format with the Prettier build shipped inside the package.
+
+    Returns None only when the packaged engine is absent, which is the one
+    case where the caller may fall back to an installed CLI. A present engine
+    keeps its own errors: falling back after a syntax failure would hide which
+    formatter actually ran.
+    """
+    engines = Path(__file__).resolve().parent
+    wrapper = engines / "prettier.mjs"
+    if not (wrapper.is_file() and (engines / "prettier" / "standalone.mjs").is_file()):
+        return None
+    node = find_tool("node")
+    if not node:
+        raise RuntimeError("node is not installed")
+    request = json.dumps({"id": "", "selection": {"text": source}})
+    result = subprocess.run(
+        [node, str(wrapper), parser],
+        input=request, text=True, capture_output=True, timeout=8, check=False,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip().splitlines()
+        raise RuntimeError(detail[0][:160] if detail else "prettier failed")
+    try:
+        payload = json.loads(result.stdout)
+    except Exception:
+        raise RuntimeError("prettier returned an unreadable answer")
+    if payload.get("ok") is True and isinstance(payload.get("result"), dict):
+        output = payload["result"].get("output")
+        if isinstance(output, str):
+            return output
+    error = payload.get("error")
+    message = error.get("message") if isinstance(error, dict) else None
+    raise RuntimeError(message if isinstance(message, str) else "prettier failed")
+
+
 def prettier(parser: str, source: str) -> str:
-    """Run an installed Prettier with one fixed parser over stdin."""
+    """Run the packaged Prettier, or an installed CLI when that is absent."""
+    packaged = packaged_prettier(parser, source)
+    if packaged is not None:
+        return packaged
     tool = find_tool("prettier")
     if not tool:
         raise RuntimeError("prettier is not installed")

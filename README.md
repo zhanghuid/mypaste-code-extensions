@@ -151,7 +151,9 @@ and 保存为新条目 itself and turns the registry into a header 格式化 men
 the detected language — Go, JavaScript, TypeScript, Python, Rust, PHP, HTML,
 CSS, JSON, YAML, SQL and Shell, plus SQL compression — invoked through this
 package's runtime under ids such as `format.go` and `compress.sql`, so
-formatting works with no other package installed. Every operation appears as a
+formatting works with no other package installed (Go, Rust, PHP, Python, HTML
+and Shell still use the matching tool when the machine has it). Every operation
+appears as a
 document action and a selection action, grouped 格式化 / 压缩 (an unknown
 capability id falls into 其它); keyword casing is
 a 本地 action that needs no runtime. A formatting capability from another
@@ -277,12 +279,14 @@ palette or another surface's registry. The runtime speaks the same newline
 JSON protocol as a v2 process on stdin/stdout. Its formatting engines are fixed
 files in the archive: the reviewed Python/Node scripts under `engines/` (copied
 from `shared/`, which a test keeps byte-identical), the `sqlkit` Go package for
-SQL, and installed formatters it locates by name for the rest. Request text
-travels on stdin, never through a shell, and the runtime reads nothing outside
-its own directory. SQL has one owner: `shared/sqlkit` is a Go module that both
-`com.mypaste.sql` and the code-edit runtime `replace` to the same source tree,
-so the two packages compile and ship the same analyzer, formatter and
-compressor rather than drifting apart.
+SQL, a pinned Prettier 3.6.2 standalone build for CSS and YAML
+(`engines/prettier/`, MIT, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
+and installed formatters it locates by name for Go, Rust, PHP, Python, HTML and
+Shell. Request text travels on stdin, never through a shell, and the runtime
+reads nothing outside its own directory. SQL has one owner: `shared/sqlkit` is
+a Go module that both `com.mypaste.sql` and the code-edit runtime `replace` to
+the same source tree, so the two packages compile and ship the same analyzer,
+formatter and compressor rather than drifting apart.
 
 Build the official packages locally:
 
