@@ -66,7 +66,8 @@ token 数组，从不返回 HTML 或 CSS。两者都不能读历史、用文件�
   "id": "format",
   "title": "格式化 JSON",
   "forms": ["text"],
-  "output": ["text"]
+  "output": ["text"],
+  "capabilities": ["entity.read"]
 }]
 ```
 
@@ -76,6 +77,10 @@ token 数组，从不返回 HTML 或 CSS。两者都不能读历史、用文件�
 
 `output` 声明命令产出的实体；宿主据此裁决结果能否另存或复制。缺省与
 `forms` 相同。
+
+命令上的 `capabilities` 声明这一条命令自己需要哪些服务。宿主在把实体交给命令
+之前会检查它，而表面集成正是把缓冲区当作管道输入交过去——所以每个格式化器与
+高亮器都在这里重复声明 `entity.read`。它只能收窄包的授权，不能扩大。
 
 `placement` 声明宿主自己在哪里展示命令：
 

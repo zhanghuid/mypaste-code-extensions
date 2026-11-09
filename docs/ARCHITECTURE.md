@@ -35,7 +35,8 @@ forms it acts on, what it produces, and optionally where the host shows it:
   "id": "format",
   "title": "格式化 JSON",
   "forms": ["text"],
-  "output": ["text"]
+  "output": ["text"],
+  "capabilities": ["entity.read"]
 }]
 ```
 
@@ -48,6 +49,11 @@ forms it acts on, what it produces, and optionally where the host shows it:
 - `placement` is `palette` (the command palette), `card-action` (the card or
   preview action row) or `trigger` (a background trigger). A command with no
   `placement` is a pure capability the host never shows.
+- `capabilities` names the services the command itself needs. The host checks
+  this list before it hands the command the entity, and a surface invocation
+  passes its buffer as pipe input — so every highlighter, formatter and
+  compressor declares `entity.read` here, not only at package level. The list
+  may narrow the package grant and can never widen it.
 
 Languages are the package's own internal concept. The host never infers a
 language from the package ID or from the text; v3 has no `languages` field. The

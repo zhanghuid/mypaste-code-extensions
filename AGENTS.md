@@ -29,11 +29,15 @@ plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
   `color`, `media`/`image`/`audio`/`video`, `file`/`document`/`archive`/
   `folder`/`other`), optionally `output`, and optionally `placement`
   (`palette`, `card-action`, `trigger`). A command without `placement` is a
-  pure capability the registry exposes to surfaces. Languages are an
-  extension's internal concern: the host never infers one, and v3 has no
-  `languages` field. Every `runtime` block declares
-  `"protocolVersion": 2` beside `mode` and `entrypoint`: v3 keeps the v2
-  process protocol, and the host rejects a package without the declaration.
+  pure capability the registry exposes to surfaces. A command that consumes
+  the entity declares `"capabilities": ["entity.read"]` on itself: a surface
+  invocation passes its buffer as pipe input, and the host checks the
+  command's own list before it does. The field may only narrow the package
+  grant, never widen it. Languages are an extension's internal concern: the
+  host never infers one, and v3 has no `languages` field. Every `runtime`
+  block declares `"protocolVersion": 2` beside `mode` and `entrypoint`: v3
+  keeps the v2 process protocol, and the host rejects a package without the
+  declaration.
 - Capabilities are the closed service list of PLUGINS.md section 6
   (`entity.read`, `entity.save`, `copy`, `clipboard.write`, `entry.payload`,
   `secret.read`, `network.outbound`, `storage.plugin`, `companion.read`,

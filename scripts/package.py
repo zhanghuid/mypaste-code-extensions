@@ -57,8 +57,8 @@ KINDS = {"ui", "command"}
 # only changed its version number.
 LEGACY_KEYS = {"menu", "menus", "workbench", "appliesTo", "global"}
 LEGACY_COMMAND_KEYS = {
-    "surface", "input", "languages", "capabilities", "menu", "workbench",
-    "appliesTo", "global",
+    "surface", "input", "languages", "menu", "workbench", "appliesTo",
+    "global",
 }
 
 
@@ -130,6 +130,16 @@ def validate(package: Path) -> dict:
     resolve_kind(manifest, package.name)
     for command in manifest.get("commands", []):
         validate_target(command, package.name)
+        # A command's own list is the host's gate before it hands the entity
+        # to the process (a surface invocation passes the buffer as pipe
+        # input). It narrows the package grant; it cannot widen it.
+        command_capabilities = validate_capabilities(
+            command.get("capabilities"), package.name,
+            f"command {command['id']}")
+        widened = command_capabilities - capabilities
+        if widened:
+            fail(f"{package.name}: command {command['id']} requires "
+                 f"undeclared capabilities {sorted(widened)}")
     return manifest
 
 
@@ -156,6 +166,22 @@ def validate_surface(surface: object, package_name: str) -> None:
     if surface.get("role") not in SURFACE_ROLES:
         fail(f"{package_name}: surface role must be open or preview")
     validate_forms(surface.get("forms"), package_name, "surface")
+
+
+def validate_capabilities(value: object, package_name: str, owner: str) -> set[str]:
+    """A command's optional capability narrowing, checked as a closed list."""
+    if value is None:
+        return set()
+    if not isinstance(value, list) or not all(
+            isinstance(capability, str) for capability in value):
+        fail(f"{package_name}: {owner} capabilities must be a list")
+    unknown = set(value) - SERVICES
+    if unknown:
+        fail(f"{package_name}: {owner} has unsupported capabilities "
+             f"{sorted(unknown)}")
+    if len(set(value)) != len(value):
+        fail(f"{package_name}: duplicate capability in {owner}")
+    return set(value)
 
 
 def validate_target(command: dict, package_name: str) -> None:
@@ -187,6 +213,7 @@ def validate_target(command: dict, package_name: str) -> None:
         fail(f"{package_name}: {name} has unknown placements {sorted(unknown)}")
     if len(set(placement)) != len(placement):
         fail(f"{package_name}: duplicate placement in {name}")
+    validate_capabilities(command.get("capabilities"), package_name, name)
 
 
 def files_for(package: Path) -> list[Path]:

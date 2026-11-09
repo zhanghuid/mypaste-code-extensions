@@ -80,6 +80,13 @@ class PackageTests(unittest.TestCase):
             {"id": "format", "forms": ["text"], "output": ["text"]},
             "mypaste.format-json",
         )
+        # The host hands a command the entity only when the command itself
+        # declares entity.read, so a consuming command names it here.
+        packaging.validate_target(
+            {"id": "format", "forms": ["text"], "output": ["text"],
+             "capabilities": ["entity.read"]},
+            "mypaste.format-json",
+        )
         # A placed command, and one that only returns a result to its surface.
         packaging.validate_target(
             {"id": "push", "forms": ["text", "file"], "placement": ["palette", "trigger"]},
@@ -105,7 +112,11 @@ class PackageTests(unittest.TestCase):
             {"id": "format", "forms": ["text"], "surface": "editor"},
             {"id": "format", "forms": ["text"], "languages": ["json"]},
             {"id": "format", "forms": ["text"], "input": ["text"]},
-            {"id": "format", "forms": ["text"], "capabilities": ["entity.read"]},
+            # Capabilities are the closed v3 service list, never a free name.
+            {"id": "format", "forms": ["text"], "capabilities": "entity.read"},
+            {"id": "format", "forms": ["text"], "capabilities": ["selection.read"]},
+            {"id": "format", "forms": ["text"],
+             "capabilities": ["entity.read", "entity.read"]},
             {"id": "sync", "surface": "data-action"},
         ]
         stderr = io.StringIO()
@@ -200,6 +211,11 @@ class PackageTests(unittest.TestCase):
                     self.assertTrue(command.get("forms"), manifest["id"])
                 self.assertFalse(set(command) & legacy_command_keys,
                                  (manifest["id"], command["id"]))
+                # A command may narrow the package grant by naming its own
+                # capabilities; it can never widen it.
+                command_capabilities = set(command.get("capabilities", []))
+                self.assertLessEqual(command_capabilities, capabilities,
+                                     (manifest["id"], command["id"]))
                 for placement in command.get("placement", []):
                     self.assertIn(placement, packaging.PLACEMENTS)
                 for form in command.get("forms", []):
@@ -223,6 +239,42 @@ class PackageTests(unittest.TestCase):
                 entry["runtimeProtocol"],
                 2 if "runtime" in manifest else 0,
             )
+
+    def test_text_commands_name_entity_read_themselves(self) -> None:
+        """A command that consumes text declares entity.read on itself.
+
+        A surface invocation hands its buffer to the command as pipe input,
+        and the host checks the *command's* capability list before it does
+        (`RunSurface` in the app repository), not only the package grant. A
+        v3 migration that drops this field leaves every highlighter and
+        formatter reachable-but-refused, so the invariant is checked here.
+        """
+        pure_capabilities = [
+            package for package in PLUGINS.iterdir()
+            if package.is_dir() and (
+                package.name.startswith(("mypaste.format-", "mypaste.highlight-"))
+                or package.name == "com.mypaste.sql"
+            )
+        ]
+        self.assertEqual(len(pure_capabilities), 17)
+        for package in sorted(pure_capabilities):
+            manifest = json.loads(
+                (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
+            for command in manifest["commands"]:
+                self.assertIn("entity.read", command.get("capabilities", []),
+                              (manifest["id"], command["id"]))
+        # Code-edit's internal commands are reached by its own page the same
+        # way; its card-action entry only opens the page, so it consumes
+        # nothing and names nothing.
+        manifest = json.loads(
+            (PLUGINS / "com.mypaste.code-edit" / "mypaste.plugin.json")
+            .read_text(encoding="utf-8"))
+        for command in manifest["commands"]:
+            if command.get("placement"):
+                self.assertNotIn("capabilities", command, command["id"])
+                continue
+            self.assertEqual(command.get("capabilities"), ["entity.read"],
+                             command["id"])
 
     def test_highlighting_all_languages(self) -> None:
         fixtures = {

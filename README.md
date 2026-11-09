@@ -74,7 +74,8 @@ forms it acts on:
   "id": "format",
   "title": "格式化 JSON",
   "forms": ["text"],
-  "output": ["text"]
+  "output": ["text"],
+  "capabilities": ["entity.read"]
 }]
 ```
 
@@ -85,6 +86,11 @@ plain and rich text.
 
 `output` names what the command produces; the host uses it to decide whether
 the result can be saved or copied. It defaults to `forms`.
+
+`capabilities` on a command names the services that one command needs. The host
+checks it before handing the command the entity, and a surface invocation
+passes its buffer as pipe input — so every formatter and highlighter repeats
+`entity.read` here. It narrows the package grant and never widens it.
 
 `placement` names where the host itself shows the command:
 
