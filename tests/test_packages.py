@@ -136,7 +136,7 @@ class PackageTests(unittest.TestCase):
         packaging = load_packaging()
         legacy_keys = {"menu", "menus", "workbench", "appliesTo", "global"}
         legacy_command_keys = {
-            "surface", "input", "languages", "capabilities", "menu",
+            "surface", "input", "languages", "menu",
             "workbench", "appliesTo", "global",
         }
         packages = sorted(p for p in PLUGINS.iterdir()
@@ -180,12 +180,29 @@ class PackageTests(unittest.TestCase):
                 self.assertEqual(capabilities, {"entity.read"})
                 self.assertNotIn("surface", manifest)
             for command in manifest.get("commands", []):
-                self.assertTrue(command.get("forms"), manifest["id"])
+                if "trigger" in command.get("placement", []):
+                    # A trigger command runs without a clipboard entity, so v3
+                    # refuses forms/output on it and requires at least one
+                    # capability the host allows on triggers (PLUGINS.md §4.1).
+                    self.assertFalse(command.get("forms"),
+                                     (manifest["id"], command["id"]))
+                    self.assertFalse(command.get("output"),
+                                     (manifest["id"], command["id"]))
+                    self.assertTrue(command.get("capabilities"),
+                                    (manifest["id"], command["id"]))
+                    self.assertLessEqual(
+                        set(command["capabilities"]),
+                        {"entry.payload", "clipboard.write",
+                         "network.outbound", "storage.plugin"},
+                        (manifest["id"], command["id"]),
+                    )
+                else:
+                    self.assertTrue(command.get("forms"), manifest["id"])
                 self.assertFalse(set(command) & legacy_command_keys,
                                  (manifest["id"], command["id"]))
                 for placement in command.get("placement", []):
                     self.assertIn(placement, packaging.PLACEMENTS)
-                for form in command["forms"]:
+                for form in command.get("forms", []):
                     self.assertIn(form, packaging.FORMS)
                 for output in command.get("output", []):
                     self.assertIn(output, packaging.FORMS)
