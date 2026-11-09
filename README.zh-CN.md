@@ -118,14 +118,19 @@ token 数组，从不返回 HTML 或 CSS。两者都不能读历史、用文件�
 
 v3 移除了宿主工作台：没有缓冲区交换、没有宿主画的编辑器工具栏、也没有宿主画
 的文档动作行（宿主 D-1065、D-1068）。每个页面自己画控件。例如 code-edit 的
-页面自己画「复制文本」与「保存为新条目」，并在运行时从注册表搭出命令工具栏：
+页面自己画「复制文本」与「保存为新条目」，把注册表变成头部的两个下拉：声明了
+文本输出的命令进入「格式化」，token 命令进入「高亮」；后者默认与失败回退都用
+页面自己的分词器。当前宿主会用 `forms` 补全缺省的 `output`，两种命令在线上都
+是文本；在线上出现「是否声明」之前，code-edit 也接受协议固定的 `format` /
+`highlight` 命令 id 作为声明形态。
 
 - `{v: 1, type: "registry", requestId, forms}` → `{v: 1, type: "result",
   requestId, ok, commands: [{pluginId, commandId, title, description?,
   output?}]}`——适配这些实体形态的能力命令。
 - `{v: 1, type: "invoke", requestId, pluginId, commandId, text}` → `{v: 1,
   type: "result", requestId, ok, output?, diagnostics?, render?}`——对当前
-  缓冲区运行一条命令。
+  缓冲区运行一条命令。宿主转交的 `render.tokens` 是有界的 `{text, kind}`
+  序列；页面只在它们拼回发出的缓冲区时采用，否则保留自己的高亮。
 
 文本另存与复制以精确键的消息过桥（`{v: 1, type: "save", requestId, text,
 title}` 与 `{v: 1, type: "copy", requestId, text}`）；宿主对文本再校验一次
@@ -165,7 +170,7 @@ plugins/com.mypaste.code-card/
   preview.html         生成物：归档里带的页面
 
 plugins/com.mypaste.code-edit/   编辑器（自己的分词器、语言表与桥；
-                                 注册表命令工具栏）
+                                 注册表驱动的格式化与高亮下拉）
 plugins/com.mypaste.diff-view/   对比页面（自己的 diff 引擎与语言表；
                                  读取 companion）
 plugins/com.mypaste.image-edit/  图片编辑器（自己的画布工具）

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated": "2026-11-08",
+  "generated": "2026-11-09",
   "packages": [
     {
       "id": "mypaste.format-go",
@@ -185,10 +185,10 @@
     {
       "id": "com.mypaste.code-edit",
       "name": "代码编辑",
-      "version": "3.0.0",
-      "description": "在本地编辑代码或纯文本：行号、语法高亮与语言识别都随包提供，可另存为新的历史条目或复制到剪贴板；原条目保持不变，不联网、不读取其它条目。",
-      "fileName": "com.mypaste.code-edit-3.0.0.mypaste-plugin",
-      "sha256": "8d2905a349f048d0b269954907f0b3415c9a741d2168e4247cd9821592d3a2e1",
+      "version": "3.1.0",
+      "description": "在本地编辑代码或纯文本：行号、语法高亮与语言识别都随包提供，可另存为新的历史条目或复制到剪贴板；头部可从已安装的能力包中选择格式化与高亮，原条目保持不变，不联网、不读取其它条目。",
+      "fileName": "com.mypaste.code-edit-3.1.0.mypaste-plugin",
+      "sha256": "5791fceeade5d7d86f5f42e16de907c68fc120fe8f71774add585c6732fc1d0d",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },

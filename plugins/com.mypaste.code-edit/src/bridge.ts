@@ -12,7 +12,8 @@
  * itself. What it does keep is the registry: `list("text")` names the headless
  * commands other packages expose for text, and `invoke()` runs one against the
  * current buffer. A format command's output replaces the buffer; a highlight
- * command's diagnostics are shown on the status line.
+ * command's render tokens paint the overlay (when the host forwards them) and
+ * its diagnostics are shown on the status line.
  *
  * D-1042/D-1043: the host also sends the application's resolved colour scheme
  * and the design tokens that scheme resolved to; the page paints by them
@@ -34,6 +35,13 @@ export interface SurfaceCommand {
   title: string;
   description?: string;
   output?: string[];
+  /**
+   * When a host exposes declaredness: `false` means the manifest declared no
+   * output (a token command), even though the effective list inherits Forms.
+   */
+  outputDeclared?: boolean;
+  /** Present only when the host reports it; empty/absent means a capability. */
+  placement?: string[];
 }
 
 /** One syntax finding a capability returned alongside its tokens. */
@@ -43,9 +51,17 @@ export interface SurfaceDiagnostic {
   message: string;
 }
 
+/** One token a highlight command returned (host render contract, bounded). */
+export interface SurfaceToken {
+  text: string;
+  kind: string;
+}
+
 export interface CommandResult extends BridgeResult {
   /** The text a format command produced, when it produced one. */
   output?: string;
+  /** Tokens a highlight command produced, when the host forwarded them. */
+  tokens?: SurfaceToken[];
   diagnostics: SurfaceDiagnostic[];
 }
 
@@ -54,8 +70,12 @@ interface ResultMessage extends BridgeResult {
   requestId: number;
   commands?: SurfaceCommand[];
   output?: string;
+  tokens?: unknown;
   diagnostics?: SurfaceDiagnostic[];
-  render?: { diagnostics?: SurfaceDiagnostic[] } & Record<string, unknown>;
+  render?: {
+    diagnostics?: SurfaceDiagnostic[];
+    tokens?: unknown;
+  } & Record<string, unknown>;
 }
 
 export interface SurfaceBridge {
@@ -181,6 +201,13 @@ function parseCommand(value: unknown): SurfaceCommand | null {
   if (Array.isArray(value.output) && value.output.every((item) => typeof item === "string")) {
     command.output = value.output;
   }
+  if (Array.isArray(value.placement) &&
+    value.placement.every((item) => typeof item === "string")) {
+    command.placement = value.placement;
+  }
+  if (typeof value.outputDeclared === "boolean") {
+    command.outputDeclared = value.outputDeclared;
+  }
   return command;
 }
 
@@ -197,6 +224,32 @@ function parseDiagnostics(value: unknown): SurfaceDiagnostic[] {
   return value
     .map(parseDiagnostic)
     .filter((item): item is SurfaceDiagnostic => item !== null);
+}
+
+/** The same bounds the host applies to a capability's render output. */
+const MAX_TOKENS = 4000;
+const MAX_TOKEN_BYTES = 64 * 1024;
+
+/**
+ * parseTokens accepts the render tokens a highlight capability returned. A
+ * malformed or oversized answer is rejected whole: a partial token list would
+ * paint text that no longer matches the buffer, so the page falls back to its
+ * own tokenizer instead.
+ */
+function parseTokens(value: unknown): SurfaceToken[] | undefined {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_TOKENS) {
+    return undefined;
+  }
+  const tokens: SurfaceToken[] = [];
+  let bytes = 0;
+  for (const entry of value) {
+    if (!isRecord(entry)) return undefined;
+    if (typeof entry.text !== "string" || typeof entry.kind !== "string") return undefined;
+    if (!isWellFormedText(entry.text)) return undefined;
+    bytes += new TextEncoder().encode(entry.text).length;
+    tokens.push({ text: entry.text, kind: entry.kind });
+  }
+  return bytes > MAX_TOKEN_BYTES ? undefined : tokens;
 }
 
 /**
@@ -296,6 +349,7 @@ export function connectSurface(): SurfaceBridge {
         id: result.id,
         message: result.message,
         output: typeof result.output === "string" ? result.output : undefined,
+        tokens: parseTokens(result.tokens ?? result.render?.tokens),
         diagnostics,
       };
     },

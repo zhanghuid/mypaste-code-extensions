@@ -88,6 +88,17 @@ def matches(selector: str, elements: list[Element]) -> bool:
 
 
 class SurfaceDocumentTests(unittest.TestCase):
+    def test_code_edit_has_no_command_button_row(self) -> None:
+        # D-1069 follow-up: composition now lives in the two header pickers.
+        # A footer of capability buttons was the old shape and must not return.
+        package = PLUGINS / "com.mypaste.code-edit"
+        for document in (package / "src" / "preview.html", package / "preview.html"):
+            text = document.read_text(encoding="utf-8")
+            self.assertNotIn("doc-commands", text, document)
+            self.assertIn('id="doc-format"', text, document)
+            self.assertIn('id="doc-highlight"', text, document)
+            self.assertEqual(text.count('data-action="'), 2, document)
+
     def surface_packages(self) -> list[Path]:
         return sorted(
             path for path in PLUGINS.iterdir()

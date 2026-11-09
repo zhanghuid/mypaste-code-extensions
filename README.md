@@ -131,15 +131,22 @@ item and never gives the page a way to browse history.
 v3 removed the host workbench: there is no buffer exchange, no host-drawn
 editor toolbar and no host-drawn document action row (host D-1065, D-1068).
 Each page draws its own controls. Code-edit's page, for example, draws 复制文本
-and 保存为新条目 itself and builds a command toolbar at runtime from the
-registry:
+and 保存为新条目 itself and turns the registry into two header pickers:
+commands that declare text output become the 格式化 picker, token commands
+become the 高亮 picker, and the page's own tokenizer is the default there and
+the fallback when a capability fails or returns no usable tokens. Today the
+host fills an omitted output from `forms`, so both shapes arrive as text;
+code-edit also accepts the protocol's fixed `format` / `highlight` command ids
+as the declared shape until the wire carries declaredness.
 
 - `{v: 1, type: "registry", requestId, forms}` → `{v: 1, type: "result",
   requestId, ok, commands: [{pluginId, commandId, title, description?,
   output?}]}` — the capability commands that adapt those entity forms.
 - `{v: 1, type: "invoke", requestId, pluginId, commandId, text}` → `{v: 1,
   type: "result", requestId, ok, output?, diagnostics?, render?}` — runs one
-  command against the current buffer.
+  command against the current buffer. `render.tokens`, when the host forwards
+  them, are bounded `{text, kind}` pairs; the page accepts them only when they
+  add up to the buffer it sent and otherwise keeps its own highlighter.
 
 Text save and copy cross the bridge as exact-key messages
 (`{v: 1, type: "save", requestId, text, title}` and
@@ -189,7 +196,8 @@ plugins/com.mypaste.code-card/
   preview.html         GENERATED: the page the archive ships
 
 plugins/com.mypaste.code-edit/   the editor (its own tokenizer, language
-                                 table and bridge; registry command toolbar)
+                                 table and bridge; format and highlight
+                                 pickers fed by the registry)
 plugins/com.mypaste.diff-view/   the comparison page (its own diff engine and
                                  language table; reads a companion)
 plugins/com.mypaste.image-edit/  the image editor (canvas tools of its own)

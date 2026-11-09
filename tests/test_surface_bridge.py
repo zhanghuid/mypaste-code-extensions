@@ -103,13 +103,16 @@ emit({
   commands: [
     { pluginId: "mypaste.format-json", commandId: "format", title: "格式化 JSON", output: ["text"] },
     { pluginId: "", commandId: "format", title: "no plugin" },
-    { pluginId: "mypaste.highlight-json", commandId: "highlight", title: "高亮 JSON" },
+    { pluginId: "mypaste.highlight-json", commandId: "highlight", title: "高亮 JSON", outputDeclared: false },
+    { pluginId: "mypaste.code-card", commandId: "clipboard.code-card", title: "导出代码卡片", placement: ["card-action"] },
   ],
 });
 const commands = await listing;
-assert.equal(commands.length, 2);
+assert.equal(commands.length, 3);
 assert.equal(commands[0].pluginId, "mypaste.format-json");
 assert.deepEqual(commands[0].output, ["text"]);
+assert.equal(commands[1].outputDeclared, false);
+assert.equal(commands[2].placement.length, 1);
 checks.push("registry.list returns the commands and drops malformed entries");
 
 const failing = bridge.list(["text"]);
@@ -140,6 +143,31 @@ const checked = await checking;
 assert.equal(checked.ok, false);
 assert.deepEqual(checked.diagnostics, [{ line: 1, column: 7, message: "unexpected token" }]);
 checks.push("diagnostics survive a render result");
+
+const highlighting = bridge.invoke(commands[1], "select 1");
+emit({
+  v: 1, type: "result", requestId: 7, ok: true,
+  render: { tokens: [
+    { text: "select", kind: "keyword" },
+    { text: " ", kind: "" },
+    { text: "1", kind: "number" },
+  ] },
+});
+const highlighted = await highlighting;
+assert.deepEqual(highlighted.tokens, [
+  { text: "select", kind: "keyword" },
+  { text: " ", kind: "" },
+  { text: "1", kind: "number" },
+]);
+checks.push("a highlight command's render tokens reach the page");
+
+const malformedTokens = bridge.invoke(commands[1], "select 1");
+emit({
+  v: 1, type: "result", requestId: 8, ok: true,
+  render: { tokens: [{ text: "select", kind: "keyword" }, { text: 1, kind: "number" }] },
+});
+assert.equal((await malformedTokens).tokens, undefined);
+checks.push("a malformed token list is dropped whole, not partially painted");
 
 assert.equal(textRefusal("a\u0000b"), "内容包含无法处理的字符");
 assert.equal(textRefusal("plain"), "");
@@ -204,6 +232,8 @@ class SurfaceBridgeTest(unittest.TestCase):
             "a refused registry read is an error, not an empty list",
             "a format command returns its output text",
             "diagnostics survive a render result",
+            "a highlight command's render tokens reach the page",
+            "a malformed token list is dropped whole, not partially painted",
             "a control character is refused before the page applies it",
         ])
 

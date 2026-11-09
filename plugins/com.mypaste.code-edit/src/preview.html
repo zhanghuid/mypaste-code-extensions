@@ -115,13 +115,14 @@
     white-space: nowrap;
   }
   #doc-dirty[hidden] { display: none; }
-  #doc-language {
+  #doc-language, #doc-format, #doc-highlight {
     padding: 4px 6px;
     border: 1px solid var(--line);
     background: var(--surface);
     color: var(--ink);
     font: 11px/1.4 var(--mono);
   }
+  #doc-format[hidden], #doc-highlight[hidden] { display: none; }
   .editor {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -210,13 +211,6 @@
     border-top: 1px solid var(--line);
     background: var(--surface);
   }
-  #doc-commands {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: 6px;
-  }
-  #doc-commands[hidden] { display: none; }
   #doc-status {
     flex: 1;
     min-width: 0;
@@ -238,6 +232,8 @@
     <span class="metric" id="doc-caret">行 1，列 1</span>
     <span id="doc-dirty" hidden>未保存</span>
     <select id="doc-language" aria-label="语言"></select>
+    <select id="doc-format" aria-label="格式化" title="格式化当前文本" hidden></select>
+    <select id="doc-highlight" aria-label="高亮" title="选择语法高亮" hidden></select>
     <button type="button" data-action="copy">复制文本</button>
     <button type="button" class="primary" data-action="save">保存为新条目</button>
   </header>
@@ -249,9 +245,8 @@
         autocapitalize="off" wrap="off" aria-label="文档内容"></textarea>
     </div>
   </div>
-  <!-- D-1069: the page draws its own action row and command toolbar. -->
+  <!-- D-1069: the page draws its own action row; the footer is the status line. -->
   <footer>
-    <div id="doc-commands" role="toolbar" aria-label="扩展命令" hidden></div>
     <span id="doc-status" role="status" aria-live="polite" hidden></span>
   </footer>
 <script>
