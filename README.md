@@ -35,8 +35,8 @@ This repository holds:
   `scripts/build-official.py`.
 - **Surface packages** (`plugins/com.mypaste.code-card`,
   `plugins/com.mypaste.code-edit`, `plugins/com.mypaste.diff-view`,
-  `plugins/com.mypaste.image-edit`) — one HTML page, no process; see
-  "Surface packages" below.
+  `plugins/com.mypaste.image-edit`, `plugins/com.mypaste.timestamp`) — one HTML
+  page, no process; see "Surface packages" below.
 - **Official packages** (`plugins/com.mypaste.*`) — the binaries and surfaces
   above, built by `scripts/build-official.py`; see "Official packages" below.
   `scripts/official_packages.py` is the single owner of the list;
@@ -123,10 +123,10 @@ declaration fails the build instead of shipping.
 
 ## Surface packages
 
-`com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view` and
-`com.mypaste.image-edit` ship a page of their own. Code-edit additionally ships
-a runtime and internal commands for its built-in formatting (3.3.0); the other
-three run no process:
+`com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view`,
+`com.mypaste.image-edit` and `com.mypaste.timestamp` ship a page of their own.
+Code-edit additionally ships a runtime and internal commands for its built-in
+formatting (3.3.0); the other four run no process:
 
 ```json
 "surface": {
@@ -139,7 +139,8 @@ three run no process:
 `forms` names the entities the surface adapts, and `role` is one of:
 
 - `open` — the target of "open this entity" (a double-click on a card when this
-  surface is the chosen default). Code-edit, diff-view and image-edit declare it.
+  surface is the chosen default). Code-edit, diff-view, image-edit and
+  timestamp declare it.
 - `preview` — drawn into the dock's card preview. Code-card declares it.
 
 The host serves the page to a sandboxed frame and mediates reading this
@@ -244,6 +245,8 @@ plugins/com.mypaste.code-edit/   the editor (its own tokenizer, language
 plugins/com.mypaste.diff-view/   the comparison page (its own diff engine and
                                  language table; reads a companion)
 plugins/com.mypaste.image-edit/  the image editor (canvas tools of its own)
+plugins/com.mypaste.timestamp/   the timestamp page (its own parser and
+                                 formatters; copy-only, no runtime)
 ```
 
 Build every page with `bun run build:surfaces` (esbuild bundles `src/main.ts`

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    color-scheme: light;
+    /*
+     * The host's resolved tokens arrive as --mp-* (D-1043); every value below
+     * prefers them and keeps this document's own palette as the fallback for
+     * an older host. The host owns the theme, so there is no second copy.
+     */
+    --bg: var(--mp-surface-solid, #f6f2ea);
+    --panel: var(--mp-surface-raised, #fbf8f2);
+    --ink: var(--mp-ink, #241f19);
+    --muted: var(--mp-ink-soft, #776b5c);
+    --line: var(--mp-line, rgba(60, 45, 25, 0.16));
+    --accent: var(--mp-accent, #9a5427);
+    --accent-ink: var(--mp-accent-ink, #fff8ef);
+    --focus: var(--mp-accent, #9a5427);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  }
+  :root[data-scheme="dark"] {
+    color-scheme: dark;
+    --bg: var(--mp-surface-solid, #171412);
+    --panel: var(--mp-surface-raised, #201c18);
+    --ink: var(--mp-ink, #f0e6d9);
+    --muted: var(--mp-ink-soft, #9a8c7b);
+    --line: var(--mp-line, rgba(255, 236, 214, 0.14));
+    --accent: var(--mp-accent, #e2955f);
+    --accent-ink: var(--mp-accent-ink, #241a12);
+    --focus: var(--mp-accent, #e2955f);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { min-height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  .shell {
+    width: 100%;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 20px 18px 32px;
+  }
+
+  .head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .head-text { min-width: 0; }
+  h1 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .summary {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .action {
+    flex: none;
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+  }
+  .action:hover { border-color: var(--accent); color: var(--accent); }
+  .action:focus-visible,
+  .row-copy:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .action:disabled { color: var(--muted); cursor: default; }
+
+  .status {
+    min-height: 0;
+    margin: 0;
+    padding: 10px 0;
+    color: var(--muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  .status:empty { padding: 0; }
+
+  .result { margin-top: 2px; }
+  /*
+   * One material for the whole list: the rows are separated by rules, not
+   * drawn as separate boxes, and every corner stays square.
+   */
+  .rows {
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .row:last-child { border-bottom: 0; }
+  .row-label {
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+  }
+  .row-value {
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .row-copy {
+    flex: none;
+    padding: 3px 9px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .row-copy:hover { border-color: var(--accent); color: var(--accent); }
+
+  .original { margin-top: 18px; }
+  .original h2 {
+    margin: 0 0 6px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  #original-text {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 13px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 540px) {
+    .shell { padding: 16px 14px 26px; }
+    .head { flex-wrap: wrap; }
+    .row {
+      grid-template-columns: minmax(0, 1fr) auto;
+      row-gap: 2px;
+    }
+    .row-label { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="head">
+    <div class="head-text">
+      <h1>时间戳</h1>
+      <p class="summary" id="summary">等待条目…</p>
+    </div>
+    <button class="action" id="copy-all" type="button" hidden>复制全部</button>
+  </header>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+  <section class="result" id="result" hidden>
+    <div class="rows" id="rows"></div>
+  </section>
+  <section class="original" id="original" hidden>
+    <h2>原文</h2>
+    <pre id="original-text"></pre>
+  </section>
+</main>
+<script>
+<!--bundle-->
+</script>
+</body>
+</html>

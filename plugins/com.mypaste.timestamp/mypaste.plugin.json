@@ -1,0 +1,18 @@
+{
+  "manifestVersion": 3,
+  "id": "com.mypaste.timestamp",
+  "name": "时间戳",
+  "version": "1.0.0",
+  "kind": "ui",
+  "description": "把当前文本条目解析成多种日期与时间格式：本地时间、UTC、ISO 8601、RFC 2822、Unix 秒/毫秒、星期、ISO 周与多个时区，可逐项复制。内容无法识别时说明原因并回显原文。全部在本机计算，不联网。",
+  "capabilities": [
+    "entity.read"
+  ],
+  "surface": {
+    "entry": "preview.html",
+    "forms": [
+      "text"
+    ],
+    "role": "open"
+  }
+}

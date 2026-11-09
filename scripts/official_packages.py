@@ -50,6 +50,9 @@ OFFICIAL = {
     "com.mypaste.image-edit": {
         "surface": True,
     },
+    "com.mypaste.timestamp": {
+        "surface": True,
+    },
     "com.mypaste.ferry": {
         "module": "plugins/com.mypaste.ferry/src",
         "entrypoint": "ferry",
