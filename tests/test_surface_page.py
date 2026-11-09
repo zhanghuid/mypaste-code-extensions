@@ -22,6 +22,7 @@ test sees exactly what the page sends and paints:
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -85,7 +86,10 @@ class ElementStub {
     this.selectionStart = caret;
     this.selectionEnd = caret;
   }
-  focus() {}
+  focus() { globalThis.document.activeElement = this; }
+  getBoundingClientRect() {
+    return { top: 10, right: 900, bottom: 40, left: 780, width: 120, height: 30 };
+  }
   get textContent() { return this._text; }
   set textContent(value) { this._text = String(value); this._html = ""; }
   get innerHTML() { return this._html; }
@@ -95,9 +99,9 @@ class ElementStub {
 const elements = {
   "#doc-title": new ElementStub("input"),
   "#doc-language": new ElementStub("select"),
-  "#doc-actions-root": new ElementStub("div"),
-  "#doc-actions": new ElementStub("button"),
-  "#doc-action-menu": new ElementStub("div"),
+  "#doc-format-root": new ElementStub("div"),
+  "#doc-format": new ElementStub("button"),
+  "#doc-format-menu": new ElementStub("div"),
   "#doc-highlight": new ElementStub("select"),
   "#doc-caret": new ElementStub("span"),
   "#doc-dirty": new ElementStub("span"),
@@ -109,9 +113,9 @@ const elements = {
   "[data-action=save]": new ElementStub("button"),
 };
 const input = elements["#editor-input"];
-const actionsButton = elements["#doc-actions"];
-const actionMenu = elements["#doc-action-menu"];
-const actionsRoot = elements["#doc-actions-root"];
+const formatButton = elements["#doc-format"];
+const formatMenu = elements["#doc-format-menu"];
+const formatRoot = elements["#doc-format-root"];
 const highlightSelect = elements["#doc-highlight"];
 const status = elements["#doc-status"];
 const overlay = elements["#editor-highlight"];
@@ -145,6 +149,8 @@ globalThis.document = {
 };
 globalThis.parent = { postMessage: (message) => posted.push(message) };
 globalThis.window = {
+  innerWidth: 1120,
+  innerHeight: 840,
   addEventListener(type, listener) {
     if (type === "message") listeners.push(listener);
   },
@@ -152,18 +158,21 @@ globalThis.window = {
 globalThis.matchMedia = () => ({ matches: false });
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+const EMPTY = process.env.EMPTY_REGISTRY === "1";
 const emit = (data) => {
   for (const listener of listeners) listener({ source: parent, data });
 };
 const last = () => posted.at(-1);
 const optionLabels = (select) => select.children.map((item) => item.textContent);
-const menuButtons = () => actionMenu.children.flatMap(
+const menuButtons = () => formatMenu.children.flatMap(
   (section) => section.children.filter((child) => child.tagName === "button"),
 );
 const menuButton = (label) => menuButtons().find((button) => button.textContent === label);
-const groupTitles = () => actionMenu.children.map((section) => section.children[0]?.textContent);
-const showMenu = () => { if (actionMenu.hidden) actionsButton.dispatch("click"); };
-const hideMenu = () => { if (!actionMenu.hidden) actionsButton.dispatch("click"); };
+const groupTitles = () => formatMenu.children
+  .filter((section) => section.children[0]?.tagName !== undefined)
+  .map((section) => section.children[0]?.textContent);
+const showMenu = () => { if (formatMenu.hidden) formatButton.dispatch("click"); };
+const hideMenu = () => { if (!formatMenu.hidden) formatButton.dispatch("click"); };
 const clickAction = (label) => {
   showMenu();
   const button = menuButton(label);
@@ -182,7 +191,12 @@ const registry = posted.find((message) => message.type === "registry");
 assert.deepEqual(registry.forms, ["text"]);
 emit({
   v: 1, type: "result", requestId: registry.requestId, ok: true,
-  commands: [
+  commands: EMPTY ? [
+    // Both are the host's placed card actions. An older host sent them over
+    // the surface channel too; the page must never turn them into rows.
+    { pluginId: "com.mypaste.code-card", commandId: "clipboard.code-card", title: "导出代码卡片", placement: ["card-action"] },
+    { pluginId: "com.mypaste.code-edit", commandId: "clipboard.code-edit", title: "编辑代码", placement: ["card-action"] },
+  ] : [
     { pluginId: "mypaste.format-json", commandId: "format", title: "格式化 JSON", output: ["text"] },
     { pluginId: "mypaste.highlight-json", commandId: "highlight", title: "高亮 JSON" },
     { pluginId: "com.mypaste.sql", commandId: "format", title: "格式化 SQL", output: ["text"] },
@@ -195,14 +209,33 @@ emit({
   ],
 });
 await tick();
-assert.deepEqual(groupTitles(), ["格式化", "压缩", "大小写", "其它"]);
+
+// With no capability package installed the menu still opens: it says so in
+// one line, keeps the local action, and never shows a placed command. The
+// highlight picker remains a complete control with only 内置.
+if (EMPTY) {
+  emit({ v: 1, type: "item", item: { kind: "text", title: "main.sql", text: "SELECT 1" } });
+  showMenu();
+  assert.equal(formatMenu.hidden, false);
+  assert.equal(formatMenu.children[0].className, "format-empty");
+  assert.equal(formatMenu.children[0].textContent, "未安装格式化能力包");
+  assert.deepEqual(groupTitles(), ["本地"]);
+  assert.deepEqual(menuButtons().map((button) => button.textContent), ["切换关键字大小写"]);
+  assert.equal(menuButtons().some((button) => button.textContent.includes("导出")), false);
+  assert.deepEqual(optionLabels(highlightSelect), ["内置"]);
+  assert.equal(highlightSelect.hidden, false);
+  checks.push("an empty registry shows the empty state, keeps the local action and offers only 内置");
+  console.log(JSON.stringify(checks));
+  process.exit(0);
+}
+assert.deepEqual(groupTitles(), ["格式化", "压缩", "其它", "本地"]);
 assert.deepEqual(menuButtons().map((button) => button.textContent), [
   "格式化 JSON", "格式化 JSON（选区）",
   "格式化 SQL", "格式化 SQL（选区）",
   "格式化 YAML", "格式化 YAML（选区）",
   "压缩 SQL", "压缩 SQL（选区）",
-  "切换关键字大小写",
   "导出", "导出（选区）",
+  "切换关键字大小写",
 ]);
 assert.deepEqual(optionLabels(highlightSelect), ["内置", "高亮 JSON", "高亮 SQL", "高亮 YAML"]);
 assert.equal(highlightSelect.hidden, false);
@@ -211,10 +244,12 @@ checks.push("the registry fills grouped action pairs and the highlight picker, n
 
 emit({ v: 1, type: "item", item: { kind: "text", title: "main.sql", text: "SELECT id, name FROM t" } });
 assert.equal(input.value, "SELECT id, name FROM t");
-assert.equal(actionsButton.disabled, false);
+assert.equal(formatButton.disabled, false);
 showMenu();
-assert.equal(actionMenu.hidden, false);
-assert.equal(actionsButton.getAttribute("aria-expanded"), "true");
+assert.equal(formatMenu.hidden, false);
+assert.equal(formatButton.getAttribute("aria-expanded"), "true");
+assert.ok(formatMenu.style.top.endsWith("px"), "菜单使用视口坐标定位");
+assert.ok(formatMenu.style.left.endsWith("px"), "菜单使用视口坐标定位");
 assert.equal(menuButton("格式化 SQL").disabled, false);
 assert.equal(menuButton("格式化 SQL（选区）").disabled, true);
 checks.push("the item enables the menu and a selection action stays visible but disabled");
@@ -287,6 +322,34 @@ assert.equal(menuButton("压缩 SQL（选区）").disabled, true);
 assert.equal(menuButton("压缩 SQL").disabled, false);
 checks.push("collapsing the selection disables selection actions without hiding them");
 
+// Opening the menu puts focus on the first enabled row; the arrow keys walk
+// enabled rows only, in visual order, and wrap at either end.
+assert.equal(document.activeElement, menuButton("格式化 JSON"));
+formatMenu.dispatch("keydown", { key: "ArrowDown" });
+assert.equal(document.activeElement, menuButton("格式化 SQL"));
+formatMenu.dispatch("keydown", { key: "ArrowUp" });
+assert.equal(document.activeElement, menuButton("格式化 JSON"));
+
+// A disabled row is never activatable, even by a synthetic click.
+const disabledButton = menuButton("格式化 SQL（选区）");
+assert.equal(disabledButton.disabled, true);
+const editsBeforeDisabled = edits.length;
+disabledButton.dispatch("click");
+await tick();
+assert.equal(edits.length, editsBeforeDisabled);
+checks.push("keyboard focus walks enabled rows and a disabled row cannot run");
+
+// Esc belongs to the page: the first press closes the menu only, the second
+// asks the host to close the surface.
+showMenu();
+const postedBeforeEscape = posted.length;
+document.dispatch("keydown", { key: "Escape" });
+assert.equal(formatMenu.hidden, true);
+assert.equal(posted.length, postedBeforeEscape);
+document.dispatch("keydown", { key: "Escape" });
+assert.deepEqual(last(), { v: 1, type: "close" });
+checks.push("Escape closes the menu first and the surface second");
+
 // A highlight capability's tokens paint the overlay.
 input.value = "SELECT 1 FROM t";
 highlightSelect.value = "1";
@@ -343,6 +406,7 @@ class SurfacePageTest(unittest.TestCase):
             raise AssertionError(f"esbuild failed: {built.stderr}")
         runner = work / "runner.mjs"
         runner.write_text(RUNNER, encoding="utf-8")
+        cls.runner = runner
         cls.result = subprocess.run(
             [str(NODE), str(runner), str(work)],
             capture_output=True,
@@ -370,8 +434,29 @@ class SurfacePageTest(unittest.TestCase):
             "a selection action invokes on the slice and splices the result back",
             "a failed selection action leaves the buffer alone and shows the reason",
             "collapsing the selection disables selection actions without hiding them",
+            "keyboard focus walks enabled rows and a disabled row cannot run",
+            "Escape closes the menu first and the surface second",
             "a highlight capability paints its tokens",
             "a failed highlight falls back to the built-in tokenizer",
+        ])
+
+    def test_empty_capability_registry(self) -> None:
+        env = {**os.environ, "EMPTY_REGISTRY": "1"}
+        result = subprocess.run(
+            [str(NODE), str(self.runner), str(self.runner.parent)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
+        )
+        if result.returncode != 0:
+            self.fail(
+                "empty-registry runner failed:\n"
+                f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            )
+        checks = json.loads(result.stdout.strip().splitlines()[-1])
+        self.assertEqual(checks, [
+            "an empty registry shows the empty state, keeps the local action and offers only 内置",
         ])
 
 

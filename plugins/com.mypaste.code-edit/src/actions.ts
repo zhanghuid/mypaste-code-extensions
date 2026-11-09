@@ -19,9 +19,12 @@
  *   own tokenizer, which already knows strings and comments and therefore
  *   never rewrites a keyword-looking word inside either.
  *
- * Groups keep their order (格式化 / 压缩 / 大小写 / 其它) whether or not an
+ * Groups keep their order (格式化 / 压缩 / 其它 / 本地) whether or not an
  * action currently applies: an inapplicable action is disabled, never hidden,
- * so the menu does not move under the pointer when a selection appears.
+ * so the menu does not move under the pointer when a selection appears. The
+ * 本地 group is last because it is the only one that exists without a
+ * capability package; an empty capability area reads as an empty state above
+ * it, not as a missing menu.
  */
 
 import type { CommandResult, SurfaceCommand } from "./bridge";
@@ -55,7 +58,7 @@ export interface EditorAction {
 }
 
 /** The groups the menu always reports in this order. */
-export const GROUP_ORDER: readonly string[] = ["格式化", "压缩", "大小写", "其它"];
+export const GROUP_ORDER: readonly string[] = ["格式化", "压缩", "其它", "本地"];
 
 /** Which stable group a capability command belongs to. */
 export function actionGroup(commandId: string): string {
@@ -173,7 +176,7 @@ export function toggleKeywordCase(text: string, language: CodeLanguage): string 
 export const keywordCaseAction: EditorAction = {
   id: "local:keyword-case",
   label: "切换关键字大小写",
-  group: "大小写",
+  group: "本地",
   order: 0,
   isEnabled: (context) =>
     context.language !== null && hasKeywords(context.text, context.language),

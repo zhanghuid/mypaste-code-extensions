@@ -6,12 +6,14 @@
  * D-1069：宿主不再画编辑器命令栏，也不再交换缓冲区。复制、保存与关闭按钮由
  * 这个页面自己画。页面在运行时向注册表查询 `list("text")`：
  *
- * - 「操作」是一个按动作注册表画出的下拉面板。声明了文本输出的能力命令各
+ * - 「格式化」是一个按动作注册表画出的下拉面板。声明了文本输出的能力命令各
  *   生成「全文」与「选区」两个动作；选区动作由页面切片、调用同一条命令、再
- *   拼回缓冲区，命令本身不需要知道选区。失败时缓冲区不变，状态行给出宿主
- *   的理由与诊断位置。
+ *   拼回缓冲区，命令本身不需要知道选区。本地动作（关键字大小写）不需要安装
+ *   能力包，单独成组；一个能力包都没有时，面板给出空状态而不是表面插件命令。
+ *   失败时缓冲区不变，状态行给出宿主的理由与诊断位置。
  * - 「高亮」是只读的预览开关：选中后用返回的 token 渲染当前文本，失败或没有
- *   token 时回退本包自带的 tokenizer，并在状态行说明。
+ *   token 时回退本包自带的 tokenizer，并在状态行说明。没有高亮能力包时，
+ *   下拉只有「内置」一项。
  *
  * 动作面板只遍历注册表，不按语言或动作 id 分支。本地动作（关键字大小写）与
  * 能力动作共用同一条替换路径，因此一次动作就是一步撤销。页面不硬编码插件 ID，
@@ -60,9 +62,9 @@ function one<T extends Element>(selector: string): T {
 
 const titleInput = one<HTMLInputElement>("#doc-title");
 const languageSelect = one<HTMLSelectElement>("#doc-language");
-const actionsRoot = one<HTMLElement>("#doc-actions-root");
-const actionsButton = one<HTMLButtonElement>("#doc-actions");
-const actionMenu = one<HTMLElement>("#doc-action-menu");
+const formatRoot = one<HTMLElement>("#doc-format-root");
+const formatButton = one<HTMLButtonElement>("#doc-format");
+const formatMenu = one<HTMLElement>("#doc-format-menu");
 const highlightSelect = one<HTMLSelectElement>("#doc-highlight");
 const caret = one<HTMLElement>("#doc-caret");
 const dirtyMark = one<HTMLElement>("#doc-dirty");
@@ -245,8 +247,11 @@ function updateButtons(): void {
   const disabled = busy || bridge.item === null;
   copyButton.disabled = disabled;
   saveButton.disabled = disabled;
-  actionsButton.disabled = disabled || actions.length === 0;
-  highlightSelect.disabled = disabled || highlightCommands.length === 0;
+  // The format menu opens even without a capability package: its local action
+  // and its empty state still belong to the user.
+  formatButton.disabled = disabled;
+  // The highlight picker always has 内置, so it is only dead before the item.
+  highlightSelect.disabled = disabled;
 }
 
 async function run(action: () => Promise<void>): Promise<void> {
@@ -350,30 +355,40 @@ function actionDisabled(action: EditorAction, context: EditorContext): boolean {
  * groups and the enable test; it never asks which language is current or
  * which action it is drawing. Groups appear in their fixed order and every
  * action stays in place, disabled when it does not apply.
+ *
+ * An empty capability area says so in one muted line. The page never invents
+ * an action for a package that is not installed, and it never shows the
+ * host's placed commands: those are card actions, not capabilities.
  */
-function renderActionMenu(): void {
-  actionMenu.replaceChildren();
+function renderFormatMenu(): void {
+  formatMenu.replaceChildren();
   renderedActions = [];
   const context = actionContext();
+  if (actionCommands.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "format-empty";
+    empty.textContent = "未安装格式化能力包";
+    formatMenu.append(empty);
+  }
   for (const [groupIndex, group] of groupActions(actions).entries()) {
     const section = document.createElement("div");
-    section.className = "action-group";
+    section.className = "format-group";
     section.setAttribute("role", "group");
     const heading = document.createElement("div");
-    heading.className = "action-heading";
-    heading.id = `doc-action-group-${groupIndex}`;
+    heading.className = "format-group-title";
+    heading.id = `doc-format-group-${groupIndex}`;
     heading.textContent = group.title;
     section.setAttribute("aria-labelledby", heading.id);
     section.append(heading);
     for (const action of group.actions) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "action-item";
+      button.className = "format-item";
       button.setAttribute("role", "menuitem");
       button.textContent = action.label;
       button.disabled = actionDisabled(action, context);
       button.addEventListener("click", () => {
-        closeActionMenu(false);
+        closeFormatMenu(false);
         const current = actionContext();
         if (!action.isEnabled(current)) return;
         void run(async () => {
@@ -383,9 +398,22 @@ function renderActionMenu(): void {
       section.append(button);
       renderedActions.push({ action, button });
     }
-    actionMenu.append(section);
+    formatMenu.append(section);
   }
-  actionMenu.hidden = !menuOpen;
+  formatMenu.hidden = !menuOpen;
+}
+
+/** The enabled items ArrowUp/ArrowDown may land on, in visual order. */
+function enabledMenuItems(): HTMLButtonElement[] {
+  return renderedActions
+    .map((entry) => entry.button)
+    .filter((button) => !button.disabled);
+}
+
+function focusFirstMenuItem(): void {
+  const [first] = enabledMenuItems();
+  if (first) first.focus();
+  else formatMenu.focus();
 }
 
 /** Re-evaluates only the enable state, so an open menu does not lose focus. */
@@ -395,26 +423,52 @@ function refreshActionState(): void {
   for (const { action, button } of renderedActions) {
     button.disabled = actionDisabled(action, context);
   }
+  const focused = document.activeElement as HTMLButtonElement | null;
+  const lostFocus = focused !== null &&
+    renderedActions.some((entry) => entry.button === focused) &&
+    focused.disabled;
+  if (lostFocus) focusFirstMenuItem();
 }
 
-function openActionMenu(): void {
+/**
+ * Places the menu under its trigger in viewport coordinates. `position: fixed`
+ * keeps it above the editor no matter which ancestor scrolls, and the width is
+ * clamped so a narrow panel never pushes the menu off screen.
+ */
+function positionFormatMenu(): void {
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+  if (!viewportWidth || !viewportHeight) return;
+  const margin = 8;
+  const rect = formatButton.getBoundingClientRect();
+  const width = Math.min(280, viewportWidth - margin * 2);
+  const left = Math.max(margin, Math.min(rect.right - width, viewportWidth - width - margin));
+  formatMenu.style.width = `${width}px`;
+  formatMenu.style.left = `${left}px`;
+  formatMenu.style.top = `${rect.bottom + 6}px`;
+  formatMenu.style.maxHeight = `${Math.max(160, viewportHeight - rect.bottom - margin * 2)}px`;
+}
+
+function openFormatMenu(): void {
   menuOpen = true;
-  renderActionMenu();
-  actionMenu.hidden = false;
-  actionsButton.setAttribute("aria-expanded", "true");
+  renderFormatMenu();
+  formatMenu.hidden = false;
+  formatButton.setAttribute("aria-expanded", "true");
+  positionFormatMenu();
+  focusFirstMenuItem();
 }
 
-function closeActionMenu(focusButton = true): void {
+function closeFormatMenu(focusButton = true): void {
   menuOpen = false;
-  actionMenu.hidden = true;
-  actionsButton.setAttribute("aria-expanded", "false");
-  if (focusButton) actionsButton.focus();
+  formatMenu.hidden = true;
+  formatButton.setAttribute("aria-expanded", "false");
+  if (focusButton) formatButton.focus();
 }
 
 /**
  * Fills the highlight picker from the registry answer. The first option is
- * the page's own tokenizer, so choosing "none" is always possible and the
- * picker disappears entirely when no highlighter is installed (D-1047).
+ * always the page's own tokenizer, so the picker stays a complete control
+ * ("内置" only) when no highlighter is installed.
  */
 function fillPicker(
   select: HTMLSelectElement,
@@ -434,7 +488,7 @@ function fillPicker(
     select.append(option);
   });
   select.value = "";
-  select.hidden = commands.length === 0;
+  select.hidden = false;
 }
 
 /**
@@ -480,7 +534,7 @@ async function loadCommandPickers(): Promise<void> {
   highlightCommands = capabilities.filter(isHighlightCapability);
   actions = [...capabilityActions(actionCommands), keywordCaseAction];
   fillPicker(highlightSelect, "内置", highlightCommands);
-  renderActionMenu();
+  renderFormatMenu();
   updateButtons();
 }
 
@@ -498,22 +552,62 @@ languageSelect.addEventListener("change", () => {
   refreshActionState();
 });
 
-actionsButton.addEventListener("click", () => {
-  if (menuOpen) closeActionMenu(false);
-  else openActionMenu();
+formatButton.addEventListener("click", () => {
+  if (menuOpen) closeFormatMenu(false);
+  else openFormatMenu();
 });
 
 document.addEventListener("click", (event) => {
-  if (menuOpen && !actionsRoot.contains(event.target as Node)) {
-    closeActionMenu(false);
+  if (menuOpen && !formatRoot.contains(event.target as Node)) {
+    closeFormatMenu(false);
   }
 });
 
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && menuOpen) {
+// Arrow keys move a roving focus over the enabled items; Enter and Space are
+// the browser's own button activation. Tab leaves the menu, never walks into
+// the rows that follow the focused one.
+formatMenu.addEventListener("keydown", (event) => {
+  if (!menuOpen) return;
+  const items = enabledMenuItems();
+  const current = items.indexOf(document.activeElement as HTMLButtonElement);
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
     event.preventDefault();
-    closeActionMenu();
+    if (items.length === 0) return;
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    const next = current < 0
+      ? (step > 0 ? 0 : items.length - 1)
+      : (current + step + items.length) % items.length;
+    const target = items[next];
+    target?.focus();
+    return;
   }
+  if (event.key === "Home" || event.key === "End") {
+    event.preventDefault();
+    if (items.length === 0) return;
+    items[event.key === "Home" ? 0 : items.length - 1]?.focus();
+    return;
+  }
+  if (event.key === "Tab") {
+    event.preventDefault();
+    closeFormatMenu();
+  }
+});
+
+// The host never sees a key pressed inside this frame, so Esc is the page's
+// own: with the menu open it only closes the menu, otherwise it closes the
+// surface through the container's close message.
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  if (menuOpen) {
+    closeFormatMenu();
+    return;
+  }
+  bridge.close();
+});
+
+window.addEventListener("resize", () => {
+  if (menuOpen) closeFormatMenu(false);
 });
 
 document.addEventListener("selectionchange", () => {

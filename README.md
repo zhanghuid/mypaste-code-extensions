@@ -131,16 +131,21 @@ item and never gives the page a way to browse history.
 v3 removed the host workbench: there is no buffer exchange, no host-drawn
 editor toolbar and no host-drawn document action row (host D-1065, D-1068).
 Each page draws its own controls. Code-edit's page, for example, draws 复制文本
-and 保存为新条目 itself and turns the registry into a header action menu plus a
-highlight picker: every text-output command becomes a document action and a
+and 保存为新条目 itself and turns the registry into a header 格式化 menu plus a
+高亮 picker: every text-output command becomes a document action and a
 selection action, grouped by the command's own protocol id (格式化, 压缩, then
-其它), and token commands become the 高亮 picker, where the page's own tokenizer
-is the default and the fallback when a capability fails or returns no usable
-tokens. A selection action slices the buffer, invokes the same whole-text
-command on that slice and splices the answer back, so a capability never needs
-to know about selections. Actions that do not currently apply (a selection
-action with no selection, keyword casing in a language without keywords) stay
-in the menu disabled rather than disappearing. Today the host fills an omitted
+其它), while the page's own keyword-case action sits in a 本地 group that needs
+no package. With no formatting capability installed the menu says so in one
+line and still offers the local action; a command that declares a placement is
+the host's card action and never becomes a row here. Token commands become the
+高亮 picker, where 内置 (the page's own tokenizer) is the default and the
+fallback when a capability fails or returns no usable tokens; with no
+highlighter installed the picker still offers 内置. A selection action slices
+the buffer, invokes the same whole-text command on that slice and splices the
+answer back, so a capability never needs to know about selections. Actions that
+do not currently apply (a selection action with no selection, keyword casing in
+a language without keywords) stay in the menu disabled rather than
+disappearing. Today the host fills an omitted
 output from `forms`, so both shapes arrive as text; code-edit also accepts the
 protocol's fixed `format` / `compress` / `highlight` command ids as the
 declared shape until the wire carries declaredness.
@@ -202,8 +207,8 @@ plugins/com.mypaste.code-card/
   preview.html         GENERATED: the page the archive ships
 
 plugins/com.mypaste.code-edit/   the editor (its own tokenizer, language
-                                 table and bridge; a grouped action menu
-                                 from the registry plus a highlight picker)
+                                 table and bridge; registry-driven 格式化
+                                 and 高亮 pickers)
 plugins/com.mypaste.diff-view/   the comparison page (its own diff engine and
                                  language table; reads a companion)
 plugins/com.mypaste.image-edit/  the image editor (canvas tools of its own)
