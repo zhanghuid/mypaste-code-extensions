@@ -92,6 +92,28 @@ func TestFormatRefusesOnSyntaxError(t *testing.T) {
 	}
 }
 
+func TestCompressReturnsOneLine(t *testing.T) {
+	reply := handle(selectionInvocation("req-compress", "compress",
+		"SELECT id,\n  name -- comment\nFROM t", nil))
+	if !reply.OK || reply.Result == nil {
+		t.Fatalf("压缩调用失败: %+v", reply)
+	}
+	if reply.Result.Output != "SELECT id, name FROM t" {
+		t.Fatalf("压缩结果不对: %q", reply.Result.Output)
+	}
+}
+
+func TestCompressRefusesOnSyntaxError(t *testing.T) {
+	reply := handle(selectionInvocation("req-compress-bad", "compress",
+		"SELECT a ORDER BY b FROM t", nil))
+	if reply.OK || reply.Error == nil {
+		t.Fatalf("语法错误应当拒绝压缩: %+v", reply)
+	}
+	if reply.Error.Code != errorCode {
+		t.Fatalf("错误码不是 %s: %q", errorCode, reply.Error.Code)
+	}
+}
+
 func TestUnknownCommandFails(t *testing.T) {
 	reply := handle(selectionInvocation("req-5", "explode", "SELECT 1", nil))
 	if reply.OK || reply.Error == nil {

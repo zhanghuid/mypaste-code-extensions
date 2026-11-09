@@ -2,8 +2,8 @@
   "manifestVersion": 3,
   "id": "com.mypaste.sql",
   "name": "SQL Toolkit",
-  "version": "3.0.0",
-  "description": "SQL 语法高亮、语法错误提示与格式化：七种方言，跨平台官方包；失败时回退内置高亮、不写剪贴板。",
+  "version": "3.1.0",
+  "description": "SQL 语法高亮、语法错误提示、格式化与压缩：七种方言，跨平台官方包；失败时回退内置高亮、不写剪贴板。",
   "capabilities": [
     "entity.read"
   ],
@@ -23,7 +23,18 @@
     {
       "id": "format",
       "title": "格式化 SQL",
-      "description": "按方言排版 SQL 并复制；有语法错误时不写剪贴板并报告位置。",
+      "description": "按方言排版 SQL；有语法错误时不写剪贴板并报告位置。",
+      "forms": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    {
+      "id": "compress",
+      "title": "压缩 SQL",
+      "description": "去掉注释并把空白折叠成一行，保留字符串、引号标识符与优化器提示；有语法错误时不写剪贴板并报告位置。",
       "forms": [
         "text"
       ],

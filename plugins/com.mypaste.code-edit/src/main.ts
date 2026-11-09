@@ -4,15 +4,18 @@
  * 自带的 tokenizer（协议 v3：高亮是表面自己的实现，不是宿主服务）。
  *
  * D-1069：宿主不再画编辑器命令栏，也不再交换缓冲区。复制、保存与关闭按钮由
- * 这个页面自己画。页面在运行时向注册表查询 `list("text")`，把无展示位的
- * 能力命令分成两类，各自成为头部的两个下拉：
+ * 这个页面自己画。页面在运行时向注册表查询 `list("text")`：
  *
- * - 声明了文本输出（`output` 含 `text`）的是格式化：选中即经 `invoke` 运行
- *   当前缓冲区，成功时以一次可撤销的替换写回。
- * - 没有文本输出的是 token 型高亮：选中后用返回的 token 渲染当前文本，
- *   失败或没有 token 时回退本包自带的 tokenizer，并在状态行说明。
+ * - 「操作」是一个按动作注册表画出的下拉面板。声明了文本输出的能力命令各
+ *   生成「全文」与「选区」两个动作；选区动作由页面切片、调用同一条命令、再
+ *   拼回缓冲区，命令本身不需要知道选区。失败时缓冲区不变，状态行给出宿主
+ *   的理由与诊断位置。
+ * - 「高亮」是只读的预览开关：选中后用返回的 token 渲染当前文本，失败或没有
+ *   token 时回退本包自带的 tokenizer，并在状态行说明。
  *
- * 分类只看命令声明的输出类型，页面不硬编码插件 ID 或语言，也不执行用户代码。
+ * 动作面板只遍历注册表，不按语言或动作 id 分支。本地动作（关键字大小写）与
+ * 能力动作共用同一条替换路径，因此一次动作就是一步撤销。页面不硬编码插件 ID，
+ * 也不执行用户代码。
  */
 
 import {
@@ -21,6 +24,13 @@ import {
   type SurfaceCommand,
   type SurfaceToken,
 } from "./bridge";
+import {
+  capabilityActions,
+  groupActions,
+  keywordCaseAction,
+  type EditorAction,
+  type EditorContext,
+} from "./actions";
 import {
   LANGUAGE_CHOICES,
   detectLanguage,
@@ -50,7 +60,9 @@ function one<T extends Element>(selector: string): T {
 
 const titleInput = one<HTMLInputElement>("#doc-title");
 const languageSelect = one<HTMLSelectElement>("#doc-language");
-const formatSelect = one<HTMLSelectElement>("#doc-format");
+const actionsRoot = one<HTMLElement>("#doc-actions-root");
+const actionsButton = one<HTMLButtonElement>("#doc-actions");
+const actionMenu = one<HTMLElement>("#doc-action-menu");
 const highlightSelect = one<HTMLSelectElement>("#doc-highlight");
 const caret = one<HTMLElement>("#doc-caret");
 const dirtyMark = one<HTMLElement>("#doc-dirty");
@@ -64,7 +76,10 @@ const saveButton = one<HTMLButtonElement>("[data-action=save]");
 let originalText = "";
 let choice: CodeLanguage | "auto" | "text" = "auto";
 let busy = false;
-let formatCommands: SurfaceCommand[] = [];
+let actionCommands: SurfaceCommand[] = [];
+let actions: EditorAction[] = [];
+let menuOpen = false;
+let renderedActions: { action: EditorAction; button: HTMLButtonElement }[] = [];
 let highlightCommands: SurfaceCommand[] = [];
 let highlightCommand: SurfaceCommand | null = null;
 let highlightGeneration = 0;
@@ -223,13 +238,14 @@ function render(): void {
   renderDirty();
   renderLanguage();
   syncScroll();
+  refreshActionState();
 }
 
 function updateButtons(): void {
   const disabled = busy || bridge.item === null;
   copyButton.disabled = disabled;
   saveButton.disabled = disabled;
-  formatSelect.disabled = disabled || formatCommands.length === 0;
+  actionsButton.disabled = disabled || actions.length === 0;
   highlightSelect.disabled = disabled || highlightCommands.length === 0;
 }
 
@@ -246,6 +262,7 @@ async function run(action: () => Promise<void>): Promise<void> {
   } finally {
     busy = false;
     updateButtons();
+    refreshActionState();
   }
 }
 
@@ -273,60 +290,131 @@ function copy(): Promise<void> {
 }
 
 /**
- * Applies a format command's text as one edit. `insertText` participates in
- * the native undo stack, so a format is a single Cmd+Z away; `setRangeText` is
- * the fallback for a browser that refuses the command. The caret is clamped to
- * the new length so a format does not also move it to the end. Refused text
- * leaves the buffer untouched and returns false.
+ * Applies an action's text to [start, end) as one edit. `insertText`
+ * participates in the native undo stack, so an action is a single Cmd+Z away;
+ * `setRangeText` is the fallback for a browser that refuses the command. A
+ * document action clamps the old caret to the new length; a selection action
+ * leaves the replaced text selected so the next action can chain. Refused
+ * text leaves the buffer untouched and returns false.
  */
-function applyReplacement(text: string): boolean {
-  const refusal = textRefusal(text);
+function applyRange(
+  text: string,
+  start: number,
+  end: number,
+  keepSelection: boolean,
+): boolean {
+  const next = input.value.slice(0, start) + text + input.value.slice(end);
+  const refusal = textRefusal(next);
   if (refusal !== "") {
     setStatus(refusal, true);
     return false;
   }
   const caretAt = input.selectionStart;
   input.focus();
-  input.setSelectionRange(0, input.value.length);
+  input.setSelectionRange(start, end);
   const inserted = document.execCommand("insertText", false, text);
   if (!inserted) {
-    input.setRangeText(text, 0, input.value.length, "end");
+    input.setRangeText(text, start, end, "end");
   }
-  const at = Math.min(caretAt, text.length);
-  input.setSelectionRange(at, at);
+  if (keepSelection) {
+    input.setSelectionRange(start, start + text.length);
+  } else {
+    const at = Math.min(caretAt, input.value.length);
+    input.setSelectionRange(at, at);
+  }
   render();
   return true;
 }
 
-function formatText(command: SurfaceCommand): Promise<void> {
-  return run(async () => {
-    setStatus(`正在运行「${command.title}」…`);
-    const result = await bridge.invoke(command, input.value);
-    const first = result.diagnostics[0];
-    if (!result.ok) {
-      // A failed command never reaches the buffer.
-      setStatus(
-        first
-          ? diagnosticSentence(command.title, first.line, first.column, first.message)
-          : (result.message || "命令失败"),
-        true,
-      );
-      return;
-    }
-    if (result.output === undefined) {
-      setStatus(`「${command.title}」没有返回文本`, true);
-      return;
-    }
-    if (applyReplacement(result.output)) {
-      setStatus(`已应用「${command.title}」`);
-    }
-  });
+/** Everything the registry's actions read and do for the current buffer. */
+function actionContext(): EditorContext {
+  return {
+    language: resolvedLanguage(),
+    text: input.value,
+    selectionStart: input.selectionStart,
+    selectionEnd: input.selectionEnd,
+    commands: actionCommands,
+    invoke: (command, text) => bridge.invoke(command, text),
+    replace: (text, start, end, keepSelection) =>
+      applyRange(text, start, end, keepSelection),
+    status: setStatus,
+  };
+}
+
+function actionDisabled(action: EditorAction, context: EditorContext): boolean {
+  return busy || bridge.item === null || !action.isEnabled(context);
 }
 
 /**
- * Fills one header picker from the registry answer. The first option is the
- * page's own behaviour, so choosing "none" is always possible and the picker
- * disappears entirely when no capability is installed (D-1047).
+ * Redraws the menu from the action registry. The renderer knows only labels,
+ * groups and the enable test; it never asks which language is current or
+ * which action it is drawing. Groups appear in their fixed order and every
+ * action stays in place, disabled when it does not apply.
+ */
+function renderActionMenu(): void {
+  actionMenu.replaceChildren();
+  renderedActions = [];
+  const context = actionContext();
+  for (const [groupIndex, group] of groupActions(actions).entries()) {
+    const section = document.createElement("div");
+    section.className = "action-group";
+    section.setAttribute("role", "group");
+    const heading = document.createElement("div");
+    heading.className = "action-heading";
+    heading.id = `doc-action-group-${groupIndex}`;
+    heading.textContent = group.title;
+    section.setAttribute("aria-labelledby", heading.id);
+    section.append(heading);
+    for (const action of group.actions) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "action-item";
+      button.setAttribute("role", "menuitem");
+      button.textContent = action.label;
+      button.disabled = actionDisabled(action, context);
+      button.addEventListener("click", () => {
+        closeActionMenu(false);
+        const current = actionContext();
+        if (!action.isEnabled(current)) return;
+        void run(async () => {
+          await action.run(current);
+        });
+      });
+      section.append(button);
+      renderedActions.push({ action, button });
+    }
+    actionMenu.append(section);
+  }
+  actionMenu.hidden = !menuOpen;
+}
+
+/** Re-evaluates only the enable state, so an open menu does not lose focus. */
+function refreshActionState(): void {
+  if (!menuOpen) return;
+  const context = actionContext();
+  for (const { action, button } of renderedActions) {
+    button.disabled = actionDisabled(action, context);
+  }
+}
+
+function openActionMenu(): void {
+  menuOpen = true;
+  renderActionMenu();
+  actionMenu.hidden = false;
+  actionsButton.setAttribute("aria-expanded", "true");
+}
+
+function closeActionMenu(focusButton = true): void {
+  menuOpen = false;
+  actionMenu.hidden = true;
+  actionsButton.setAttribute("aria-expanded", "false");
+  if (focusButton) actionsButton.focus();
+}
+
+/**
+ * Fills the highlight picker from the registry answer. The first option is
+ * the page's own tokenizer, so choosing "none" is always possible and the
+ * picker disappears entirely when no highlighter is installed (D-1047).
  */
 function fillPicker(
   select: HTMLSelectElement,
@@ -350,28 +438,33 @@ function fillPicker(
 }
 
 /**
- * The two capability shapes this page composes. The manifest declares a
- * formatter's output as text; a highlighter declares no output and returns
+ * The two capability shapes this page composes. A command that declares text
+ * output is a buffer action; a highlighter declares no output and returns
  * render tokens. The current host fills an omitted output from `forms` before
- * it answers the registry, so both arrive as `["text"]`; D-1081 records the
- * same conflation host-side. Until the wire carries declaredness, the
- * protocol's fixed command ids (`format` / `highlight`, PLUGINS.md §5.2) are
- * the observable difference. A command that is neither is not one of this
- * page's capabilities, which also keeps placed actions out of the pickers.
+ * it answers the registry, so both can arrive as `["text"]`; D-1081 records
+ * the same conflation host-side. Until the wire carries declaredness, the
+ * protocol's fixed command ids (`format`, `compress`, `highlight`,
+ * PLUGINS.md §5.2) are the observable difference. Placement is filtered before
+ * either test, so the host's own placements never become page actions.
  */
-function capabilityKind(command: SurfaceCommand): "format" | "highlight" | null {
+function isHighlightCapability(command: SurfaceCommand): boolean {
+  if (command.outputDeclared !== undefined) return command.outputDeclared === false;
+  return command.commandId === "highlight";
+}
+
+function isTextCapability(command: SurfaceCommand): boolean {
   if (command.outputDeclared !== undefined) {
-    if (!command.outputDeclared) return "highlight";
-    return command.output?.includes("text") ? "format" : "highlight";
+    return command.outputDeclared && (command.output?.includes("text") ?? false);
   }
-  if (command.commandId === "format") return "format";
-  if (command.commandId === "highlight") return "highlight";
-  return null;
+  if (command.commandId === "highlight") return false;
+  if (command.output?.includes("text")) return true;
+  return command.commandId === "format" || command.commandId === "compress";
 }
 
 /**
- * Splits the registry's text commands into the two pickers. A command with a
- * placement is the host's to show, not a capability this page composes.
+ * Splits the registry's text commands into the action menu and the highlight
+ * picker. A command with a placement is the host's to show, not a capability
+ * this page composes.
  */
 async function loadCommandPickers(): Promise<void> {
   let commands: SurfaceCommand[] = [];
@@ -383,14 +476,11 @@ async function loadCommandPickers(): Promise<void> {
   const capabilities = commands.filter(
     (command) => (command.placement?.length ?? 0) === 0,
   );
-  formatCommands = capabilities.filter(
-    (command) => capabilityKind(command) === "format",
-  );
-  highlightCommands = capabilities.filter(
-    (command) => capabilityKind(command) === "highlight",
-  );
-  fillPicker(formatSelect, "不格式化", formatCommands);
+  actionCommands = capabilities.filter(isTextCapability);
+  highlightCommands = capabilities.filter(isHighlightCapability);
+  actions = [...capabilityActions(actionCommands), keywordCaseAction];
   fillPicker(highlightSelect, "内置", highlightCommands);
+  renderActionMenu();
   updateButtons();
 }
 
@@ -405,14 +495,29 @@ languageSelect.addEventListener("change", () => {
   choice = languageSelect.value as CodeLanguage | "auto" | "text";
   renderLanguage();
   scheduleHighlight();
+  refreshActionState();
 });
 
-formatSelect.addEventListener("change", () => {
-  const index = Number(formatSelect.value) - 1;
-  // The picker is an action, not a mode: it returns to "不格式化" either way.
-  formatSelect.value = "";
-  const command = formatCommands[index];
-  if (command) void formatText(command);
+actionsButton.addEventListener("click", () => {
+  if (menuOpen) closeActionMenu(false);
+  else openActionMenu();
+});
+
+document.addEventListener("click", (event) => {
+  if (menuOpen && !actionsRoot.contains(event.target as Node)) {
+    closeActionMenu(false);
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && menuOpen) {
+    event.preventDefault();
+    closeActionMenu();
+  }
+});
+
+document.addEventListener("selectionchange", () => {
+  refreshActionState();
 });
 
 highlightSelect.addEventListener("change", () => {

@@ -171,6 +171,29 @@ func handle(invocation *invocation) *response {
 				Effect: "copy",
 			},
 		}
+	case "compress":
+		if firstError(analysis.Diagnostics) != nil {
+			finding := *firstError(analysis.Diagnostics)
+			message := fmt.Sprintf("SQL 语法错误（第 %d 行第 %d 列）：%s",
+				finding.Line, finding.Column, finding.Message)
+			return failure(invocation.ID, message)
+		}
+		compressed, err := sqlkit.Compress(analysis)
+		if err != nil {
+			return failure(invocation.ID, err.Error())
+		}
+		return &response{
+			ID: invocation.ID,
+			OK: true,
+			Result: &struct {
+				Output string          `json:"output,omitempty"`
+				Effect string          `json:"effect,omitempty"`
+				Render *renderResponse `json:"render,omitempty"`
+			}{
+				Output: compressed,
+				Effect: "copy",
+			},
+		}
 	default:
 		return failure(invocation.ID, fmt.Sprintf("未知命令 %q", invocation.CommandID))
 	}

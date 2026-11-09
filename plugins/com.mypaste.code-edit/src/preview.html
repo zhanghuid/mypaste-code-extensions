@@ -115,14 +115,58 @@
     white-space: nowrap;
   }
   #doc-dirty[hidden] { display: none; }
-  #doc-language, #doc-format, #doc-highlight {
+  #doc-language, #doc-highlight, #doc-actions {
     padding: 4px 6px;
     border: 1px solid var(--line);
     background: var(--surface);
     color: var(--ink);
     font: 11px/1.4 var(--mono);
   }
-  #doc-format[hidden], #doc-highlight[hidden] { display: none; }
+  #doc-actions { cursor: pointer; }
+  #doc-actions[aria-expanded="true"] { border-color: var(--accent); }
+  #doc-highlight[hidden] { display: none; }
+  .actions { position: relative; display: inline-flex; }
+  #doc-action-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 20;
+    min-width: 220px;
+    padding: 4px 0;
+    border: 1px solid var(--line);
+    background: var(--surface-raised);
+    color: var(--ink);
+    box-shadow: 0 10px 28px color-mix(in srgb, var(--ink) 18%, transparent);
+  }
+  #doc-action-menu[hidden] { display: none; }
+  .action-group + .action-group {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid var(--line);
+  }
+  .action-heading {
+    padding: 4px 12px 2px;
+    color: var(--muted);
+    font: 11px/1.4 var(--mono);
+    letter-spacing: 0.04em;
+  }
+  .action-item {
+    display: block;
+    width: 100%;
+    padding: 5px 12px;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: 12px/1.5 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
+    text-align: left;
+    cursor: pointer;
+  }
+  .action-item:hover:not(:disabled) { background: var(--bg); }
+  .action-item:disabled { color: var(--muted); cursor: default; opacity: 0.55; }
+  .action-item:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
   .editor {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -232,7 +276,10 @@
     <span class="metric" id="doc-caret">行 1，列 1</span>
     <span id="doc-dirty" hidden>未保存</span>
     <select id="doc-language" aria-label="语言"></select>
-    <select id="doc-format" aria-label="格式化" title="格式化当前文本" hidden></select>
+    <div id="doc-actions-root" class="actions">
+      <button type="button" id="doc-actions" aria-haspopup="menu" aria-expanded="false" disabled>操作 ▾</button>
+      <div id="doc-action-menu" role="menu" aria-label="编辑操作" hidden></div>
+    </div>
     <select id="doc-highlight" aria-label="高亮" title="选择语法高亮" hidden></select>
     <button type="button" data-action="copy">复制文本</button>
     <button type="button" class="primary" data-action="save">保存为新条目</button>
