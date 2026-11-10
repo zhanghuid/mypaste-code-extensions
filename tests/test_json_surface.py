@@ -241,14 +241,16 @@ const FORMATTED =
   page.element("minify").click();
   assert.equal(page.element("editor").value, JSON.stringify(json(SOURCE)));
   assert.equal(page.text("status"), "已压缩为单行 JSON。");
-  assert.equal(page.element("output").hidden, true);
+  assert.equal(page.element("output").dataset.state, "empty");
+  assert.equal(page.element("copy-output").disabled, true);
 
   page.element("format").click();
   await until(() => page.text("status") === "已按 Prettier 排版。", "beautify");
   assert.equal(page.element("editor").value, FORMATTED);
 
   page.element("escape").click();
-  assert.equal(page.element("output").hidden, false);
+  assert.equal(page.element("output").dataset.state, "filled");
+  assert.equal(page.element("copy-output").disabled, false);
   assert.equal(page.text("output-title"), "转义结果");
   assert.equal(page.text("output-text"), JSON.stringify(FORMATTED));
   assert.equal(page.element("editor").value, FORMATTED, "derived, not rewritten");
@@ -390,18 +392,26 @@ class JSONSurfacePageTest(unittest.TestCase):
         self.assertIn('id="editor"', text)
         self.assertIn('id="filter"', text)
         self.assertIn('data-scheme="dark"', text)
-        # Square corners (D-1045): the only radii allowed are the button reset
-        # (0) and a semantically round dot (50%). Anything else is a box.
+        # Corners come from one ladder (host D-1099): a token from the page's
+        # own set, or 50% where roundness is the shape's meaning. A literal
+        # pixel radius is not allowed.
         radii = re.findall(r"border-radius:\s*([^;}]+)", text)
-        self.assertTrue(
-            all(value.strip() in {"0", "50%"} for value in radii), radii)
+        allowed = {
+            "0", "50%", "var(--radius-xs)", "var(--radius-sm)",
+            "var(--radius-md)", "var(--radius-lg)", "var(--radius-pill)",
+        }
+        self.assertTrue(all(value.strip() in allowed for value in radii), radii)
+        for token in ("--radius-xs: 4px", "--radius-sm: 6px",
+                      "--radius-md: 10px", "--radius-lg: 14px",
+                      "--radius-pill: 999px"):
+            self.assertIn(token, text)
         self.assertIn("Prettier 内置于页面", text)
 
     def test_manifest_declares_no_runtime(self) -> None:
         manifest = json.loads(
             (PACKAGE / "mypaste.plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["manifestVersion"], 3)
-        self.assertEqual(manifest["version"], "3.2.1")
+        self.assertEqual(manifest["version"], "3.3.0")
         self.assertEqual(manifest["capabilities"], ["entity.read"])
         self.assertNotIn("runtime", manifest)
         self.assertNotIn("commands", manifest)

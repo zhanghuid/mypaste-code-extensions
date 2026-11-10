@@ -57,17 +57,16 @@
   }
   button {
     font-family: inherit;
-    border-radius: 0;
     cursor: pointer;
   }
 
   /*
    * The document header, shared with the code editor. The page owns the whole
    * card now (D-1097), so this is one 44px band instead of a strip holding an
-   * empty tab: the title sits at the left with a square accent rule beneath it
-   * (D-1045), and the format label joins the page's actions at the right, all
-   * of them 28px high so the row has a single size (D-1051). Closing is set
-   * apart by a hairline and is the only control the page does not tint.
+   * empty tab: the title sits at the left with an accent rule beneath it, and
+   * the format label joins the page's actions at the right, all of them 28px
+   * high so the row has a single size (D-1051). Closing is set apart by a
+   * hairline and is the only control the page does not tint.
    */
   .doc-head {
     display: flex;
@@ -320,6 +319,25 @@
   }
   #diff-status[data-tone="error"] { color: var(--mp-danger-ink, #b4472c); }
   #diff-status[hidden] { display: none; }
+
+  /*
+   * Corner system (host D-1099): one ladder, so every box answers with the
+   * same family. A mark is 4px, a control 6px, a card or popover 10px, a
+   * floating dialog 14px, and an indicator or scrollbar is a capsule.
+   */
+  :root {
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 999px;
+  }
+  button {
+    border-radius: var(--radius-sm);
+  }
+  .doc-id::after {
+    border-radius: var(--radius-pill);
+  }
 </style>
 </head>
 <body>

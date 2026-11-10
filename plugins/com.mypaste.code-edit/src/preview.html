@@ -77,17 +77,16 @@
   }
   button {
     font-family: inherit;
-    border-radius: 0;
     cursor: pointer;
   }
 
   /*
    * The document header. The page owns the whole card now (D-1097), so this is
    * one 44px band instead of a strip holding an empty tab: the editable title
-   * sits at the left with a square accent rule beneath it (D-1045 forbids a
-   * rounded tab), and the document's actions sit at the right, every one of
-   * them a 28px square so the row has a single size (D-1051). Closing is set
-   * apart by a hairline and is the only control the page does not tint.
+   * sits at the left with an accent rule beneath it, and the document's actions
+   * sit at the right, every one of them a 28px control so the row has a single
+   * size (D-1051). Closing is set apart by a hairline and is the only control
+   * the page does not tint.
    */
   .doc-head {
     display: flex;
@@ -387,6 +386,33 @@
   #doc-status[hidden] { display: none; }
   @media (max-width: 640px) {
     .statusbar-right .status-static { display: none; }
+  }
+
+  /*
+   * Corner system (host D-1099): one ladder, so every box answers with the
+   * same family. A mark is 4px, a control 6px, a card or popover 10px, a
+   * floating dialog 14px, and an indicator or scrollbar is a capsule.
+   */
+  :root {
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 999px;
+  }
+  button {
+    border-radius: var(--radius-sm);
+  }
+  .menu {
+    border-radius: var(--radius-md);
+  }
+  .menu-item,
+  .menu-empty {
+    border-radius: var(--radius-sm);
+  }
+  .doc-id::after,
+  .menu-separator {
+    border-radius: var(--radius-pill);
   }
 </style>
 </head>

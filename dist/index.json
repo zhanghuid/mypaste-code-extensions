@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated": "2026-11-10",
+  "generated": "2026-11-11",
   "packages": [
     {
       "id": "mypaste.format-go",
@@ -38,11 +38,11 @@
     {
       "id": "com.mypaste.json",
       "name": "JSON 编辑器",
-      "version": "3.2.1",
+      "version": "3.3.0",
       "kind": "ui",
       "description": "在页面内用 Prettier 排版 JSON，结果可编辑：文档头、操作与状态栏和代码编辑一致，格式化动作收在一个下拉里；粘贴 URL 参数、XML 或 YAML 自动转成 JSON。可压缩、转义、转 XML、转 TypeScript，文档头可按 JavaScript 表达式过滤。Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。",
-      "fileName": "com.mypaste.json-3.2.1.mypaste-plugin",
-      "sha256": "3b9b2c575d4d431501e240ffdc8de9bf67b2f4f751d85def0179e8aaa771a44f",
+      "fileName": "com.mypaste.json-3.3.0.mypaste-plugin",
+      "sha256": "af2bcf79225fc745a76fb42d648997c2c44ca86950b6f8efc2b0c1de747e0ee1",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -115,22 +115,22 @@
     {
       "id": "com.mypaste.code-card",
       "name": "代码卡片",
-      "version": "3.0.0",
+      "version": "3.0.1",
       "kind": "ui",
       "description": "把代码或纯文本条目渲染成一张可分享的卡片图片：自带语法高亮、三种配色、行号与窗口样式，可另存为新的图片条目或直接复制到剪贴板。卡片完全在本机绘制，不联网、不读取其它条目。",
-      "fileName": "com.mypaste.code-card-3.0.0.mypaste-plugin",
-      "sha256": "b42e3e5e45adb6a0bf646f60548d63f880a3277b1a07382fae9ec422f2e9b4d2",
+      "fileName": "com.mypaste.code-card-3.0.1.mypaste-plugin",
+      "sha256": "24c784ff5a2223a8b64ba58dff128d7df747161e95ce91f06a5e896a13a3bd2b",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "com.mypaste.code-edit",
       "name": "代码编辑",
-      "version": "3.7.1",
+      "version": "3.7.2",
       "kind": "ui",
       "description": "在本地编辑代码或纯文本：行号、语法高亮、语言识别与格式化都随包提供，所有语言的格式化都在扩展内完成，不依赖本机安装 gofmt、rustfmt、Python、Prettier 或其它工具；本机有 Node 时，CSS、YAML、JavaScript 与 TypeScript 会改用包内 Prettier 或内置脚本，排版更完整，没有也照常可用；顶部是可编辑标题的文档头，「语言」与「格式化」两个下拉按当前语言列出内置格式化与 SQL 压缩；高亮完全本地，不依赖其它能力包。可另存为新的历史条目或复制到剪贴板，原条目保持不变，不联网、不读取其它条目。",
-      "fileName": "com.mypaste.code-edit-3.7.1.mypaste-plugin",
-      "sha256": "cad31b362c5e4c1516854c9fa486fb865c00da41726b3e7580eaa55ecccb168c",
+      "fileName": "com.mypaste.code-edit-3.7.2.mypaste-plugin",
+      "sha256": "547a0ccfa14a311d52fc74f48877cc51495fe23751a0e1c655e4efb1df9220a2",
       "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -148,44 +148,44 @@
     {
       "id": "com.mypaste.sync",
       "name": "同步",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "kind": "ui",
       "description": "把历史与资产加密后上传到自己的 S3 存储，也可以从远端恢复。归档、加密、S3 签名、凭据与自动上传计划都在扩展自己的进程里完成；数据只经宿主的只读视图读取，连接与恢复仍由宿主确认。凭据只存放在扩展的私有存储中，不进入页面、日志或宿主设置。",
-      "fileName": "com.mypaste.sync-1.0.0.mypaste-plugin",
-      "sha256": "60388a7a95424bae33df3851d6c6acf718ff9a20c26973445bf470f35c6321f4",
+      "fileName": "com.mypaste.sync-1.0.1.mypaste-plugin",
+      "sha256": "0fb95ab42842244af1bfab673175d1fc4d9f6638ccd3bbb40edf159cd0cd6850",
       "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "com.mypaste.image-edit",
       "name": "图片编辑",
-      "version": "3.0.0",
+      "version": "3.0.1",
       "kind": "ui",
       "description": "在本地裁剪、旋转、翻转、标注与马赛克，另存为新的图片条目或复制到剪贴板；原图保持不变。编辑只作用于宿主交给本次命令的那一张图片。",
-      "fileName": "com.mypaste.image-edit-3.0.0.mypaste-plugin",
-      "sha256": "ba1aff403e91f556b8484c991f1fdc6e58f85f1afb7a050288290f993e43b7fa",
+      "fileName": "com.mypaste.image-edit-3.0.1.mypaste-plugin",
+      "sha256": "4efab16ba18b6d224748ee613dccd632038188320f48732e231757bfc3d6fd1e",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "com.mypaste.data-settings",
       "name": "数据设置",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "kind": "ui",
       "description": "备份与恢复、历史导入导出、设置文件与诊断；界面由随包扩展提供，文件选择、校验与写入仍由宿主完成。",
-      "fileName": "com.mypaste.data-settings-1.0.0.mypaste-plugin",
-      "sha256": "67c6160bceae1b50e5efe1659dd94bad1b6651126c5cab0840f38f561ac7479b",
+      "fileName": "com.mypaste.data-settings-1.0.1.mypaste-plugin",
+      "sha256": "b01529ca74a98f8c68c15f202b5cd393045154e53044ac3c4b6a2667ec064756",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "com.mypaste.timestamp",
       "name": "时间戳",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "kind": "ui",
       "description": "把当前文本条目解析成多种日期与时间格式：本地时间、UTC、ISO 8601、RFC 2822、Unix 秒/毫秒、星期、ISO 周与多个时区，可逐项复制。内容无法识别时说明原因并回显原文。全部在本机计算，不联网。",
-      "fileName": "com.mypaste.timestamp-1.0.0.mypaste-plugin",
-      "sha256": "59fee7be968ee5b2526fc11a27a71b8ad675eb8f7de8548963d48f0956a69d8e",
+      "fileName": "com.mypaste.timestamp-1.0.1.mypaste-plugin",
+      "sha256": "20bf21afc237044b67ae29003dc72330eef2870817e8819b49d9ef6def811ee7",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -236,11 +236,11 @@
     {
       "id": "com.mypaste.diff-view",
       "name": "高亮对比",
-      "version": "3.2.1",
+      "version": "3.2.2",
       "kind": "ui",
       "description": "把这条文本与屏幕上相邻的一条文本逐行对照：先对齐整行，再只标出真正改动的词。对比在本机完成，不联网；除本次条目外只读相邻的一条文本。",
-      "fileName": "com.mypaste.diff-view-3.2.1.mypaste-plugin",
-      "sha256": "f25b90766c1b392dd75d6b14d9281f773d04623aaebb721f55bbda76875df804",
+      "fileName": "com.mypaste.diff-view-3.2.2.mypaste-plugin",
+      "sha256": "31df2ab86455be3958e0fcbe9da75a06cfc5068c536889a9c582eab7d0e1ed8b",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     }

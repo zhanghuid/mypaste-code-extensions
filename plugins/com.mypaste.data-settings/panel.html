@@ -31,7 +31,7 @@
     --success: #5fd07e;
     color-scheme: dark;
   }
-  * { box-sizing: border-box; border-radius: 0; }
+  * { box-sizing: border-box; }
   html, body { margin: 0; min-height: 100%; }
   body {
     background: var(--surface-solid);
@@ -73,7 +73,6 @@
     bottom: -1px;
     height: 2px;
     background: var(--accent);
-    border-radius: 0 0 2px 2px;
   }
   .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .panel[hidden] { display: none; }
@@ -138,6 +137,35 @@
   .feedback { min-height: 20px; margin: 14px 0 0; color: var(--ink-soft); font-size: 12px; }
   .feedback[data-tone="danger"] { color: var(--danger); }
   .feedback[data-tone="success"] { color: var(--success); }
+
+  /*
+   * Corner system (host D-1099): one ladder, so every box answers with the
+   * same family. A mark is 4px, a control 6px, a card or popover 10px, a
+   * floating dialog 14px, and an indicator or scrollbar is a capsule.
+   */
+  :root {
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 999px;
+  }
+  .card,
+  .warning {
+    border-radius: var(--radius-md);
+  }
+  button.action,
+  input,
+  select,
+  textarea {
+    border-radius: var(--radius-sm);
+  }
+  input[type="checkbox"] {
+    border-radius: var(--radius-xs);
+  }
+  .tab[aria-selected="true"]::after {
+    border-radius: var(--radius-pill);
+  }
 </style>
 </head>
 <body>

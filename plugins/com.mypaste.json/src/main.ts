@@ -135,18 +135,20 @@ function setEditor(text: string): void {
 
 function hideOutput(): void {
   derived = "";
-  output.hidden = true;
-  outputTitle.textContent = "";
+  output.dataset.state = "empty";
+  outputTitle.textContent = "结果";
   outputMeta.textContent = "";
   outputText.textContent = "";
+  copyOutput.disabled = true;
 }
 
 function showOutput(title: string, text: string): void {
   derived = text;
+  output.dataset.state = "filled";
   outputTitle.textContent = title;
   outputMeta.textContent = describe(text);
   outputText.textContent = text;
-  output.hidden = false;
+  copyOutput.disabled = text === "";
 }
 
 function clearWhenEmpty(): void {

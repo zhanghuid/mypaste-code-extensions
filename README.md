@@ -147,10 +147,13 @@ declaration fails the build instead of shipping.
 `com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view`,
 `com.mypaste.image-edit`, `com.mypaste.json` and `com.mypaste.timestamp` ship a
 page of their own. Code-edit additionally ships a runtime and internal commands
-for its built-in formatting (3.3.0). Json (3.2.1) is surface-only: Prettier's
+for its built-in formatting (3.3.0). Json (3.3.0) is surface-only: Prettier's
 standalone build plus the babel and estree plugins are bundled into the page,
 so it formats, converts and filters in the document with no Node and no
-runtime. The host reads a surface document up to 1 MiB (D-1091 in the host
+runtime. Its workbench is two columns: the original JSON is editable on the
+left and every derived document (escape, XML, TypeScript, a filter result)
+lands in the right pane, so the source is never covered by its result. The
+host reads a surface document up to 1 MiB (D-1091 in the host
 repository), which the built page fits. The other four run no process:
 
 ```json
@@ -172,7 +175,7 @@ repository), which the built page fits. The other four run no process:
 `chrome` is optional, and only an `open` surface may set `"page"`: the page
 draws the whole card, so the host hides its own header and footer and the page
 closes through the bridge's `close` request. Omitting it keeps the host card
-(`"host"`). Code-edit (3.7.1), diff-view (3.2.1) and json (3.2.1) declare
+(`"host"`). Code-edit (3.7.2), diff-view (3.2.2) and json (3.3.0) declare
 `"page"`; image-edit and timestamp keep the host card.
 
 The host serves the page to a sandboxed frame and mediates reading this
@@ -262,10 +265,11 @@ chrome MyPaste draws one close control and a page must not draw a second; the
 three page-chrome surfaces draw their own close control (a square X at the end
 of the tab strip) and ask the bridge to close. Escape asks the bridge too, but
 first leaves the page's own mode: an open dropdown, or the comparison's editing
-pane. The pages follow the host's visual rule
-(host D-1045): no rounded boxes. Cards, panels, buttons and tool chips are
-square; a circle is allowed only where roundness is the shape's meaning, such
-as a status dot.
+pane. The pages carry the host's corner ladder (host D-1099) as their own
+`--radius-*` tokens: controls are 6px, cards, menus and list groups 10px,
+floating sheets 14px, and an indicator is a capsule. A page never writes a
+pixel radius; `50%` stays for shapes whose meaning is round, such as a status
+dot. Code areas that fill the card stay square inside the host's rounded frame.
 
 Sources:
 
@@ -371,7 +375,7 @@ a Go module that both `com.mypaste.sql` and the code-edit runtime `replace` to
 the same source tree, so the two packages compile and ship the same analyzer,
 formatter and compressor rather than drifting apart.
 
-`com.mypaste.json` is surface-only (3.2.1): the archive is its manifest and one
+`com.mypaste.json` is surface-only (3.3.0): the archive is its manifest and one
 `preview.html`, and no process runs. The page is an editable JSON editor;
 Prettier's standalone build with the babel and estree plugins is bundled into
 it, so beautifying never leaves the document and needs no Node. The host reads
