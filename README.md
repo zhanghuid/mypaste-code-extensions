@@ -514,4 +514,5 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
 MIT. See [LICENSE](LICENSE). Individual toolchain dependencies remain under
 their own licenses; the standalone formatter adapters call locally installed
 tools and do not redistribute them, while the only redistributed dependency is
-the pinned Prettier build inside code-edit, noted above.
+the pinned Prettier build inside code-edit and bundled into the json page,
+noted above.

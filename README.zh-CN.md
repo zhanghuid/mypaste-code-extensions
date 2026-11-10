@@ -431,4 +431,4 @@ manifest 严格校验，旧宿主不认识的 manifest 字段会让整个包在�
 
 MIT，见 [LICENSE](LICENSE)。各工具链依赖仍归其自身许可所有；独立格式化
 适配器调用本地安装的工具，不重新分发它们；唯一随包分发的是 code-edit 内
-固定版本的 Prettier 构建，见上。
+固定版本的 Prettier 构建，以及打进 json 页面的同一构建，见上。
