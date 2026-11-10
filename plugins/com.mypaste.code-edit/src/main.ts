@@ -4,17 +4,18 @@
  * 的 tokenizer（协议 v3：高亮是表面自己的实现，不是宿主服务，也不依赖任何
  * 能力包）。
  *
- * D-1069：宿主不再画编辑器命令栏，也不再交换缓冲区。复制、保存与关闭按钮由
- * 这个页面自己画；页面自己的图标工具栏上只有「功能区」面板开关、复制与保存，
- * 语言网格与「格式化」菜单收进「功能区」面板，不是所有功能都常驻显示。
+ * D-1069：宿主不再画编辑器命令栏，也不再交换缓冲区。页面按 GitHub 网页编辑器
+ * 的骨架自己画整条 chrome：顶部一个可编辑的标题 tab，一条工具栏（「语言」与
+ * 「格式化」两个下拉 + 复制与保存两个图标按钮），中间是行号槽与代码面，底部是
+ * 状态栏（动作结果 + 行列/缩进）。语言选择与格式化列表各是一个下拉，不常驻。
  *
- * 「格式化」是一个按动作注册表画出的面板分区。包内的内置操作按当前语言生成
- * 「全文」与「选区」两个动作（SQL 另有压缩），由页面切片、调用本包 runtime 的
- * 命令、再拼回缓冲区，命令本身不需要知道选区。用户另装了格式化能力包时，同名
- * 操作不会重复出现；其余的作为附加项标注来源。纯文本没有内置格式化，分区如实
- * 说明。失败时缓冲区不变，状态行给出理由与诊断位置。
+ * 「格式化」下拉按动作注册表画出。包内的内置操作按当前语言生成「文档」与
+ * 「选区」两个动作（SQL 另有压缩），由页面切片、调用本包 runtime 的命令、再
+ * 拼回缓冲区，命令本身不需要知道选区。用户另装了格式化能力包时，同名操作不会
+ * 重复出现；其余的作为附加项标注来源。纯文本没有内置格式化，下拉如实说明。
+ * 失败时缓冲区不变，状态栏给出理由与诊断位置。
  *
- * 动作面板只遍历注册表，不按语言或动作 id 分支。本地动作（关键字大小写）与
+ * 两个下拉只遍历注册表，不按语言或动作 id 分支。本地动作（关键字大小写）与
  * 能力动作共用同一条替换路径，因此一次动作就是一步撤销。页面不硬编码插件 ID，
  * 也不执行用户代码。
  */
@@ -63,12 +64,12 @@ function one<T extends Element>(selector: string): T {
 
 const titleInput = one<HTMLInputElement>("#doc-title");
 const languageBadge = one<HTMLElement>("#doc-language-badge");
-const languageGrid = one<HTMLElement>("#doc-language-grid");
-const panelRoot = one<HTMLElement>("#doc-panel-root");
-const panelToggle = one<HTMLButtonElement>("#doc-panel-toggle");
-const panel = one<HTMLElement>("#doc-panel");
-const formatList = one<HTMLElement>("#doc-format-list");
-const panelClose = one<HTMLButtonElement>("#doc-panel-close");
+const languageRoot = one<HTMLElement>("#doc-language-root");
+const languageToggle = one<HTMLButtonElement>("#doc-language-toggle");
+const languageMenu = one<HTMLElement>("#doc-language-menu");
+const formatRoot = one<HTMLElement>("#doc-format-root");
+const formatToggle = one<HTMLButtonElement>("#doc-format-toggle");
+const formatMenu = one<HTMLElement>("#doc-format-menu");
 const caret = one<HTMLElement>("#doc-caret");
 const dirtyMark = one<HTMLElement>("#doc-dirty");
 const gutter = one<HTMLElement>("#editor-gutter");
@@ -85,8 +86,10 @@ let actionCommands: SurfaceCommand[] = [];
 let actions: EditorAction[] = [];
 /** The language `actions` was built for; undefined until the first build. */
 let actionLanguage: CodeLanguage | null | undefined;
-let panelOpen = false;
+type MenuName = "language" | "format";
+let openMenu: MenuName | null = null;
 let renderedActions: { action: EditorAction; button: HTMLButtonElement }[] = [];
+let renderedLanguages: { value: string; button: HTMLButtonElement }[] = [];
 
 function escapeHTML(value: string): string {
   return value
@@ -160,12 +163,13 @@ function syncScroll(): void {
 
 function renderLanguage(): void {
   // The badge shows what the editor actually renders: automatic detection is
-  // labelled, a manual pick is just its name. The grid keeps the chosen value.
+  // labelled, a manual pick is just its name. The language menu keeps the
+  // chosen value marked.
   const label = languageLabel(resolvedLanguage());
   languageBadge.textContent = label;
-  languageBadge.title = choice === "auto"
+  languageToggle.title = choice === "auto"
     ? `自动识别：${label}`
-    : label;
+    : `语言：${label}`;
 }
 
 function render(): void {
@@ -186,9 +190,10 @@ function updateButtons(): void {
   const disabled = busy || bridge.item === null;
   copyButton.disabled = disabled;
   saveButton.disabled = disabled;
-  // The panel opens even without a capability package: the language grid and
-  // the local actions' empty state still belong to the user.
-  panelToggle.disabled = disabled;
+  // The dropdowns open even without a capability package: the language list
+  // and the local actions' empty state still belong to the user.
+  languageToggle.disabled = disabled;
+  formatToggle.disabled = disabled;
 }
 
 async function run(action: () => Promise<void>): Promise<void> {
@@ -288,17 +293,18 @@ function actionDisabled(action: EditorAction, context: EditorContext): boolean {
 }
 
 /**
- * Redraws the format list from the action registry. The renderer knows only
- * labels, groups and the enable test; it never asks which language is current
- * or which action it is drawing. Groups appear in their fixed order and every
+ * Redraws the format dropdown from the action registry. The renderer knows
+ * only labels, groups and the enable test; it never asks which language is
+ * current or which action it is drawing. Groups keep their order and are set
+ * off by a hairline, never by a title (the trigger already says 格式化). Every
  * action stays in place, disabled when it does not apply.
  *
  * An empty capability area says so in one muted line. The page never invents
  * an action for a package that is not installed, and it never shows the
  * host's placed commands: those are card actions, not capabilities.
  */
-function renderFormatList(): void {
-  formatList.replaceChildren();
+function renderFormatMenu(): void {
+  formatMenu.replaceChildren();
   renderedActions = [];
   const context = actionContext();
   // The built-ins are the editor's own work: with no language there is
@@ -307,95 +313,101 @@ function renderFormatList(): void {
   // depends on one.
   if (builtinActions(context.language).length === 0 && actionCommands.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "format-empty";
+    empty.className = "menu-empty";
     empty.textContent = context.language === null
       ? "纯文本没有内置格式化操作"
       : "当前语言没有内置格式化操作";
-    formatList.append(empty);
+    formatMenu.append(empty);
+    return;
   }
   for (const [groupIndex, group] of groupActions(actions).entries()) {
-    const section = document.createElement("div");
-    section.className = "format-group";
-    section.setAttribute("role", "group");
-    const heading = document.createElement("div");
-    heading.className = "format-group-title";
-    heading.id = `doc-format-group-${groupIndex}`;
-    heading.textContent = group.title;
-    section.setAttribute("aria-labelledby", heading.id);
-    section.append(heading);
+    if (groupIndex > 0) {
+      const separator = document.createElement("div");
+      separator.className = "menu-separator";
+      separator.setAttribute("role", "separator");
+      formatMenu.append(separator);
+    }
     for (const action of group.actions) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "format-item";
+      button.className = "menu-item format-item";
       button.setAttribute("role", "menuitem");
       button.textContent = action.label;
       button.disabled = actionDisabled(action, context);
       button.addEventListener("click", () => {
-        closePanel(false);
+        closeMenu("format");
         const current = actionContext();
         if (!action.isEnabled(current)) return;
         void run(async () => {
           await action.run(current);
         });
       });
-      section.append(button);
+      formatMenu.append(button);
       renderedActions.push({ action, button });
     }
-    formatList.append(section);
   }
 }
 
 /**
- * Draws the language grid. Every choice is a labelled button; the active one
- * is marked, and picking one re-renders the badge and the format list so the
- * built-in actions follow the new language.
+ * Draws the language dropdown. Every choice is a labelled item; the active one
+ * is marked, and picking one re-renders the badge and the format dropdown so
+ * the built-in actions follow the new language.
  */
-function renderLanguageGrid(): void {
-  languageGrid.replaceChildren();
+function renderLanguageMenu(): void {
+  languageMenu.replaceChildren();
+  renderedLanguages = [];
   for (const item of LANGUAGE_CHOICES) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "language-item";
-    button.setAttribute("role", "menuitem");
+    button.className = item.value === choice
+      ? "menu-item language-item is-active"
+      : "menu-item language-item";
+    button.setAttribute("role", "menuitemradio");
+    button.setAttribute("aria-checked", String(item.value === choice));
     button.dataset.value = item.value;
     button.textContent = item.label;
-    button.setAttribute("aria-pressed", String(choice === item.value));
-    if (choice === item.value) button.className = "language-item is-active";
     button.addEventListener("click", () => {
       choice = item.value;
       renderLanguage();
-      renderLanguageGrid();
+      renderLanguageMenu();
       rebuildActions();
       renderBuiltinHighlight();
-      renderFormatList();
+      renderFormatMenu();
+      closeMenu("language");
     });
-    languageGrid.append(button);
+    languageMenu.append(button);
+    renderedLanguages.push({ value: item.value, button });
   }
 }
 
-/** Repaints the whole panel and keeps its open/closed state. */
-function renderPanel(): void {
-  renderLanguageGrid();
-  renderFormatList();
-  panel.hidden = !panelOpen;
+function menuElement(name: MenuName): { root: HTMLElement; toggle: HTMLButtonElement; menu: HTMLElement } {
+  return name === "language"
+    ? { root: languageRoot, toggle: languageToggle, menu: languageMenu }
+    : { root: formatRoot, toggle: formatToggle, menu: formatMenu };
 }
 
-/** The enabled items ArrowUp/ArrowDown may land on, in visual order. */
-function enabledMenuItems(): HTMLButtonElement[] {
+/** The enabled format items ArrowUp/ArrowDown may land on, in visual order. */
+function enabledFormatItems(): HTMLButtonElement[] {
   return renderedActions
     .map((entry) => entry.button)
     .filter((button) => !button.disabled);
 }
 
-function focusFirstMenuItem(): void {
-  const [first] = enabledMenuItems();
-  if (first) first.focus();
-  else formatList.focus();
+function menuItems(name: MenuName): HTMLButtonElement[] {
+  return name === "language"
+    ? renderedLanguages.map((entry) => entry.button)
+    : enabledFormatItems();
 }
 
-/** Re-evaluates only the enable state, so an open panel does not lose focus. */
+function focusFirstMenuItem(name: MenuName): void {
+  const [first] = menuItems(name);
+  if (first) first.focus();
+  else menuElement(name).menu.focus();
+}
+
+/** Re-evaluates only the format enable state, so an open menu keeps focus. */
 function refreshActionState(): void {
-  if (!panelOpen) return;
+  if (openMenu !== "format") return;
   const context = actionContext();
   for (const { action, button } of renderedActions) {
     button.disabled = actionDisabled(action, context);
@@ -404,42 +416,48 @@ function refreshActionState(): void {
   const lostFocus = focused !== null &&
     renderedActions.some((entry) => entry.button === focused) &&
     focused.disabled;
-  if (lostFocus) focusFirstMenuItem();
+  if (lostFocus) focusFirstMenuItem("format");
 }
 
 /**
- * Places the panel under its trigger in viewport coordinates. `position:
+ * Places a dropdown under its trigger in viewport coordinates. `position:
  * fixed` keeps it above the editor no matter which ancestor scrolls, and the
- * width is clamped so a narrow host never pushes the panel off screen.
+ * width is clamped so a narrow host never pushes it off screen.
  */
-function positionPanel(): void {
+function positionMenu(name: MenuName): void {
+  const { toggle, menu } = menuElement(name);
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
   if (!viewportWidth || !viewportHeight) return;
   const margin = 8;
-  const rect = panelToggle.getBoundingClientRect();
-  const width = Math.min(320, viewportWidth - margin * 2);
-  const left = Math.max(margin, Math.min(rect.right - width, viewportWidth - width - margin));
-  panel.style.width = `${width}px`;
-  panel.style.left = `${left}px`;
-  panel.style.top = `${rect.bottom + 6}px`;
-  panel.style.maxHeight = `${Math.max(200, viewportHeight - rect.bottom - margin * 2)}px`;
+  const rect = toggle.getBoundingClientRect();
+  const width = Math.min(260, viewportWidth - margin * 2);
+  const left = Math.max(margin, Math.min(rect.left, viewportWidth - width - margin));
+  menu.style.width = `${width}px`;
+  menu.style.left = `${left}px`;
+  menu.style.top = `${rect.bottom + 4}px`;
+  menu.style.maxHeight = `${Math.max(120, viewportHeight - rect.bottom - margin * 2)}px`;
 }
 
-function openPanel(): void {
-  panelOpen = true;
-  renderPanel();
-  panel.hidden = false;
-  panelToggle.setAttribute("aria-expanded", "true");
-  positionPanel();
-  focusFirstMenuItem();
+function openDropdown(name: MenuName): void {
+  if (openMenu && openMenu !== name) closeMenu(openMenu);
+  openMenu = name;
+  renderLanguageMenu();
+  renderFormatMenu();
+  const { toggle, menu } = menuElement(name);
+  menu.hidden = false;
+  toggle.setAttribute("aria-expanded", "true");
+  positionMenu(name);
+  focusFirstMenuItem(name);
 }
 
-function closePanel(focusButton = true): void {
-  panelOpen = false;
-  panel.hidden = true;
-  panelToggle.setAttribute("aria-expanded", "false");
-  if (focusButton) panelToggle.focus();
+function closeMenu(name: MenuName | "any" = "any"): void {
+  const target: MenuName | null = name === "any" ? openMenu : name;
+  if (!target) return;
+  const { toggle, menu } = menuElement(target);
+  menu.hidden = true;
+  toggle.setAttribute("aria-expanded", "false");
+  if (openMenu === target) openMenu = null;
 }
 
 /**
@@ -502,70 +520,75 @@ async function loadCommandActions(): Promise<void> {
       command.pluginId !== OWN_PLUGIN_ID,
   ).filter(isTextCapability);
   rebuildActions();
-  renderPanel();
+  if (openMenu === "format") renderFormatMenu();
   updateButtons();
 }
 
-panelToggle.addEventListener("click", () => {
-  if (panelOpen) closePanel(false);
-  else openPanel();
+languageToggle.addEventListener("click", () => {
+  if (openMenu === "language") closeMenu("language");
+  else openDropdown("language");
 });
 
-panelClose.addEventListener("click", () => {
-  closePanel();
+formatToggle.addEventListener("click", () => {
+  if (openMenu === "format") closeMenu("format");
+  else openDropdown("format");
 });
 
 document.addEventListener("click", (event) => {
-  if (panelOpen && !panelRoot.contains(event.target as Node)) {
-    closePanel(false);
+  if (!openMenu) return;
+  const { root } = menuElement(openMenu);
+  if (!root.contains(event.target as Node)) {
+    closeMenu(openMenu);
   }
 });
 
-// Arrow keys move a roving focus over the enabled format items; Enter and
-// Space are the browser's own button activation. Tab leaves the panel, never
-// walks into the rows that follow the focused one.
-formatList.addEventListener("keydown", (event) => {
-  if (!panelOpen) return;
-  const items = enabledMenuItems();
-  const current = items.indexOf(document.activeElement as HTMLButtonElement);
-  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-    event.preventDefault();
-    if (items.length === 0) return;
-    const step = event.key === "ArrowDown" ? 1 : -1;
-    const next = current < 0
-      ? (step > 0 ? 0 : items.length - 1)
-      : (current + step + items.length) % items.length;
-    const target = items[next];
-    target?.focus();
-    return;
-  }
-  if (event.key === "Home" || event.key === "End") {
-    event.preventDefault();
-    if (items.length === 0) return;
-    items[event.key === "Home" ? 0 : items.length - 1]?.focus();
-    return;
-  }
-  if (event.key === "Tab") {
-    event.preventDefault();
-    closePanel();
-  }
-});
+function attachMenuKeys(name: MenuName): void {
+  const { menu } = menuElement(name);
+  menu.addEventListener("keydown", (event) => {
+    if (openMenu !== name) return;
+    const items = menuItems(name);
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (items.length === 0) return;
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      const next = current < 0
+        ? (step > 0 ? 0 : items.length - 1)
+        : (current + step + items.length) % items.length;
+      items[next]?.focus();
+      return;
+    }
+    if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      if (items.length === 0) return;
+      items[event.key === "Home" ? 0 : items.length - 1]?.focus();
+      return;
+    }
+    if (event.key === "Tab") {
+      event.preventDefault();
+      closeMenu(name);
+    }
+  });
+}
+
+attachMenuKeys("language");
+attachMenuKeys("format");
 
 // The host never sees a key pressed inside this frame, so Esc is the page's
-// own: with the panel open it only closes the panel, otherwise it closes the
-// surface through the container's close message.
+// own: with a dropdown open it only closes the dropdown, otherwise it closes
+// the surface through the container's close message.
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   event.preventDefault();
-  if (panelOpen) {
-    closePanel();
+  if (openMenu) {
+    closeMenu(openMenu);
     return;
   }
   bridge.close();
 });
 
 window.addEventListener("resize", () => {
-  if (panelOpen) closePanel(false);
+  if (openMenu) closeMenu(openMenu);
 });
 
 document.addEventListener("selectionchange", () => {

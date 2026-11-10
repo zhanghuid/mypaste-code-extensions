@@ -89,22 +89,22 @@ def matches(selector: str, elements: list[Element]) -> bool:
 
 class SurfaceDocumentTests(unittest.TestCase):
     def test_code_edit_has_no_command_button_row(self) -> None:
-        # D-1069 follow-up: composition lives in the header's 功能区 panel
-        # (language grid + format list) behind one icon toggle. A footer of
-        # capability buttons was the old shape and must not return; the
-        # ambiguous 操作 menu and the 高亮 picker are gone too.
+        # D-1069 follow-up: composition lives in two labelled dropdowns (语言
+        # and 格式化) behind their own toggles, not a footer of capability
+        # buttons and not an icon 功能区 panel. A footer of capability buttons
+        # was the old shape and must not return; the ambiguous 操作 menu and the
+        # 高亮 picker are gone too.
         package = PLUGINS / "com.mypaste.code-edit"
         for document in (package / "src" / "preview.html", package / "preview.html"):
             text = document.read_text(encoding="utf-8")
             self.assertNotIn("doc-commands", text, document)
             self.assertNotIn('id="doc-actions"', text, document)
             self.assertNotIn('id="doc-highlight"', text, document)
-            self.assertNotIn('id="doc-format-menu"', text, document)
             self.assertNotIn('id="doc-format"', text, document)
-            self.assertIn('id="doc-panel-toggle"', text, document)
-            self.assertIn('id="doc-panel"', text, document)
-            self.assertIn('id="doc-language-grid"', text, document)
-            self.assertIn('id="doc-format-list"', text, document)
+            self.assertIn('id="doc-language-toggle"', text, document)
+            self.assertIn('id="doc-language-menu"', text, document)
+            self.assertIn('id="doc-format-toggle"', text, document)
+            self.assertIn('id="doc-format-menu"', text, document)
             self.assertEqual(
                 len(re.findall(r'<button[^>]*data-action="', text)), 2, document)
 

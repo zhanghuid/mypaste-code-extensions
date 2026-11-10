@@ -143,9 +143,10 @@ json（3.0.0）是纯表面包：Prettier 的 standalone 构建加 babel、estre
 
 v3 移除了宿主工作台：没有缓冲区交换、没有宿主画的编辑器工具栏、也没有宿主画
 的文档动作行（宿主 D-1065、D-1068）。每个页面自己画控件。例如 code-edit 的
-页面自己画图标工具栏——「功能区」面板开关、复制与保存——把注册表变成「功能区」
-面板，里面是语言网格与「格式化」菜单。「格式化」始终带有编辑器自带的、针对
-识别语言的内置操作——Go、
+页面按 GitHub 网页编辑器画整条 chrome：可编辑标题的标签页，一条工具栏（「语言」
+与「格式化」两个下拉 + 复制与保存图标），行号槽与代码面，底部状态栏。「格式化」
+下拉把注册表变成一张扁平菜单，「语言」下拉决定分词器与内置操作。「格式化」
+始终带有编辑器自带的、针对识别语言的内置操作——Go、
 JavaScript、TypeScript、Python、Rust、PHP、HTML、CSS、JSON、YAML、SQL 与
 Shell，外加 SQL 压缩——通过本包 runtime 以 `format.go`、`compress.sql` 之类
 的命令 id 调用，因此不安装任何其他包也能格式化；所有语言都在扩展内完成，
@@ -212,9 +213,9 @@ plugins/com.mypaste.code-card/
   preview.html         生成物：归档里带的页面
 
 plugins/com.mypaste.code-edit/   编辑器（自己的分词器、语言表与桥；
-                                 「功能区」面板，里面是语言网格与注册表
-                                 驱动的「格式化」菜单；cmd/ 是 runtime，
-                                 engines/ 是随包交付的格式化脚本）
+                                 可编辑标题的标签页 + 「语言」与「格式化」
+                                 两个下拉，后者由注册表驱动；cmd/ 是
+                                 runtime，engines/ 是随包交付的格式化脚本）
 plugins/com.mypaste.diff-view/   对比页面（自己的 diff 引擎与语言表；
                                  读取 companion）
 plugins/com.mypaste.image-edit/  图片编辑器（自己的画布工具）

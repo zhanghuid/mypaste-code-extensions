@@ -171,6 +171,9 @@ export function builtinActions(language: CodeLanguage | null): EditorAction[] {
     (operation) => operation.language === language,
   );
   return operations.flatMap((operation, index) => {
+    // The command title carries the concrete language (格式化 SQL) so the
+    // registry status line and the dedup key stay precise; the menu item is
+    // language-agnostic because the trigger already shows the language.
     const command: SurfaceCommand = {
       pluginId: OWN_PLUGIN_ID,
       commandId: operation.commandId,
@@ -180,7 +183,7 @@ export function builtinActions(language: CodeLanguage | null): EditorAction[] {
     return [
       {
         id: `${OWN_PLUGIN_ID}/${operation.commandId}:document`,
-        label: operation.label,
+        label: `${operation.group}文档`,
         group: operation.group,
         order: base,
         isEnabled: (context) => context.text.length > 0,
@@ -188,7 +191,7 @@ export function builtinActions(language: CodeLanguage | null): EditorAction[] {
       },
       {
         id: `${OWN_PLUGIN_ID}/${operation.commandId}:selection`,
-        label: `${operation.label}（选区）`,
+        label: `${operation.group}选区`,
         group: operation.group,
         order: base + 1,
         isEnabled: (context) => hasSelection(context),

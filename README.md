@@ -177,9 +177,11 @@ item and never gives the page a way to browse history.
 
 v3 removed the host workbench: there is no buffer exchange, no host-drawn
 editor toolbar and no host-drawn document action row (host D-1065, D-1068).
-Each page draws its own controls. Code-edit's page, for example, draws an icon
-toolbar — a 功能区 panel toggle, copy and save — and turns the registry into a
-功能区 panel that carries the language grid and the 格式化 menu. The menu always
+Each page draws its own controls. Code-edit's page, for example, draws a
+GitHub-style editor chrome: an editable title tab, a toolbar with two dropdowns
+(语言 and 格式化) plus copy and save icons, a line-number gutter and a status
+bar. The 格式化 dropdown turns the registry into a flat menu, and the 语言
+dropdown picks the tokenizer and the built-in operations. The menu always
 carries the editor's own built-in operations for
 the detected language — Go, JavaScript, TypeScript, Python, Rust, PHP, HTML,
 CSS, JSON, YAML, SQL and Shell, plus SQL compression — invoked through this
@@ -266,10 +268,10 @@ plugins/com.mypaste.code-card/
   preview.html         GENERATED: the page the archive ships
 
 plugins/com.mypaste.code-edit/   the editor (its own tokenizer, language
-                                 table and bridge; a 功能区 panel holding the
-                                 language grid and the registry-driven 格式化
-                                 menu; cmd/ is its runtime and engines/ the
-                                 formatting scripts it ships)
+                                 table and bridge; an editable title tab plus
+                                 语言 and 格式化 dropdowns, the latter driven
+                                 by the registry; cmd/ is its runtime and
+                                 engines/ the formatting scripts it ships)
 plugins/com.mypaste.diff-view/   the comparison page (its own diff engine and
                                  language table; reads a companion)
 plugins/com.mypaste.image-edit/  the image editor (canvas tools of its own)
