@@ -19,6 +19,9 @@ plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
     into the dock's card preview). A page may also ship a runtime and internal
     commands (code-edit); protocol v3 lets only that package's own surface
     reach them. Json is surface-only and bundles its formatter into the page.
+  - **settings-window menu page** — a manifest `menus` entry (or several) plus
+    the page each `entry` names, copied verbatim: no surface, no runtime
+    (com.mypaste.data-settings).
 - Highlighting packages are capabilities: they request only `entity.read`,
   declare one `highlight` command with `forms: ["text"]` and no `placement`,
   and return bounded token arrays, never HTML or CSS.

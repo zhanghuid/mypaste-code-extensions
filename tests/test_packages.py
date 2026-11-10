@@ -599,6 +599,37 @@ class PackageTests(unittest.TestCase):
             entry = by_id[plugin_id]
             self.assertEqual(entry["runtimeProtocol"], 0, plugin_id)
 
+    def test_menu_page_package_ships_its_pages_and_no_binary(self) -> None:
+        # A settings-window menu page has no surface and no runtime: the
+        # archive is the manifest plus the page each menu entry names, and
+        # the shipped bytes are the ones the package source holds.
+        build_packages()
+        package = PLUGINS / "com.mypaste.data-settings"
+        manifest = json.loads(
+            (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["kind"], "ui")
+        self.assertNotIn("surface", manifest)
+        self.assertNotIn("runtime", manifest)
+        entries = [menu["entry"] for menu in manifest["menus"]]
+        self.assertTrue(entries)
+        self.assertEqual(len(entries), len(set(entries)))
+
+        archive = DIST / f"{manifest['id']}-{manifest['version']}.mypaste-plugin"
+        with zipfile.ZipFile(archive) as bundle:
+            self.assertEqual(
+                sorted(bundle.namelist()),
+                sorted(["mypaste.plugin.json", *entries]),
+            )
+            for entry in entries:
+                self.assertEqual(
+                    bundle.read(entry), (package / entry).read_bytes(), entry)
+
+        index = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
+        entry = next(item for item in index["packages"]
+                     if item["id"] == manifest["id"])
+        self.assertEqual(entry["kind"], "ui")
+        self.assertEqual(entry["runtimeProtocol"], 0)
+
     def test_code_edit_ships_its_page_runtime_and_private_engines(self) -> None:
         # Protocol v3's UI package with a runtime: one archive holds the page,
         # the dispatcher and the private formatting engines, and only this

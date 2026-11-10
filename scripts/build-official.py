@@ -2,16 +2,19 @@
 """Build and publish the official extension packages.
 
 The packages under plugins/*/ that this script owns (OFFICIAL below) come in
-two shapes, and the shipped archive never contains the source tree:
+three shapes, and the shipped archive never contains the source tree:
 
 - a compiled Go program (manifest, optional assets, one built binary — or, for
   a package with a `targets` list, one binary per platform under
   `bin/<goos>/<goarch>/`);
 - a surface document (manifest plus the one HTML page `surface.entry` names,
   bundled from src/ by scripts/build-surfaces.mjs);
-- or both: a UI package that also declares a runtime and internal commands
-  (com.mypaste.code-edit), which ships its page, its binary, its private
-  engine files and the pinned Prettier runtime in one archive.
+- a settings-window menu page (manifest plus the page each `menus[].entry`
+  names, copied verbatim; no surface, no process).
+
+A package may also combine shapes: a UI package that declares a runtime and
+internal commands (com.mypaste.code-edit) ships its page, its binary, its
+private engine files and the pinned Prettier runtime in one archive.
 
 Installation is the trust decision (D-1039 in the MyPaste host repository):
 the feed carries no signature, and the host does not read one. Publishing is
@@ -145,6 +148,16 @@ def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
         if not document:
             fail(f"{plugin_id}: spec declares a surface but the manifest has none")
         build_surface(plugin_id, staging / document)
+    if spec.get("menus"):
+        # A settings-window menu page's own path comes from the manifest for
+        # the same reason a surface's does: the host serves the page `entry`
+        # names, so staging and serving cannot disagree about it. The page is
+        # hand-written and ships verbatim.
+        entries = [menu.get("entry", "") for menu in manifest.get("menus") or []]
+        if not entries or any(not entry for entry in entries):
+            fail(f"{plugin_id}: spec declares menus but the manifest has none")
+        for entry in entries:
+            copy_asset(source, staging, entry, entry)
     if spec.get("module"):
         # `assets` is either a list (copied at the same relative path) or a
         # mapping (source path -> archive path) for packages whose private
@@ -174,8 +187,8 @@ def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
                 or ".." in Path(destination).parts):
             fail(f"{plugin_id}: invalid prettier destination {destination}")
         vendor_prettier.vendor(ROOT, staging / destination, plugins)
-    if not spec.get("surface") and not spec.get("module"):
-        fail(f"{plugin_id}: spec declares neither a surface nor a module")
+    if not (spec.get("surface") or spec.get("menus") or spec.get("module")):
+        fail(f"{plugin_id}: spec declares no surface, menu page or module")
     return manifest
 
 

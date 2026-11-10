@@ -29,8 +29,9 @@
   `scripts/package.py` 从纯源码打包；语言表见下文。
 - **二进制能力包**（`plugins/com.mypaste.ferry`、`plugins/com.mypaste.sql`）
   ——编译后的 Go 程序，由 `scripts/build-official.py` 构建。
-- **设置页包**（`plugins/com.mypaste.sync`）——手写 `panel.html` 加编译后的
-  Go runtime，由 `scripts/build-official.py` 构建。
+- **设置页包**（`plugins/com.mypaste.sync`、`plugins/com.mypaste.data-settings`）
+  ——手写 `panel.html`，sync 另加编译后的 Go runtime，由
+  `scripts/build-official.py` 构建。
 - **表面包**（`plugins/com.mypaste.code-card`、`plugins/com.mypaste.code-edit`、
   `plugins/com.mypaste.diff-view`、`plugins/com.mypaste.image-edit`、
   `plugins/com.mypaste.json`、`plugins/com.mypaste.timestamp`）——各自一个页面；
@@ -247,6 +248,11 @@ manifest 与构建出的 `ferry` 二进制，绝无源码树。它对话的中�
 `bin/<goos>/<goarch>/` 交付（宿主 D-1057），归档就是宿主未改动的
 `.mypaste-backup` 格式，两边可以互相恢复。Go 源码在
 `plugins/com.mypaste.sync/src/`（独立 `go.mod`）。
+
+`com.mypaste.data-settings`——设置窗口的「数据」页——是没有 runtime 的菜单
+包：归档里只有 manifest 和 `data.panel`（顺序 51）指名的手写 `panel.html`。
+页面只经 `settings.data` 与宿主往来；选文件、检查归档与所有写入都在宿主侧
+完成。页面字节就是应用内嵌的那份，所以从扩展市场安装后它仍是随包扩展。
 
 `com.mypaste.sql`——SQL 工具包扩展（七方言的语法高亮、语法诊断、格式化与
 压缩，词法分析用 [chroma](https://github.com/alecthomas/chroma)）——同样以

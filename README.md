@@ -33,8 +33,9 @@ This repository holds:
 - **Binary capability packages** (`plugins/com.mypaste.ferry`,
   `plugins/com.mypaste.sql`) — compiled Go programs built by
   `scripts/build-official.py`.
-- **Settings-page packages** (`plugins/com.mypaste.sync`) — a hand-written
-  `panel.html` plus a compiled Go runtime, built by `scripts/build-official.py`.
+- **Settings-page packages** (`plugins/com.mypaste.sync`,
+  `plugins/com.mypaste.data-settings`) — a hand-written `panel.html`, plus a
+  compiled Go runtime for sync; built by `scripts/build-official.py`.
 - **Surface packages** (`plugins/com.mypaste.code-card`,
   `plugins/com.mypaste.code-edit`, `plugins/com.mypaste.diff-view`,
   `plugins/com.mypaste.image-edit`, `plugins/com.mypaste.json`,
@@ -295,6 +296,13 @@ hours. Both darwin binaries ship under `bin/<goos>/<goarch>/` (host D-1057),
 and the archive is the host's `.mypaste-backup` format unchanged, so either
 side can restore the other. Go source lives in `plugins/com.mypaste.sync/src/`
 (own `go.mod`).
+
+`com.mypaste.data-settings` — the data tab of the settings window — is a menu
+page with no runtime at all: the archive holds the manifest and the
+hand-written `panel.html` that `data.panel` (order 51) names. The page reaches
+the host only through `settings.data`; picking files, inspecting archives and
+every write stay on the host side. The page bytes are the ones the app embeds,
+so installing this package from the marketplace leaves it first-party.
 
 `com.mypaste.sql` — the SQL toolkit extension (syntax highlighting, syntax
 diagnostics, formatting and compression for seven dialects, lexed by

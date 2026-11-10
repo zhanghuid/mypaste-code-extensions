@@ -16,9 +16,11 @@ repository). A binary package may also carry `surface: True` and its page
 
 A surface-only package's spec is `{"surface": True}`: the archive holds the
 manifest and the one page `surface.entry` names, and no process runs at all.
-Either shape's `assets` may be a list (copied at the same relative path) or a
-mapping from source path to archive path (private files that should not ship
-under `src/`).
+A settings-window menu package with no runtime of its own is
+`{"menus": True}`: the archive holds the manifest and the pages that
+`menus[].entry` names, copied verbatim. Either shape's `assets` may be a list
+(copied at the same relative path) or a mapping from source path to archive
+path (private files that should not ship under `src/`).
 """
 
 OFFICIAL = {
@@ -58,6 +60,14 @@ OFFICIAL = {
     },
     "com.mypaste.code-card": {
         "surface": True,
+    },
+    "com.mypaste.data-settings": {
+        # A settings-window menu page with no runtime: the page reaches the
+        # host only through the settings.data service, and every file choice,
+        # check and write stays on the host side. The page is the one the host
+        # embeds, byte for byte, so installing it from the marketplace keeps
+        # the package first-party.
+        "menus": True,
     },
     "com.mypaste.diff-view": {
         "surface": True,

@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="zh-CN" data-scheme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>数据</title>
+<style>
+  :root {
+    --surface-solid: #ffffff;
+    --surface-raised: #f6f6f3;
+    --ink: #1d1d1f;
+    --ink-soft: #6b6b70;
+    --line: #d8d8d4;
+    --accent: #2f6fed;
+    --accent-ink: #ffffff;
+    --danger: #c0392b;
+    --success: #218739;
+    --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    --font-display: var(--font-body);
+    color-scheme: light;
+  }
+  :root[data-scheme="dark"] {
+    --surface-solid: #1c1c1e;
+    --surface-raised: #262628;
+    --ink: #f2f2f4;
+    --ink-soft: #a1a1a6;
+    --line: #3a3a3d;
+    --accent: #6f9dff;
+    --accent-ink: #101014;
+    --danger: #ff7b6f;
+    --success: #5fd07e;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; border-radius: 0; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--surface-solid);
+    color: var(--ink);
+    font: 13px/1.5 var(--font-body);
+    padding: 22px 24px 28px;
+    overflow: auto;
+  }
+  .page { max-width: 760px; }
+  h1 {
+    margin: 0;
+    font: 600 20px/1.25 var(--font-display);
+    letter-spacing: 0.01em;
+  }
+  .intro { margin: 6px 0 0; color: var(--ink-soft); }
+  .tabs {
+    display: flex;
+    gap: 22px;
+    margin: 20px 0 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tab {
+    position: relative;
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--ink-soft);
+    font: 600 12px/1 var(--font-body);
+    letter-spacing: 0.06em;
+    padding: 0 0 11px;
+    cursor: pointer;
+  }
+  .tab[aria-selected="true"] { color: var(--ink); }
+  .tab[aria-selected="true"]::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 0 0 2px 2px;
+  }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .panel[hidden] { display: none; }
+  .card {
+    border: 1px solid var(--line);
+    background: var(--surface-raised);
+    padding: 16px;
+    display: grid;
+    gap: 13px;
+  }
+  .card + .card { margin-top: 14px; }
+  .card h2 {
+    margin: 0;
+    font: 600 13px/1.3 var(--font-display);
+    letter-spacing: 0.02em;
+  }
+  .note { margin: 0; color: var(--ink-soft); font-size: 12px; }
+  .warning {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--danger);
+    background: var(--surface-solid);
+    padding: 10px 12px;
+    color: var(--ink-soft);
+    font-size: 12px;
+  }
+  .warning strong { display: block; margin-bottom: 3px; color: var(--ink); }
+  .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  button.action {
+    appearance: none;
+    height: 32px;
+    border: 1px solid var(--line);
+    background: var(--surface-solid);
+    color: var(--ink);
+    font: 600 11px/1 var(--font-body);
+    letter-spacing: 0.04em;
+    padding: 0 14px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button.action.primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  button.action.danger { border-color: var(--danger); color: var(--danger); }
+  button.action:hover:not(:disabled) { border-color: var(--ink-soft); }
+  button.action.primary:hover:not(:disabled) { border-color: var(--accent); }
+  button.action:disabled { opacity: 0.45; cursor: default; }
+  button.action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    min-width: 0;
+  }
+  .row + .row { border-top: 1px solid var(--line); padding-top: 13px; }
+  .row-copy { display: grid; gap: 3px; min-width: 0; }
+  .row-title { font-weight: 600; }
+  .row-note { color: var(--ink-soft); font-size: 12px; }
+  .state { min-height: 20px; margin: 0; color: var(--ink-soft); font-size: 12px; }
+  .feedback { min-height: 20px; margin: 14px 0 0; color: var(--ink-soft); font-size: 12px; }
+  .feedback[data-tone="danger"] { color: var(--danger); }
+  .feedback[data-tone="success"] { color: var(--success); }
+</style>
+</head>
+<body>
+<main class="page">
+  <h1>数据</h1>
+  <p class="intro">备份与恢复、导入导出和诊断。文件位置由宿主选择，页面只收到文件名与计数。</p>
+
+  <div class="tabs" role="tablist" aria-label="数据操作">
+    <button class="tab" id="tab-backup" role="tab" type="button" aria-selected="true" aria-controls="panel-backup" tabindex="0">备份与恢复</button>
+    <button class="tab" id="tab-transfer" role="tab" type="button" aria-selected="false" aria-controls="panel-transfer" tabindex="-1">导入与导出</button>
+    <button class="tab" id="tab-diagnostics" role="tab" type="button" aria-selected="false" aria-controls="panel-diagnostics" tabindex="-1">诊断</button>
+  </div>
+
+  <section class="panel" id="panel-backup" role="tabpanel" aria-labelledby="tab-backup">
+    <div class="card">
+      <h2>备份与恢复</h2>
+      <div class="warning">
+        <strong>归档未加密</strong>
+        <span>任何拿到备份文件的人都能读取其中的剪贴板内容。请保存在受信任的位置。</span>
+      </div>
+      <div class="actions">
+        <button class="action" id="backup-export" type="button">导出备份…</button>
+        <button class="action danger" id="backup-restore" type="button">恢复备份…</button>
+      </div>
+      <p class="note">包含完整剪贴板历史、图片、看板和设置；恢复会替换当前历史、图片与设置，但保留插件目录。归档会先完整校验，失败时保留现有数据。</p>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-transfer" role="tabpanel" aria-labelledby="tab-transfer" hidden>
+    <div class="card">
+      <h2>历史记录</h2>
+      <div class="row">
+        <div class="row-copy">
+          <span class="row-title">可移植历史</span>
+          <span class="row-note">JSON 文档包含条目、看板、保存搜索与图片引用。</span>
+        </div>
+        <div class="actions">
+          <button class="action" id="history-export" type="button">导出</button>
+          <button class="action" id="history-import" type="button">导入</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-copy">
+          <span class="row-title">表格投影</span>
+          <span class="row-note">CSV 适合在表格软件中查看，或从其他剪贴板工具导入。</span>
+        </div>
+        <div class="actions">
+          <button class="action" id="history-csv-export" type="button">导出</button>
+          <button class="action" id="history-csv-import" type="button">导入</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-copy">
+          <span class="row-title">图片</span>
+          <span class="row-note">PNG 或 JPEG；重复图片会被识别并跳过。</span>
+        </div>
+        <button class="action" id="images-import" type="button">导入图片…</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>旧版本历史</h2>
+      <p class="state" id="legacy-state">正在读取导入状态…</p>
+      <div class="actions">
+        <button class="action" id="legacy-import" type="button">导入 0.x 历史…</button>
+      </div>
+      <p class="note">只读旧数据目录，不修改其中的文件；每台机器只需导入一次。</p>
+    </div>
+
+    <div class="card">
+      <h2>设置文件</h2>
+      <div class="actions">
+        <button class="action" id="settings-export" type="button">导出设置…</button>
+        <button class="action" id="settings-import" type="button">导入设置…</button>
+      </div>
+      <p class="note">设置文件包含偏好、忽略规则与快捷键，不包含剪贴板内容或插件密钥。</p>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-diagnostics" role="tabpanel" aria-labelledby="tab-diagnostics" hidden>
+    <div class="card">
+      <h2>诊断</h2>
+      <p class="note">导出一份不含剪贴板正文、令牌或私密文件内容的报告，供排查启动、数据库与插件问题。</p>
+      <div class="actions">
+        <button class="action" id="diagnostics-export" type="button">导出诊断信息…</button>
+      </div>
+    </div>
+  </section>
+
+  <p class="feedback" id="feedback" role="status" aria-live="polite"></p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var pending = new Map();
+  var sequence = 0;
+  var busy = 0;
+  var labels = new Map();
+  var root = document.documentElement;
+  var feedback = document.getElementById("feedback");
+  var legacyState = document.getElementById("legacy-state");
+  var tabs = [
+    document.getElementById("tab-backup"),
+    document.getElementById("tab-transfer"),
+    document.getElementById("tab-diagnostics")
+  ];
+  var panels = [
+    document.getElementById("panel-backup"),
+    document.getElementById("panel-transfer"),
+    document.getElementById("panel-diagnostics")
+  ];
+  var controls = Array.prototype.slice.call(document.querySelectorAll("button.action"));
+
+  function call(method, args) {
+    return new Promise(function (resolve, reject) {
+      var requestId = ++sequence;
+      pending.set(requestId, { resolve: resolve, reject: reject });
+      parent.postMessage({ v: 1, type: "call", requestId: requestId, method: method, args: args }, "*");
+    });
+  }
+
+  function applyTheme(message) {
+    root.dataset.scheme = message.scheme === "dark" ? "dark" : "light";
+    var tokens = message.tokens || {};
+    Object.keys(tokens).forEach(function (name) {
+      root.style.setProperty("--" + name, tokens[name]);
+    });
+  }
+
+  window.addEventListener("message", function (event) {
+    var message = event.data;
+    if (!message || message.v !== 1) return;
+    if (message.type === "theme") { applyTheme(message); return; }
+    if (message.type !== "result") return;
+    var entry = pending.get(message.requestId);
+    if (!entry) return;
+    pending.delete(message.requestId);
+    if (message.ok) entry.resolve(message.value);
+    else entry.reject(new Error(message.error || "操作失败"));
+  });
+
+  function message(text, tone) {
+    feedback.textContent = text || "";
+    if (tone) feedback.dataset.tone = tone;
+    else delete feedback.dataset.tone;
+  }
+
+  function label(key, fallback) {
+    var value = labels.get(key);
+    return value ? value + "…" : fallback;
+  }
+
+  function setBusy(delta) {
+    busy += delta;
+    controls.forEach(function (control) { control.disabled = busy > 0; });
+  }
+
+  async function perform(pendingText, task, successText) {
+    setBusy(1);
+    message(pendingText);
+    try {
+      var value = await task();
+      if (value && value.cancelled) {
+        message("已取消");
+        return value;
+      }
+      message(successText(value), "success");
+      return value;
+    } catch (error) {
+      message(error instanceof Error ? error.message : "操作失败", "danger");
+      throw error;
+    } finally {
+      setBusy(-1);
+    }
+  }
+
+  function counts(value) {
+    var parts = [];
+    if (value && value.total) parts.push(value.total + " 个条目");
+    if (value && value.added) parts.push("新增 " + value.added);
+    if (value && value.promoted) parts.push("提升 " + value.promoted);
+    if (value && value.skipped) parts.push("跳过 " + value.skipped);
+    if (value && value.itemsSkipped) parts.push("跳过 " + value.itemsSkipped + " 个条目");
+    if (value && value.imagesSkipped) parts.push("跳过 " + value.imagesSkipped + " 张图片");
+    if (value && value.skippedItems) parts.push("跳过 " + value.skippedItems + " 个条目");
+    if (value && value.skippedImages) parts.push("跳过 " + value.skippedImages + " 张图片");
+    return parts.join(" · ");
+  }
+
+  function backupDone(value) {
+    var text = "已导出备份：" + value.items + " 个条目、" + value.assets + " 张图片";
+    return value.reopenError ? text + "；重新打开数据失败：" + value.reopenError : text;
+  }
+
+  function exportDone(what) {
+    return function (value) {
+      var summary = counts(value);
+      return "已导出" + what + (summary ? "：" + summary : "");
+    };
+  }
+
+  function importDone(what) {
+    return function (value) {
+      var summary = counts(value);
+      return "已导入" + what + (summary ? "：" + summary : "");
+    };
+  }
+
+  document.getElementById("backup-export").addEventListener("click", function () {
+    perform("正在导出备份…", function () { return call("data.backup"); }, backupDone).catch(function () {});
+  });
+
+  document.getElementById("backup-restore").addEventListener("click", function () {
+    perform("正在恢复备份…", function () { return call("data.restore"); }, function () {
+      return "已恢复备份";
+    }).catch(function () {});
+  });
+
+  document.getElementById("history-export").addEventListener("click", function () {
+    perform("正在导出历史…", function () { return call("data.historyExport"); }, exportDone("历史")).catch(function () {});
+  });
+
+  document.getElementById("history-import").addEventListener("click", function () {
+    perform("正在导入历史…", function () { return call("data.historyImport"); }, importDone("历史")).catch(function () {});
+  });
+
+  document.getElementById("history-csv-export").addEventListener("click", function () {
+    perform("正在导出 CSV…", function () { return call("data.historyExportCSV"); }, exportDone(" CSV")).catch(function () {});
+  });
+
+  document.getElementById("history-csv-import").addEventListener("click", function () {
+    perform("正在导入 CSV…", function () { return call("data.historyImportCSV"); }, importDone(" CSV")).catch(function () {});
+  });
+
+  document.getElementById("images-import").addEventListener("click", function () {
+    perform("正在导入图片…", function () { return call("data.importImages"); }, importDone("图片")).catch(function () {});
+  });
+
+  document.getElementById("legacy-import").addEventListener("click", function () {
+    perform("正在导入旧版本历史…", function () { return call("data.importLegacy"); }, function (value) {
+      legacyState.textContent = "已导入 0.x 历史记录。";
+      return "已导入 0.x 历史" + (counts(value) ? "：" + counts(value) : "");
+    }).catch(function () {});
+  });
+
+  document.getElementById("settings-export").addEventListener("click", function () {
+    perform("正在导出设置…", function () { return call("data.settingsExport"); }, function (value) {
+      return "已导出 " + value.settings + " 项设置";
+    }).catch(function () {});
+  });
+
+  document.getElementById("settings-import").addEventListener("click", function () {
+    perform("正在导入设置…", function () { return call("data.settingsImport"); }, function (value) {
+      return "已导入 " + value.settings + " 项设置";
+    }).catch(function () {});
+  });
+
+  document.getElementById("diagnostics-export").addEventListener("click", function () {
+    perform("正在导出诊断信息…", function () { return call("data.diagnostics"); }, function () {
+      return "已导出诊断报告";
+    }).catch(function () {});
+  });
+
+  function selectTab(index, focus) {
+    tabs.forEach(function (tab, position) {
+      var selected = position === index;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      panels[position].hidden = !selected;
+      if (selected && focus) tab.focus();
+    });
+  }
+
+  tabs.forEach(function (tab, index) {
+    tab.addEventListener("click", function () { selectTab(index); });
+    tab.addEventListener("keydown", function (event) {
+      var next = index;
+      if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+      else if (event.key === "ArrowLeft") next = (index + tabs.length - 1) % tabs.length;
+      else return;
+      event.preventDefault();
+      selectTab(next, true);
+    });
+  });
+
+  function applyState(state) {
+    (state.fileActions && state.fileActions.actions ? state.fileActions.actions : []).forEach(function (action) {
+      labels.set(action.value, action.label.trim());
+    });
+    document.getElementById("history-export").textContent = label("history_export", "导出历史…");
+    document.getElementById("history-import").textContent = label("history_import", "导入历史…");
+    document.getElementById("history-csv-export").textContent = label("history_export_csv", "导出 CSV…");
+    document.getElementById("history-csv-import").textContent = label("history_import_csv", "导入 CSV…");
+    document.getElementById("images-import").textContent = label("image_import", "导入图片…");
+    document.getElementById("backup-export").textContent = label("backup_export", "导出备份…");
+    document.getElementById("backup-restore").textContent = label("backup_restore", "恢复备份…");
+    document.getElementById("settings-export").textContent = label("settings_export", "导出设置…");
+    document.getElementById("settings-import").textContent = label("settings_import", "导入设置…");
+    document.getElementById("diagnostics-export").textContent = label("diagnostics_export", "导出诊断信息…");
+    legacyState.textContent = state.legacy && state.legacy.done
+      ? "已导入 0.x 历史记录。"
+      : "尚未导入 0.x 历史记录。";
+  }
+
+  parent.postMessage({ v: 1, type: "ready" }, "*");
+  call("data.state").then(applyState).catch(function (error) {
+    message(error instanceof Error ? error.message : "无法读取数据操作", "danger");
+  });
+})();
+</script>
+</body>
+</html>
