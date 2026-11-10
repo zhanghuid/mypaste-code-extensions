@@ -75,10 +75,10 @@ class ElementStub {
   click() { for (const listener of this.listeners.get("click") ?? []) listener({}); }
 }
 
-const IDS = ["summary", "status", "editor", "meta", "copy-json", "format",
-             "minify", "escape", "to-xml", "to-ts", "output", "output-title",
-             "output-meta", "output-text", "copy-output", "filter",
-             "filter-run", "doc-format-root", "doc-format-toggle",
+const IDS = ["summary", "status", "editor", "meta", "copy-json", "doc-close",
+             "format", "minify", "escape", "to-xml", "to-ts", "output",
+             "output-title", "output-meta", "output-text", "copy-output",
+             "filter", "filter-run", "doc-format-root", "doc-format-toggle",
              "doc-format-menu", "editor-gutter"];
 const PAGE = path.join(process.argv[2], "page.mjs");
 
@@ -87,10 +87,14 @@ function boot() {
   const elements = new Map(IDS.map((id) => [id, new ElementStub("stub")]));
   const posted = [];
   const listeners = [];
+  const keys = [];
   const parent = { postMessage: (message) => posted.push(message) };
   globalThis.parent = parent;
   globalThis.document = {
     documentElement: { dataset: {}, style: { setProperty() {} } },
+    addEventListener(type, listener) {
+      if (type === "keydown") keys.push(listener);
+    },
     querySelector(selector) {
       assert.ok(selector.startsWith("#"), `unexpected selector ${selector}`);
       return elements.get(selector.slice(1)) ?? null;
@@ -131,6 +135,11 @@ function boot() {
     },
     copyRequests() {
       return posted.filter((message) => message.type === "copy");
+    },
+    key(name) {
+      for (const listener of keys) {
+        listener({ key: name, preventDefault() {} });
+      }
     },
   };
 }
@@ -183,6 +192,21 @@ const FORMATTED =
   await until(() => page.copyRequests().length === 2, "second copy request");
   page.answer(page.copyRequests()[1], { ok: false, message: "宿主拒绝写入" });
   await until(() => page.text("status") === "复制失败：宿主拒绝写入", "refused copy");
+}
+
+// The page owns the card (D-1097): closing is its own control in the tab
+// strip, and Escape with no menu open does the same through the bridge.
+{
+  const page = await open();
+  page.deliver({ kind: "text", title: "示例", text: SOURCE });
+  await until(() => page.text("status") === "", "in-page formatting");
+  page.element("doc-close").click();
+  await until(() => page.posted.some((m) => m.type === "close"), "close request");
+  assert.deepEqual(page.posted.filter((m) => m.type === "close"),
+    [{ v: 1, type: "close" }]);
+  page.key("Escape");
+  await until(() => page.posted.filter((m) => m.type === "close").length === 2,
+    "escape close");
 }
 
 // Broken JSON: the parse position is explained, the entry's text is kept
@@ -377,7 +401,7 @@ class JSONSurfacePageTest(unittest.TestCase):
         manifest = json.loads(
             (PACKAGE / "mypaste.plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["manifestVersion"], 3)
-        self.assertEqual(manifest["version"], "3.1.0")
+        self.assertEqual(manifest["version"], "3.2.0")
         self.assertEqual(manifest["capabilities"], ["entity.read"])
         self.assertNotIn("runtime", manifest)
         self.assertNotIn("commands", manifest)

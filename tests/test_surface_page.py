@@ -123,6 +123,7 @@ const elements = {
   "#doc-status": new ElementStub("span"),
   "[data-action=copy]": new ElementStub("button"),
   "[data-action=save]": new ElementStub("button"),
+  "#doc-close": new ElementStub("button"),
 };
 const input = elements["#editor-input"];
 const languageToggle = elements["#doc-language-toggle"];
@@ -407,6 +408,12 @@ document.dispatch("keydown", { key: "Escape" });
 assert.deepEqual(last(), { v: 1, type: "close" });
 checks.push("Escape closes the dropdown first and the surface second");
 
+// The page owns the card (D-1097): its tab strip carries the only close
+// control, and it asks the host to close through the bridge.
+elements["#doc-close"].dispatch("click");
+assert.deepEqual(last(), { v: 1, type: "close" });
+checks.push("the page's own close button asks the host to close");
+
 console.log(JSON.stringify(checks));
 """
 
@@ -466,6 +473,7 @@ class SurfacePageTest(unittest.TestCase):
             "collapsing the selection disables selection actions without hiding them",
             "keyboard focus walks enabled rows and a disabled row cannot run",
             "Escape closes the dropdown first and the surface second",
+            "the page's own close button asks the host to close",
         ])
 
     def test_empty_capability_registry(self) -> None:

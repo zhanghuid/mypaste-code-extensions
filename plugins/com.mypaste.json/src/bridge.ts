@@ -27,6 +27,8 @@ export interface SurfaceBridge {
   /** Registers the one receiver for the delivery; it fires at most once. */
   onItem(listener: (delivery: SurfaceDelivery) => void): void;
   copy(text: string): Promise<BridgeResult>;
+  /** Asks the host to close the surface; the page owns the card (D-1097). */
+  close(): void;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -160,6 +162,9 @@ export function connectSurface(): SurfaceBridge {
     },
     copy(text) {
       return request({ type: "copy", text });
+    },
+    close() {
+      post({ v: 1, type: "close" });
     },
   };
 }

@@ -2,7 +2,7 @@
   "manifestVersion": 3,
   "id": "com.mypaste.json",
   "name": "JSON 编辑器",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "kind": "ui",
   "description": "在页面内用 Prettier 排版 JSON，结果可编辑：标签页标题、工具栏与状态栏和代码编辑一致，格式化动作收在一个下拉里；粘贴 URL 参数、XML 或 YAML 自动转成 JSON。可压缩、转义、转 XML、转 TypeScript，工具栏可按 JavaScript 表达式过滤。Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。",
   "capabilities": [
@@ -13,6 +13,7 @@
     "forms": [
       "text"
     ],
-    "role": "open"
+    "role": "open",
+    "chrome": "page"
   }
 }

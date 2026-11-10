@@ -8,6 +8,8 @@
  * 的骨架自己画整条 chrome：顶部一个可编辑的标题 tab，一条工具栏（「语言」与
  * 「格式化」两个下拉 + 复制与保存两个图标按钮），中间是行号槽与代码面，底部是
  * 状态栏（动作结果 + 行列/缩进）。语言选择与格式化列表各是一个下拉，不常驻。
+ * D-1097：卡片外框也归页面（manifest 的 surface.chrome: "page"），所以标签条
+ * 右端有页面自己的关闭按钮，经桥的 close 请求交回宿主。
  *
  * 「格式化」下拉按动作注册表画出。包内的内置操作按当前语言生成「文档」与
  * 「选区」两个动作（SQL 另有压缩），由页面切片、调用本包 runtime 的命令、再
@@ -78,6 +80,7 @@ const input = one<HTMLTextAreaElement>("#editor-input");
 const status = one<HTMLElement>("#doc-status");
 const copyButton = one<HTMLButtonElement>("[data-action=copy]");
 const saveButton = one<HTMLButtonElement>("[data-action=save]");
+const closeButton = one<HTMLButtonElement>("#doc-close");
 
 let originalText = "";
 let choice: CodeLanguage | "auto" | "text" = "auto";
@@ -619,6 +622,7 @@ input.addEventListener("keydown", (event) => {
 
 copyButton.addEventListener("click", () => void copy());
 saveButton.addEventListener("click", () => void save());
+closeButton.addEventListener("click", () => bridge.close());
 
 bridge.onItem((item) => {
   originalText = item.text;

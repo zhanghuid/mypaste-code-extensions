@@ -29,6 +29,7 @@ const status = one<HTMLParagraphElement>("#status");
 const editor = one<HTMLTextAreaElement>("#editor");
 const meta = one<HTMLParagraphElement>("#meta");
 const copyJson = one<HTMLButtonElement>("#copy-json");
+const closeDoc = one<HTMLButtonElement>("#doc-close");
 const formatRoot = one<HTMLElement>("#doc-format-root");
 const formatToggle = one<HTMLButtonElement>("#doc-format-toggle");
 const formatMenu = one<HTMLElement>("#doc-format-menu");
@@ -76,6 +77,19 @@ formatMenu.addEventListener("keydown", (event) => {
 window.addEventListener("click", (event) => {
   const target = event.target;
   if (target instanceof Node && !formatRoot.contains(target)) setMenuOpen(false);
+});
+// The host never sees a key pressed inside this frame, so Esc is the page's
+// own: with the format menu open it only closes the menu, otherwise it closes
+// the surface through the bridge (D-1097).
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  if (!formatMenu.hidden) {
+    setMenuOpen(false);
+    formatToggle.focus?.();
+    return;
+  }
+  bridge.close();
 });
 
 /** Line numbers beside the textarea, kept in step with its scroll. */
@@ -323,6 +337,9 @@ copyJson.addEventListener("click", () => {
 });
 copyOutput.addEventListener("click", () => {
   void copy(derived, outputTitle.textContent === "" ? "结果" : ` ${outputTitle.textContent}`);
+});
+closeDoc.addEventListener("click", () => {
+  bridge.close();
 });
 formatButton.addEventListener("click", () => {
   setMenuOpen(false);

@@ -16,6 +16,7 @@ instead of being skipped, so a new shape has to be taught here deliberately.
 from __future__ import annotations
 
 from html.parser import HTMLParser
+import json
 from pathlib import Path
 import re
 import unittest
@@ -146,24 +147,37 @@ class SurfaceDocumentTests(unittest.TestCase):
                     + "、".join(missing),
                 )
 
-    def test_closing_belongs_to_the_host_card(self) -> None:
-        # The studio card already draws a close control. A second one inside the
-        # document duplicated it and sat beside it in the same corner. Escape
-        # still reaches the bridge; that is not a second control. The two
-        # editing documents are the ones this contract covers today.
-        for plugin_id in ("com.mypaste.diff-view", "com.mypaste.code-edit"):
+    def test_page_chrome_surfaces_draw_their_own_close(self) -> None:
+        # The three editing surfaces own their whole card (D-1097): the
+        # manifest declares `chrome: "page"`, the host hides its header and
+        # footer, and each page carries the one close control in its tab strip,
+        # wired to the bridge's close request.
+        for plugin_id in (
+            "com.mypaste.diff-view",
+            "com.mypaste.code-edit",
+            "com.mypaste.json",
+        ):
             with self.subTest(package=plugin_id):
                 package = PLUGINS / plugin_id
+                manifest = json.loads(
+                    (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
+                self.assertEqual(manifest["surface"].get("chrome"), "page")
                 elements = elements_in(
                     (package / "preview.html").read_text(encoding="utf-8"))
+                self.assertTrue(
+                    matches("#doc-close", elements),
+                    f"{plugin_id} 的页面没有画自己的关闭按钮",
+                )
                 self.assertFalse(
                     matches("[data-action=close]", elements),
-                    f"{plugin_id} 画了第二个关闭按钮；关闭由宿主卡片负责",
+                    f"{plugin_id} 画了第二个关闭按钮；关闭由页面负责",
                 )
-                self.assertFalse(
-                    matches("#doc-close", elements),
-                    f"{plugin_id} 的文档里还留着 #doc-close",
+                script = (package / "src" / "main.ts").read_text(encoding="utf-8")
+                self.assertIn(
+                    "#doc-close", selectors_in(script),
+                    f"{plugin_id} 的脚本没有接上自己的关闭按钮",
                 )
+                self.assertIn("bridge.close()", script)
 
     def test_bridges_mirror_host_tokens_as_mp_variables(self) -> None:
         # The two documents that paint a full surface consume the tokens; the

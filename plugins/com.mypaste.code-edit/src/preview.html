@@ -129,6 +129,31 @@
     background: var(--accent);
   }
   #doc-dirty[hidden] { display: none; }
+  /*
+   * Closing belongs to the page now that it owns the card (D-1097): one square
+   * icon at the strip's far end, muted until it is pointed at, the same glyph
+   * the other two surfaces use.
+   */
+  .tab-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    width: 26px;
+    height: 26px;
+    margin-left: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+  }
+  .tab-close .icon { width: 14px; height: 14px; }
+  .tab-close:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+  .tab-close:focus-visible {
+    outline: none;
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
 
   /*
    * The toolbar: two labelled dropdowns on the left, icon actions on the
@@ -382,6 +407,12 @@
         autocomplete="off" aria-label="文档名称">
       <span id="doc-dirty" aria-label="未保存" hidden></span>
     </div>
+    <button type="button" class="tab-close" id="doc-close" title="关闭" aria-label="关闭">
+      <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor"
+          stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
   </div>
   <div class="toolbar">
     <div class="toolbar-left">

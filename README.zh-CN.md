@@ -117,7 +117,7 @@
 `com.mypaste.code-card`、`com.mypaste.code-edit`、`com.mypaste.diff-view`、
 `com.mypaste.image-edit`、`com.mypaste.json` 与 `com.mypaste.timestamp` 各自交付
 一个页面。code-edit 另外交付 runtime 与内部命令，用于自带格式化（3.3.0）；
-json（3.1.0）是纯表面包：Prettier 的 standalone 构建加 babel、estree 两个插件
+json（3.2.0）是纯表面包：Prettier 的 standalone 构建加 babel、estree 两个插件
 打进页面本身，格式化、转换与过滤都在文档内完成，不需要 Node，也没有 runtime。
 宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），构建出的页面在此之内。其余
 四个不运行进程：
@@ -126,7 +126,8 @@ json（3.1.0）是纯表面包：Prettier 的 standalone 构建加 babel、estre
 "surface": {
   "entry": "preview.html",
   "forms": ["text"],
-  "role": "open"
+  "role": "open",
+  "chrome": "page"
 }
 ```
 
@@ -135,6 +136,11 @@ json（3.1.0）是纯表面包：Prettier 的 standalone 构建加 babel、estre
 - `open`——「打开这个实体」的目标（卡片被双击、且它是默认表面时）。
   code-edit、diff-view、image-edit、json 与 timestamp 声明它。
 - `preview`——画进剪切坞的卡片预览。code-card 声明它。
+
+`chrome` 可选，且只有 `open` 表面能声明 `"page"`：卡片外框整块归页面，宿主
+隐藏自己的页眉与页脚，页面经桥的 `close` 请求关闭。省略时保留宿主卡片
+（`"host"`）。code-edit（3.7.0）、diff-view（3.2.0）与 json（3.2.0）声明
+`"page"`；image-edit 与 timestamp 保留宿主卡片。
 
 宿主把页面放进沙箱 frame，并中介这些操作：读取本次调用的条目、把文本或图片
 另存为一条新历史、复制文本或图片、关闭。别的什么都到不了它——没有宿主绑定、
@@ -197,9 +203,10 @@ title}` 与 `{v: 1, type: "copy", requestId, text}`）；宿主对文本再校�
 （长文本重绘本身变慢时进一步退避），编辑器从不等 diff。两个窗格是一个
 两列网格，行号各归各侧。
 
-关闭属于宿主容器。MyPaste 在表面 chrome 里画唯一一个关闭控件，页面不得再画
-第二个；页面仍可为 Escape 键请求桥关闭，但 Escape 先退出编辑模式（对比页面
-正是这样用的）。页面遵循宿主的视觉规则（宿主 D-1045）：不画圆角盒子。卡片、
+关闭属于画卡片的一方。默认的宿主外框下，MyPaste 画唯一一个关闭控件，页面不得
+再画第二个；三个页面外框的表面自己在标签条右端画一个方形关闭按钮，经桥请求
+关闭。Escape 同样请求桥关闭，但先退出页面自己的模式：打开的下拉，或对比页面的
+编辑模式。页面遵循宿主的视觉规则（宿主 D-1045）：不画圆角盒子。卡片、
 面板、按钮与工具片一律直角；只有圆就是形状本意的地方（如状态点）才允许圆。
 
 源码：
@@ -290,7 +297,7 @@ JSON 用 `encoding/json`，SQL 用共享的 `sqlkit`，CSS 用按花括号层级
 `replace` 到同一份源码，因此两个包编译并交付同一套分析、格式化与压缩实现，
 不会各自漂移。
 
-`com.mypaste.json` 是纯表面包（3.1.0）：归档里只有 manifest 与一份
+`com.mypaste.json` 是纯表面包（3.2.0）：归档里只有 manifest 与一份
 `preview.html`，不运行任何进程。页面是可编辑的 JSON 编辑器；Prettier 的
 standalone 构建连同 babel、estree 两个插件打进页面，美化不离开文档，也不需要
 Node。宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），构建出的页面在此

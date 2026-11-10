@@ -6,8 +6,9 @@
  * 单击任一侧的面板即进入该侧编辑，光标落在点击处：该侧换成整列一个
  * textarea，另一侧继续显示高亮行并随输入重算。点标题、行号或最后一行以下
  * 的空白同样算作这一侧的编辑，只把光标放到该侧末尾；编辑中单击另一侧即
- * 切换编辑对象。Esc 先退出编辑，再按一次才关闭文档。关闭本身由宿主卡片
- * 负责，文档不再画第二个关闭按钮。
+ * 切换编辑对象。Esc 先退出编辑，再按一次才关闭文档。页面自己画卡片的
+ * 外框（manifest 的 surface.chrome: "page"），所以关闭按钮在标签条右端，
+ * 经桥的 close 请求交回宿主。
  */
 
 import { connectSurface, type SurfaceDelivery } from "./bridge";
@@ -31,6 +32,7 @@ const stats = one<HTMLElement>("#diff-stats");
 const rows = one<HTMLElement>("#diff-rows");
 const scroller = one<HTMLElement>("#diff-scroller");
 const saveButton = one<HTMLButtonElement>("[data-action=save]");
+const closeButton = one<HTMLButtonElement>("#doc-close");
 const copyButton = one<HTMLButtonElement>("[data-action=copy]");
 const status = one<HTMLElement>("#diff-status");
 const emptyState = one<HTMLElement>("#diff-empty");
@@ -525,6 +527,7 @@ rows.addEventListener("dblclick", (event) => {
 });
 
 saveButton.addEventListener("click", () => void save());
+closeButton.addEventListener("click", () => bridge.close());
 copyButton.addEventListener("click", () => void copy());
 
 document.addEventListener("keydown", (event) => {

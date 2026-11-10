@@ -38,11 +38,11 @@
     {
       "id": "com.mypaste.json",
       "name": "JSON 编辑器",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "kind": "ui",
       "description": "在页面内用 Prettier 排版 JSON，结果可编辑：标签页标题、工具栏与状态栏和代码编辑一致，格式化动作收在一个下拉里；粘贴 URL 参数、XML 或 YAML 自动转成 JSON。可压缩、转义、转 XML、转 TypeScript，工具栏可按 JavaScript 表达式过滤。Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。",
-      "fileName": "com.mypaste.json-3.1.0.mypaste-plugin",
-      "sha256": "3213aa4015a75379672df6785a44882e2070a8d949bb8b8b6f02aba5ef99c80b",
+      "fileName": "com.mypaste.json-3.2.0.mypaste-plugin",
+      "sha256": "80cf62a80a466b81c30573f45b7aab6d1447d553266b9b0e10e5d378011e981e",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -126,11 +126,11 @@
     {
       "id": "com.mypaste.code-edit",
       "name": "代码编辑",
-      "version": "3.6.0",
+      "version": "3.7.0",
       "kind": "ui",
       "description": "在本地编辑代码或纯文本：行号、语法高亮、语言识别与格式化都随包提供，所有语言的格式化都在扩展内完成，不依赖本机安装 gofmt、rustfmt、Python、Prettier 或其它工具；本机有 Node 时，CSS、YAML、JavaScript 与 TypeScript 会改用包内 Prettier 或内置脚本，排版更完整，没有也照常可用；顶部是可编辑标题的标签页与工具栏，「语言」与「格式化」两个下拉按当前语言列出内置格式化与 SQL 压缩；高亮完全本地，不依赖其它能力包。可另存为新的历史条目或复制到剪贴板，原条目保持不变，不联网、不读取其它条目。",
-      "fileName": "com.mypaste.code-edit-3.6.0.mypaste-plugin",
-      "sha256": "333c465981dad9a5ece81a5d00d1fa01182832c8bba7dca6febd7476358b6fa2",
+      "fileName": "com.mypaste.code-edit-3.7.0.mypaste-plugin",
+      "sha256": "91220ec5f3dec21aa4e012403d58b0b702390106e5f09d91734c465e1d8a5555",
       "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -236,11 +236,11 @@
     {
       "id": "com.mypaste.diff-view",
       "name": "高亮对比",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "kind": "ui",
       "description": "把这条文本与屏幕上相邻的一条文本逐行对照：先对齐整行，再只标出真正改动的词。对比在本机完成，不联网；除本次条目外只读相邻的一条文本。",
-      "fileName": "com.mypaste.diff-view-3.1.0.mypaste-plugin",
-      "sha256": "2a9890f60e061a832ec372bcec36db2085e6489ad08d4934ac8450d5c0d2ca4a",
+      "fileName": "com.mypaste.diff-view-3.2.0.mypaste-plugin",
+      "sha256": "74ba197670986455332094dd8ff2849ef7ffed386911f840d4fda725e001477e",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     }
