@@ -94,6 +94,11 @@ OFFICIAL = {
     "com.mypaste.backup-scheduler": {
         "script": True,
     },
+    "com.mypaste.history-cleanup": {
+        # The host's palette projects these trigger commands by their
+        # history.cleanup capability and palette placement (host D-1094).
+        "script": True,
+    },
     "com.mypaste.ferry": {
         "module": "plugins/com.mypaste.ferry/src",
         "entrypoint": "ferry",

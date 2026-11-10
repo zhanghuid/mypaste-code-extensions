@@ -212,6 +212,7 @@ class PackageTests(unittest.TestCase):
                          "network.outbound", "storage.plugin",
                          "data.read", "asset.read", "backup.sync",
                          "settings.data", "backup.schedule",
+                         "history.cleanup",
                          "boards.control", "saved-searches.control"},
                         (manifest["id"], command["id"]),
                     )

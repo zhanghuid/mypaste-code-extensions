@@ -43,6 +43,9 @@ SERVICES = {
     "secret.read", "network.outbound", "storage.plugin", "companion.read",
     "backup.schedule", "boards.control", "saved-searches.control",
     "backup.sync", "data.read", "asset.read", "settings.data",
+    # First-party functional service (host D-1003): the host owns the
+    # confirmation, transaction and pinned protection.
+    "history.cleanup",
 }
 # Where the host shows a command. A command without one is a pure capability:
 # it is never shown, only reached through the registry by a surface.

@@ -278,13 +278,24 @@
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
+      "id": "com.mypaste.history-cleanup",
+      "name": "清空历史",
+      "version": "1.1.0",
+      "kind": "command",
+      "description": "清空普通历史，或连同固定项一起清空；选项、原生确认、保留规则与删除都由宿主完成。",
+      "fileName": "com.mypaste.history-cleanup-1.1.0.mypaste-plugin",
+      "sha256": "c69caf490e67b7a44a8d594872d86322fe10c2e1b5579197bb5aba8180a478b9",
+      "runtimeProtocol": 2,
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
+    },
+    {
       "id": "com.mypaste.boards",
       "name": "看板",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "kind": "command",
       "description": "新建、编辑、删除看板与成员关系并导出看板；数据、导出对话框与写入都由宿主完成。",
-      "fileName": "com.mypaste.boards-2.0.0.mypaste-plugin",
-      "sha256": "5c68743c98f02ca4c88596d9864917e30fd71d53b0865579002e5a6e249b2f92",
+      "fileName": "com.mypaste.boards-2.1.0.mypaste-plugin",
+      "sha256": "b80ff00809b3b73df21eedd913c4f476b5589e39cd0bb774f0fd5126b3d5081f",
       "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },

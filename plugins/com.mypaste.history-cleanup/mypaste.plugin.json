@@ -1,0 +1,42 @@
+{
+  "manifestVersion": 3,
+  "kind": "command",
+  "id": "com.mypaste.history-cleanup",
+  "name": "清空历史",
+  "version": "1.1.0",
+  "description": "清空普通历史，或连同固定项一起清空；选项、原生确认、保留规则与删除都由宿主完成。",
+  "capabilities": [
+    "history.cleanup"
+  ],
+  "runtime": {
+    "protocolVersion": 2,
+    "entrypoint": "run.sh",
+    "mode": "command"
+  },
+  "commands": [
+    {
+      "id": "history.clear",
+      "title": "清空普通历史",
+      "description": "删除未固定的历史条目，固定项保留",
+      "capabilities": [
+        "history.cleanup"
+      ],
+      "placement": [
+        "trigger",
+        "palette"
+      ]
+    },
+    {
+      "id": "history.clear.pinned",
+      "title": "清空全部历史",
+      "description": "连同固定项一起删除全部历史条目",
+      "capabilities": [
+        "history.cleanup"
+      ],
+      "placement": [
+        "trigger",
+        "palette"
+      ]
+    }
+  ]
+}
