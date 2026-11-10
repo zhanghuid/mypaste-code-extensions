@@ -112,9 +112,9 @@ class SurfaceDocumentTests(unittest.TestCase):
 
     def test_every_selector_a_surface_queries_exists_in_its_document(self) -> None:
         packages = self.surface_packages()
-        # Four documents ship today; fewer means discovery broke, not that the
+        # Six documents ship today; fewer means discovery broke, not that the
         # rule stopped applying.
-        self.assertGreaterEqual(len(packages), 4)
+        self.assertGreaterEqual(len(packages), 6)
         for package in packages:
             with self.subTest(package=package.name):
                 script = (package / "src" / "main.ts").read_text(encoding="utf-8")

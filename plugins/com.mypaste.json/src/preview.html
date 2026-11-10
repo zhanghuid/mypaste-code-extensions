@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JSON 美化</title>
+<style>
+  :root {
+    color-scheme: light;
+    /*
+     * The host's resolved tokens arrive as --mp-* (D-1043); every value below
+     * prefers them and keeps this document's own palette as the fallback for
+     * an older host. The host owns the theme, so there is no second copy.
+     */
+    --bg: var(--mp-surface-solid, #f6f2ea);
+    --panel: var(--mp-surface-raised, #fbf8f2);
+    --ink: var(--mp-ink, #241f19);
+    --muted: var(--mp-ink-soft, #776b5c);
+    --line: var(--mp-line, rgba(60, 45, 25, 0.16));
+    --accent: var(--mp-accent, #9a5427);
+    --accent-ink: var(--mp-accent-ink, #fff8ef);
+    --focus: var(--mp-accent, #9a5427);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    /* The code surface follows the resolved appearance (D-1046). */
+    --code-bg: var(--mp-code-surface, #ede5d8);
+    --code-ink: var(--mp-code-ink, #2f261e);
+    --tok-key: var(--mp-code-property, #8a4b1f);
+    --tok-string: var(--mp-code-string, #3f6b3a);
+    --tok-number: var(--mp-code-number, #2f5f8f);
+    --tok-keyword: var(--mp-code-keyword, #9a3f1d);
+    --tok-punct: var(--mp-code-ink, #6b5f52);
+  }
+  :root[data-scheme="dark"] {
+    color-scheme: dark;
+    --bg: var(--mp-surface-solid, #171412);
+    --panel: var(--mp-surface-raised, #201c18);
+    --ink: var(--mp-ink, #f0e6d9);
+    --muted: var(--mp-ink-soft, #9a8c7b);
+    --line: var(--mp-line, rgba(255, 236, 214, 0.14));
+    --accent: var(--mp-accent, #e2955f);
+    --accent-ink: var(--mp-accent-ink, #241a12);
+    --focus: var(--mp-accent, #e2955f);
+    --code-bg: var(--mp-code-surface, #171412);
+    --code-ink: var(--mp-code-ink, #f0e6d9);
+    --tok-key: var(--mp-code-property, #e2b07a);
+    --tok-string: var(--mp-code-string, #b9cf99);
+    --tok-number: var(--mp-code-number, #9fc2e8);
+    --tok-keyword: var(--mp-code-keyword, #f0aa72);
+    --tok-punct: var(--mp-code-ink, #b9ae9f);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { min-height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  .shell {
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 20px 18px 32px;
+  }
+
+  .head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .head-text { min-width: 0; }
+  h1 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .summary {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .action {
+    flex: none;
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+  }
+  .action:hover { border-color: var(--accent); color: var(--accent); }
+  .action:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .status {
+    min-height: 0;
+    margin: 0;
+    padding: 10px 0;
+    color: var(--muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  .status:empty { padding: 0; }
+
+  .result { margin-top: 2px; }
+  .meta {
+    margin: 0;
+    padding: 6px 0 8px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+  }
+
+  /*
+   * One code surface for the whole document: square corners, no shadow, and
+   * the host's code palette so a token that the highlighter leaves alone still
+   * sits on the ink the theme designed for it.
+   */
+  .code {
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    background: var(--code-bg);
+    color: var(--code-ink);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    tab-size: 2;
+    overflow: auto;
+    max-height: 62vh;
+  }
+  .code:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+  }
+  .code code {
+    display: block;
+    font: inherit;
+    white-space: pre;
+  }
+
+  .tok-key { color: var(--tok-key); }
+  .tok-string { color: var(--tok-string); }
+  .tok-number { color: var(--tok-number); }
+  .tok-keyword { color: var(--tok-keyword); }
+  .tok-punct { color: var(--tok-punct); }
+
+  .original h2 {
+    margin: 20px 0 6px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .source {
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 40vh;
+    overflow: auto;
+  }
+
+  .foot {
+    margin: 20px 0 0;
+    color: var(--muted);
+    font-size: 11.5px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="head">
+    <div class="head-text">
+      <h1>JSON 美化</h1>
+      <p class="summary" id="summary">等待条目…</p>
+    </div>
+    <button class="action" id="copy" type="button" hidden>复制</button>
+  </header>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+  <section class="result" id="result" hidden>
+    <p class="meta" id="meta"></p>
+    <pre class="code" id="code" tabindex="0" aria-label="格式化后的 JSON"><code id="code-body"></code></pre>
+  </section>
+  <section class="original" id="original" hidden>
+    <h2>原文</h2>
+    <pre class="source" id="original-text"></pre>
+  </section>
+  <footer class="foot">
+    由包内 Prettier 的 json 解析器在页面内排版；不联网、不启动进程，复制由宿主执行。
+  </footer>
+</main>
+<script>
+<!--bundle-->
+</script>
+</body>
+</html>

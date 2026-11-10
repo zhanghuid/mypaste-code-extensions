@@ -58,6 +58,17 @@
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
+      "id": "com.mypaste.json",
+      "name": "JSON 美化",
+      "version": "1.0.0",
+      "kind": "ui",
+      "description": "直接用包内 Prettier 解析当前文本条目的 JSON：按 Prettier 的 json 解析器排版并语法高亮，可一键复制格式化结果；内容无法解析时指出出错的行与列，并原样保留原文。页面内解析，不启动进程、不联网、不读取其它条目。",
+      "fileName": "com.mypaste.json-1.0.0.mypaste-plugin",
+      "sha256": "2bb69d0f74d3d7dcce34811d077150b94483b0f9db01f043c233e4985ec3e7a8",
+      "runtimeProtocol": 0,
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
+    },
+    {
       "id": "mypaste.format-javascript",
       "name": "JavaScript Format",
       "version": "3.0.2",

@@ -65,6 +65,11 @@ OFFICIAL = {
     "com.mypaste.image-edit": {
         "surface": True,
     },
+    "com.mypaste.json": {
+        # The page carries the pinned Prettier build (standalone plus the
+        # babel and estree plugins) inside its own script; no process runs.
+        "surface": True,
+    },
     "com.mypaste.timestamp": {
         "surface": True,
     },

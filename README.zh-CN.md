@@ -33,8 +33,8 @@
   Go runtime，由 `scripts/build-official.py` 构建。
 - **表面包**（`plugins/com.mypaste.code-card`、`plugins/com.mypaste.code-edit`、
   `plugins/com.mypaste.diff-view`、`plugins/com.mypaste.image-edit`、
-  `plugins/com.mypaste.timestamp`）——一个 HTML 页面，不运行进程；见下文
-  「表面包」。
+  `plugins/com.mypaste.json`、`plugins/com.mypaste.timestamp`）——一个 HTML
+  页面，不运行进程；见下文「表面包」。
 - **官方包**（`plugins/com.mypaste.*`）——上面的二进制与表面，由
   `scripts/build-official.py` 构建；见下文「官方包」。
   `scripts/official_packages.py` 是这份清单的唯一所有者；
@@ -113,9 +113,10 @@ token 数组，从不返回 HTML 或 CSS。两者都不能读历史、用文件�
 ## 表面包
 
 `com.mypaste.code-card`、`com.mypaste.code-edit`、`com.mypaste.diff-view`、
-`com.mypaste.image-edit` 与 `com.mypaste.timestamp` 各自交付一个页面。
-code-edit 另外交付 runtime 与内部命令，用于自带格式化（3.3.0）；其余四个
-不运行进程：
+`com.mypaste.image-edit`、`com.mypaste.json` 与 `com.mypaste.timestamp` 各自交付
+一个页面。code-edit 另外交付 runtime 与内部命令，用于自带格式化（3.3.0）；
+json 把固定版本的 Prettier（standalone 加 babel、estree 两个插件）打进页面；
+其余四个不运行进程：
 
 ```json
 "surface": {
@@ -128,7 +129,7 @@ code-edit 另外交付 runtime 与内部命令，用于自带格式化（3.3.0�
 `forms` 声明表面适配的实体，`role` 是以下之一：
 
 - `open`——「打开这个实体」的目标（卡片被双击、且它是默认表面时）。
-  code-edit、diff-view、image-edit 与 timestamp 声明它。
+  code-edit、diff-view、image-edit、json 与 timestamp 声明它。
 - `preview`——画进剪切坞的卡片预览。code-card 声明它。
 
 宿主把页面放进沙箱 frame，并中介这些操作：读取本次调用的条目、把文本或图片
@@ -210,6 +211,8 @@ plugins/com.mypaste.code-edit/   编辑器（自己的分词器、语言表与�
 plugins/com.mypaste.diff-view/   对比页面（自己的 diff 引擎与语言表；
                                  读取 companion）
 plugins/com.mypaste.image-edit/  图片编辑器（自己的画布工具）
+plugins/com.mypaste.json/        JSON 页面（Prettier 的 json 解析器与页面自己
+                                 的 tokenizer 一起打进页面；只复制，无 runtime）
 plugins/com.mypaste.timestamp/   时间戳页面（自己的解析与格式化；只复制，
                                  无 runtime）
 ```
