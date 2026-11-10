@@ -4,7 +4,31 @@
 <meta charset="utf-8">
 <meta name="color-scheme" content="light dark">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>JSON 美化</title>
+<title>JSON 编辑器</title>
+<!--
+  This page bundles Prettier 3.6.2 (standalone plus the babel and estree
+  plugins), https://github.com/prettier/prettier, under the MIT License:
+
+  Copyright © James Long and contributors
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+-->
 <style>
   :root {
     color-scheme: light;
@@ -25,11 +49,6 @@
     /* The code surface follows the resolved appearance (D-1046). */
     --code-bg: var(--mp-code-surface, #ede5d8);
     --code-ink: var(--mp-code-ink, #2f261e);
-    --tok-key: var(--mp-code-property, #8a4b1f);
-    --tok-string: var(--mp-code-string, #3f6b3a);
-    --tok-number: var(--mp-code-number, #2f5f8f);
-    --tok-keyword: var(--mp-code-keyword, #9a3f1d);
-    --tok-punct: var(--mp-code-ink, #6b5f52);
   }
   :root[data-scheme="dark"] {
     color-scheme: dark;
@@ -43,13 +62,9 @@
     --focus: var(--mp-accent, #e2955f);
     --code-bg: var(--mp-code-surface, #171412);
     --code-ink: var(--mp-code-ink, #f0e6d9);
-    --tok-key: var(--mp-code-property, #e2b07a);
-    --tok-string: var(--mp-code-string, #b9cf99);
-    --tok-number: var(--mp-code-number, #9fc2e8);
-    --tok-keyword: var(--mp-code-keyword, #f0aa72);
-    --tok-punct: var(--mp-code-ink, #b9ae9f);
   }
 
+  /* No rounded boxes anywhere (D-1045); the code surface keeps one material. */
   * { box-sizing: border-box; }
   html, body { min-height: 100%; }
   body {
@@ -64,7 +79,7 @@
 
   .shell {
     width: 100%;
-    max-width: 980px;
+    max-width: 1080px;
     margin: 0 auto;
     padding: 20px 18px 32px;
   }
@@ -91,20 +106,25 @@
     overflow-wrap: anywhere;
   }
 
+  /* Every action in a row is one size (D-1051). */
   .action {
     flex: none;
-    padding: 6px 12px;
+    height: 30px;
+    padding: 0 12px;
     border: 1px solid var(--line);
     background: transparent;
     color: var(--ink);
     font: inherit;
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
   }
-  .action:hover { border-color: var(--accent); color: var(--accent); }
+  .action:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   .action:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
+  .action:disabled { color: var(--muted); cursor: default; opacity: 0.6; }
 
   .status {
     min-height: 0;
@@ -116,10 +136,17 @@
   }
   .status:empty { padding: 0; }
 
-  .result { margin-top: 2px; }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
   .meta {
     margin: 0;
-    padding: 6px 0 8px;
+    padding: 8px 0 6px;
     color: var(--muted);
     font-family: var(--mono);
     font-size: 11.5px;
@@ -127,13 +154,14 @@
   }
 
   /*
-   * One code surface for the whole document: square corners, no shadow, and
-   * the host's code palette so a token that the highlighter leaves alone still
-   * sits on the ink the theme designed for it.
+   * One editable code surface: square corners, no shadow, and the host's code
+   * palette so the text sits on the surface the theme designed (D-1046).
    */
-  .code {
-    margin: 0;
-    padding: 12px 14px;
+  .editor {
+    display: block;
+    width: 100%;
+    min-height: 340px;
+    padding: 12px;
     border: 1px solid var(--line);
     background: var(--code-bg);
     color: var(--code-ink);
@@ -141,51 +169,69 @@
     font-size: 12.5px;
     line-height: 1.6;
     tab-size: 2;
-    overflow: auto;
-    max-height: 62vh;
-  }
-  .code:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: -2px;
-  }
-  .code code {
-    display: block;
-    font: inherit;
+    resize: vertical;
     white-space: pre;
+    overflow: auto;
   }
+  .editor:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-  .tok-key { color: var(--tok-key); }
-  .tok-string { color: var(--tok-string); }
-  .tok-number { color: var(--tok-number); }
-  .tok-keyword { color: var(--tok-keyword); }
-  .tok-punct { color: var(--tok-punct); }
-
-  .original h2 {
-    margin: 20px 0 6px;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
+  .output {
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
   }
-  .source {
+  .output-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .output-head h2 {
     margin: 0;
-    padding: 12px 14px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .output-head .meta { flex: 1; padding: 0; }
+  .output pre {
+    margin: 0;
+    max-height: 340px;
+    overflow: auto;
+    padding: 12px;
     border: 1px solid var(--line);
-    background: var(--panel);
+    background: var(--code-bg);
+    color: var(--code-ink);
     font-family: var(--mono);
     font-size: 12.5px;
     line-height: 1.6;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    max-height: 40vh;
-    overflow: auto;
+    white-space: pre;
+    tab-size: 2;
   }
 
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .filter {
+    flex: 1;
+    min-width: 0;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+  .filter:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
   .foot {
-    margin: 20px 0 0;
+    margin-top: 20px;
     color: var(--muted);
     font-size: 11.5px;
-    line-height: 1.6;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
   }
 </style>
 </head>
@@ -193,22 +239,41 @@
 <main class="shell">
   <header class="head">
     <div class="head-text">
-      <h1>JSON 美化</h1>
+      <h1>JSON 编辑器</h1>
       <p class="summary" id="summary">等待条目…</p>
     </div>
-    <button class="action" id="copy" type="button" hidden>复制</button>
+    <button class="action" id="copy-json" type="button">复制 JSON</button>
   </header>
   <p class="status" id="status" role="status" aria-live="polite"></p>
-  <section class="result" id="result" hidden>
+  <div class="toolbar" role="toolbar" aria-label="JSON 动作">
+    <button class="action" id="format" type="button">美化</button>
+    <button class="action" id="minify" type="button">压缩</button>
+    <button class="action" id="escape" type="button">转义</button>
+    <button class="action" id="to-xml" type="button">→ XML</button>
+    <button class="action" id="to-ts" type="button">→ TypeScript</button>
+  </div>
+  <section>
     <p class="meta" id="meta"></p>
-    <pre class="code" id="code" tabindex="0" aria-label="格式化后的 JSON"><code id="code-body"></code></pre>
+    <textarea class="editor" id="editor" spellcheck="false" autocomplete="off"
+      autocapitalize="off" wrap="off" aria-label="可编辑的 JSON"></textarea>
   </section>
-  <section class="original" id="original" hidden>
-    <h2>原文</h2>
-    <pre class="source" id="original-text"></pre>
+  <section class="output" id="output" hidden>
+    <div class="output-head">
+      <h2 id="output-title">结果</h2>
+      <p class="meta" id="output-meta"></p>
+      <button class="action" id="copy-output" type="button">复制结果</button>
+    </div>
+    <pre id="output-text" tabindex="0" aria-label="转换结果"></pre>
+  </section>
+  <section class="filter-bar">
+    <input class="filter" id="filter" type="text" spellcheck="false"
+      placeholder="data.users[0].name 或 .filter(x =&gt; x.age &gt; 18)"
+      aria-label="JavaScript 表达式过滤">
+    <button class="action" id="filter-run" type="button">过滤</button>
   </section>
   <footer class="foot">
-    由包内 Prettier 的 json 解析器在扩展运行时里排版，需要本机安装 Node；不联网、不读取其它条目，复制由宿主执行。
+    Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。
+    过滤框只对当前 JSON 求值，不改动原数据。
   </footer>
 </main>
 <script>

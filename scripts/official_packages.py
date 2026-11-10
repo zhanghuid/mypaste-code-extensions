@@ -66,24 +66,11 @@ OFFICIAL = {
         "surface": True,
     },
     "com.mypaste.json": {
-        # A UI package whose page stays small: the pinned Prettier build
-        # (standalone plus babel's json parser and the estree printer) is far
-        # larger than the host's 256 KiB surface-document ceiling, so it ships
-        # beside the runtime's engine wrapper instead of inside the page. The
-        # runtime hands the entry text to Node and Prettier does the parsing.
+        # A surface-only package: Prettier's standalone build and the babel /
+        # estree plugins are bundled into the page itself, so no process runs
+        # and nothing else ships. The host reads surface documents up to 1 MiB
+        # (D-1091), which the built page fits inside.
         "surface": True,
-        "module": "plugins/com.mypaste.json/src",
-        "entrypoint": "json",
-        "package": "./cmd/mypaste-json",
-        "assets": {
-            "src/engines/prettier.mjs": "engines/prettier.mjs",
-        },
-        "prettier": {
-            "destination": "engines/prettier",
-            "plugins": ["babel", "estree"],
-        },
-        "goos": "darwin",
-        "goarch": "arm64",
     },
     "com.mypaste.timestamp": {
         "surface": True,

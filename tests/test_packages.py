@@ -672,52 +672,36 @@ class PackageTests(unittest.TestCase):
             for item in bundle.infolist():
                 self.assertLessEqual(item.file_size, 16 * 1024 * 1024, item.filename)
 
-    def test_json_package_ships_its_page_runtime_and_prettier(self) -> None:
-        # The page cannot carry the engine: the host refuses a surface entry
-        # over its fixed 256 KiB text ceiling (D-1075). Prettier therefore
-        # ships beside the runtime, and only this package's surface can reach
-        # the one internal command.
+    def test_json_package_is_one_page_with_prettier_inside(self) -> None:
+        # The page carries its own engine: Prettier's standalone build and the
+        # babel / estree plugins are bundled into preview.html, so nothing runs
+        # beside it. The host reads surface documents up to 1 MiB (D-1091 in
+        # the host repository); the page must fit that ceiling or the panel
+        # never opens.
         package = PLUGINS / "com.mypaste.json"
         manifest = json.loads(
             (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["kind"], "ui")
-        self.assertEqual(manifest["runtime"], {
-            "protocolVersion": 2, "mode": "command", "entrypoint": "json",
-        })
+        self.assertNotIn("runtime", manifest)
+        self.assertNotIn("commands", manifest)
+        self.assertEqual(manifest["capabilities"], ["entity.read"])
         self.assertEqual(manifest["surface"]["role"], "open")
-        self.assertEqual(
-            [command["id"] for command in manifest["commands"]
-             if command.get("placement")], [])
-        internal = [command for command in manifest["commands"]
-                    if not command.get("placement")]
-        self.assertEqual([command["id"] for command in internal],
-                         ["format.document"])
-        for command in internal:
-            self.assertEqual(command["forms"], ["text"])
-            self.assertEqual(command["output"], ["text"])
-            self.assertEqual(command["capabilities"], ["entity.read"])
+        self.assertEqual(manifest["surface"]["entry"], "preview.html")
+        self.assertEqual(manifest["surface"]["forms"], ["text"])
 
         archive = DIST / f"{package.name}-{manifest['version']}.mypaste-plugin"
-        version = vendor_prettier.pinned_version(ROOT)
         with zipfile.ZipFile(archive) as bundle:
             names = set(bundle.namelist())
-            self.assertIn("mypaste.plugin.json", names)
-            self.assertIn("json", names)
-            self.assertIn("engines/prettier.mjs", names)
-            for name in ("standalone.mjs", "plugins/babel.mjs",
-                         "plugins/estree.mjs", "LICENSE", "VERSION"):
-                self.assertIn(f"engines/prettier/{name}", names)
-            self.assertEqual(
-                bundle.read("engines/prettier/VERSION").decode("utf-8"),
-                f"prettier {version}\nhttps://github.com/prettier/prettier\n",
-            )
-            # The pinned build's other parsers stay out of this archive.
-            self.assertNotIn("engines/prettier/plugins/postcss.mjs", names)
-            self.assertNotIn("engines/prettier/plugins/yaml.mjs", names)
+            # A surface-only archive: the manifest and its one page, nothing
+            # else. No runtime binary and no engine directory beside it.
+            self.assertEqual(names, {"mypaste.plugin.json", "preview.html"})
+            self.assertFalse(any(name.startswith("engines/") for name in names))
+            self.assertFalse(any(name.startswith("cmd/") for name in names))
             page = bundle.read("preview.html")
-        # The page is the document the host serves into the frame; it must fit
-        # the host's ceiling or the panel never opens.
-        self.assertLessEqual(len(page), 256 * 1024)
+        self.assertLessEqual(len(page), 1024 * 1024)
+        # Prettier really is inside the page, not merely referenced.
+        self.assertIn(b"prettier", page.lower())
+        self.assertIn("JSON 编辑器".encode("utf-8"), page)
 
     def extracted_code_edit(self) -> tuple[Path, tempfile.TemporaryDirectory]:
         # The archive's own binary, unpacked next to its page and engines.

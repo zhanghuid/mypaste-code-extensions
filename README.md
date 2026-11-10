@@ -38,8 +38,9 @@ This repository holds:
 - **Surface packages** (`plugins/com.mypaste.code-card`,
   `plugins/com.mypaste.code-edit`, `plugins/com.mypaste.diff-view`,
   `plugins/com.mypaste.image-edit`, `plugins/com.mypaste.json`,
-  `plugins/com.mypaste.timestamp`) — a page of their own; code-edit and json
-  also ship a runtime with internal commands; see "Surface packages" below.
+  `plugins/com.mypaste.timestamp`) — a page of their own; code-edit also
+  ships a runtime with internal commands, json bundles its engine into the
+  page; see "Surface packages" below.
 - **Official packages** (`plugins/com.mypaste.*`) — the binaries and surfaces
   above, built by `scripts/build-official.py`; see "Official packages" below.
   `scripts/official_packages.py` is the single owner of the list;
@@ -129,11 +130,11 @@ declaration fails the build instead of shipping.
 `com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view`,
 `com.mypaste.image-edit`, `com.mypaste.json` and `com.mypaste.timestamp` ship a
 page of their own. Code-edit additionally ships a runtime and internal commands
-for its built-in formatting (3.3.0); json (2.0.0) ships a runtime and one
-internal command too, because the host refuses a surface entry over its fixed
-256 KiB text ceiling while Prettier's standalone build plus the babel and
-estree plugins is far larger: the engine ships beside the runtime, which calls
-it through Node. The other four run no process:
+for its built-in formatting (3.3.0). Json (3.0.0) is surface-only: Prettier's
+standalone build plus the babel and estree plugins are bundled into the page,
+so it formats, converts and filters in the document with no Node and no
+runtime. The host reads a surface document up to 1 MiB (D-1091 in the host
+repository), which the built page fits. The other four run no process:
 
 ```json
 "surface": {
@@ -252,9 +253,10 @@ plugins/com.mypaste.code-edit/   the editor (its own tokenizer, language
 plugins/com.mypaste.diff-view/   the comparison page (its own diff engine and
                                  language table; reads a companion)
 plugins/com.mypaste.image-edit/  the image editor (canvas tools of its own)
-plugins/com.mypaste.json/        the JSON page (its own tokenizer; cmd/ is its
-                                 runtime, engines/ the Prettier build and
-                                 wrapper it runs through Node; copy-only)
+plugins/com.mypaste.json/        the JSON editor page (Prettier bundled into
+                                 the document, its own XML / YAML / TypeScript
+                                 converters and expression evaluator; no
+                                 runtime, copy-only)
 plugins/com.mypaste.timestamp/   the timestamp page (its own parser and
                                  formatters; copy-only, no runtime)
 ```
@@ -328,15 +330,27 @@ a Go module that both `com.mypaste.sql` and the code-edit runtime `replace` to
 the same source tree, so the two packages compile and ship the same analyzer,
 formatter and compressor rather than drifting apart.
 
-`com.mypaste.json` is a combined package too. Its page is a small document that
-asks its own runtime for the formatted text: the host refuses a surface entry
-over its fixed 256 KiB text ceiling (D-1075 in the host repository), while the
-pinned Prettier build — standalone plus the babel and estree parsers — is far
-larger. The runtime speaks the same newline-JSON protocol, hands the entry text
-to `engines/prettier.mjs`, and returns Prettier's output; the page highlights
-it and the host performs the copy. It is the one official package that needs
-Node at run time: without Node the page keeps the original text and says why,
-because a second JSON formatter would drift from Prettier's layout.
+`com.mypaste.json` is surface-only (3.0.0): the archive is its manifest and one
+`preview.html`, and no process runs. The page is an editable JSON editor;
+Prettier's standalone build with the babel and estree plugins is bundled into
+it, so beautifying never leaves the document and needs no Node. The host reads
+surface documents up to 1 MiB (D-1091 in the host repository), which the built
+page fits. Pasting URL parameters, XML or YAML converts to JSON in the page;
+minify, escape, JSON→XML and JSON→TypeScript write a derived result panel, and
+a bottom filter bar evaluates a small JavaScript subset (member access,
+indexing, array methods, comparisons, a leading-dot shorthand) against the
+current JSON. The page holds no database or file access and makes no network
+request; copying is a `copy` bridge message the host performs.
+
+Supply chain: Prettier 3.6.2 is the only third-party library in this package
+(it was already pinned and vendored for code-edit; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). The XML reader/writer, the
+YAML subset reader, the TypeScript interface generator and the expression
+evaluator are written here rather than pulled in, because each is small, the
+page cannot use `eval` under its CSP, and a parser library would add a larger
+review surface than the code it replaces. The evaluator has its own tokenizer
+and parser, allows only named array and string methods, refuses
+`__proto__`/`constructor`-style keys, and stops after a fixed step budget.
 
 Build the official packages locally:
 

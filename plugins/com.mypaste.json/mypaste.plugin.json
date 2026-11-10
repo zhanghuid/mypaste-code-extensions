@@ -1,39 +1,18 @@
 {
   "manifestVersion": 3,
   "id": "com.mypaste.json",
-  "name": "JSON 美化",
-  "version": "2.0.0",
+  "name": "JSON 编辑器",
+  "version": "3.0.0",
   "kind": "ui",
-  "description": "用包内自带的 Prettier 排版当前文本条目：按 Prettier 的 json 解析器得出规范布局，面板里带语法高亮，可一键复制；内容无法解析时指出出错的行与列，并原样保留原文。解析在扩展自己的运行时里完成，由它调用随包的 Prettier，因此需要本机已安装 Node；不联网、不读取其它条目。",
+  "description": "在页面内用 Prettier 排版 JSON，并把结果做成可编辑的编辑器：粘贴 URL 参数、XML 或 YAML 自动转成 JSON，可压缩、转义、转 XML、转 TypeScript，底部 JavaScript 表达式过滤。Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。",
   "capabilities": [
     "entity.read"
   ],
-  "runtime": {
-    "protocolVersion": 2,
-    "mode": "command",
-    "entrypoint": "json"
-  },
   "surface": {
     "entry": "preview.html",
     "forms": [
       "text"
     ],
     "role": "open"
-  },
-  "commands": [
-    {
-      "id": "format.document",
-      "title": "格式化 JSON",
-      "description": "用包内 Prettier 的 json 解析器排版这条文本；内容无法解析时原文不变。",
-      "forms": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ],
-      "capabilities": [
-        "entity.read"
-      ]
-    }
-  ]
+  }
 }

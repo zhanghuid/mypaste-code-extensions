@@ -1,10 +1,11 @@
 # Third-party notices
 
 This repository vendors no third-party source in its own tree. The one
-third-party runtime an extension archive carries is Prettier, copied at package
-time by `scripts/vendor_prettier.py` from the version pinned in `package.json`
-and `bun.lock` into two packages: `com.mypaste.code-edit` (the postcss and yaml
-parsers) and `com.mypaste.json` (the babel and estree parsers).
+third-party runtime an extension archive carries is Prettier, from the version
+pinned in `package.json` and `bun.lock`: `scripts/vendor_prettier.py` copies it
+into `com.mypaste.code-edit`'s runtime as `engines/prettier/`, and
+`scripts/build-surfaces.mjs` bundles its standalone build with the babel and
+estree plugins into `com.mypaste.json`'s page (`preview.html`).
 
 ## Prettier
 
@@ -13,15 +14,17 @@ parsers) and `com.mypaste.json` (the babel and estree parsers).
 - License: MIT
 - Files copied: `standalone.mjs`, `LICENSE`, and the parser plugins each
   package names — `plugins/postcss.mjs`, `plugins/yaml.mjs` for code-edit;
-  `plugins/babel.mjs`, `plugins/estree.mjs` for json. Each archive also carries
-  a generated `VERSION` file naming the version and project address.
+  `plugins/babel.mjs`, `plugins/estree.mjs` for json. Code-edit's archive also
+  carries a generated `VERSION` file naming the version and project address.
 - Purpose: CSS and YAML formatting inside code-edit's private runtime, and JSON
-  formatting inside the JSON package's runtime, so those languages do not
-  depend on the formatter being installed on the user's machine (Node is still
-  needed to run the vendored build for code-edit and json).
+  formatting inside the JSON package's page. Both avoid depending on a
+  formatter installed on the user's machine; code-edit still needs Node to run
+  its vendored build, while json's build is compiled into the page and runs
+  with no Node at all.
 
-The MIT license text travels with the files as `engines/prettier/LICENSE`; the
-same text is reproduced here.
+The MIT license text travels with code-edit as `engines/prettier/LICENSE`, and
+is embedded in the head of json's `preview.html` as an HTML comment because the
+page is the whole archive. The same text is reproduced here.
 
 ```text
 Copyright © James Long and contributors

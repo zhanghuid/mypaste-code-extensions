@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const plugins = path.join(root, "plugins");
 const PLACEHOLDER = "<!--bundle-->";
-/** The same ceiling the host applies to an extension panel's text. */
+/** The host's surface-document ceiling (D-1091); a larger page is refused. */
 const MAX_DOCUMENT_BYTES = 1 << 20;
 
 function fail(message) {

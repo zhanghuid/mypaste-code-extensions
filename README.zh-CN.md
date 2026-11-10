@@ -34,7 +34,7 @@
 - **表面包**（`plugins/com.mypaste.code-card`、`plugins/com.mypaste.code-edit`、
   `plugins/com.mypaste.diff-view`、`plugins/com.mypaste.image-edit`、
   `plugins/com.mypaste.json`、`plugins/com.mypaste.timestamp`）——各自一个页面；
-  code-edit 与 json 另带 runtime 与内部命令；见下文「表面包」。
+  code-edit 另带 runtime 与内部命令；json 把引擎打进页面；见下文「表面包」。
 - **官方包**（`plugins/com.mypaste.*`）——上面的二进制与表面，由
   `scripts/build-official.py` 构建；见下文「官方包」。
   `scripts/official_packages.py` 是这份清单的唯一所有者；
@@ -115,10 +115,10 @@ token 数组，从不返回 HTML 或 CSS。两者都不能读历史、用文件�
 `com.mypaste.code-card`、`com.mypaste.code-edit`、`com.mypaste.diff-view`、
 `com.mypaste.image-edit`、`com.mypaste.json` 与 `com.mypaste.timestamp` 各自交付
 一个页面。code-edit 另外交付 runtime 与内部命令，用于自带格式化（3.3.0）；
-json（2.0.0）同样交付 runtime 与一个内部命令：宿主会拒绝超过固定 256 KiB
-文字上限的表面入口，而 Prettier 的 standalone 加 babel、estree 两个插件远大于
-这个上限，所以引擎随 runtime 一起交付，由它在 Node 里调用；其余四个不运行
-进程：
+json（3.0.0）是纯表面包：Prettier 的 standalone 构建加 babel、estree 两个插件
+打进页面本身，格式化、转换与过滤都在文档内完成，不需要 Node，也没有 runtime。
+宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），构建出的页面在此之内。其余
+四个不运行进程：
 
 ```json
 "surface": {
@@ -213,9 +213,9 @@ plugins/com.mypaste.code-edit/   编辑器（自己的分词器、语言表与�
 plugins/com.mypaste.diff-view/   对比页面（自己的 diff 引擎与语言表；
                                  读取 companion）
 plugins/com.mypaste.image-edit/  图片编辑器（自己的画布工具）
-plugins/com.mypaste.json/        JSON 页面（页面自己的分词器；cmd/ 是它的
-                                 runtime，engines/ 是随包的 Prettier 与经 Node
-                                 调用的包装脚本；只复制）
+plugins/com.mypaste.json/        JSON 编辑器页面（Prettier 打进文档，另有自己
+                                 的 XML / YAML / TypeScript 转换与表达式求值；
+                                 没有 runtime，只复制）
 plugins/com.mypaste.timestamp/   时间戳页面（自己的解析与格式化；只复制，
                                  无 runtime）
 ```
@@ -277,13 +277,21 @@ JSON 用 `encoding/json`，SQL 用共享的 `sqlkit`，CSS 用按花括号层级
 `replace` 到同一份源码，因此两个包编译并交付同一套分析、格式化与压缩实现，
 不会各自漂移。
 
-`com.mypaste.json` 也是组合型官方包。它的页面是一份很小的文档，向自己的
-runtime 索取格式化结果：宿主会拒绝超过固定 256 KiB 文字上限的表面入口
-（宿主 D-1075），而固定版本的 Prettier（standalone 加 babel、estree 两个
-解析器）远大于该上限。runtime 使用同样的逐行 JSON 协议，把条目文本交给
-`engines/prettier.mjs`，再返回 Prettier 的输出；页面负责高亮，复制由宿主
-执行。它是唯一在运行时需要 Node 的官方包：没有 Node 时页面保留原文并
-说明原因，因为第二个 JSON 格式化器只会与 Prettier 的排版逐渐漂移。
+`com.mypaste.json` 是纯表面包（3.0.0）：归档里只有 manifest 与一份
+`preview.html`，不运行任何进程。页面是可编辑的 JSON 编辑器；Prettier 的
+standalone 构建连同 babel、estree 两个插件打进页面，美化不离开文档，也不需要
+Node。宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），构建出的页面在此
+之内。粘贴 URL 参数、XML 或 YAML 时由页面转换成 JSON；压缩、转义、JSON→XML
+与 JSON→TypeScript 写入独立的结果面板；底部过滤框对当前 JSON 求值一个很小的
+JavaScript 子集（成员访问、下标、数组方法、比较，以及以点开头的简写）。页面
+没有数据库或文件访问，也不发起网络请求；复制是 `copy` 桥消息，由宿主执行。
+
+供应链：Prettier 3.6.2 是这个包里唯一的第三方库（它早已为 code-edit 固定并随
+包分发，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）。XML 读写、YAML
+子集读取、TypeScript interface 生成与表达式求值器都写在本仓库：它们各自很小，
+页面在 CSP 下不能用 `eval`，引入解析库反而比被替代的代码带来更大的审查面。
+求值器有自己的词法分析与语法分析，只放行具名的数组与字符串方法，拒绝
+`__proto__`/`constructor` 一类键，并在固定步数后停止。
 
 本地构建官方包：
 

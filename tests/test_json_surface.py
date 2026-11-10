@@ -1,22 +1,21 @@
-"""The JSON surface page and its Prettier engine (protocol v3).
+"""The JSON editor surface page (protocol v3).
 
-The page is bundled with the same esbuild the surface build uses and runs under
-Node against a minimal DOM stub, so the test sees exactly what the page paints
+Everything the page needs is inside the document: Prettier's standalone build
+plus the babel and estree plugins are bundled by the same esbuild the surface
+build uses, so the test can bundle `src/main.ts` into a module and run it under
+Node against a minimal DOM stub. That exercises exactly what the page paints
 and what it asks the host for:
 
-- the entry's text is handed to this package's own runtime command, and the
-  painted text is Prettier's own output, token for token;
-- the token spans mark member names, strings, numbers and keywords apart;
-- the copy button posts the formatted text and reports the host's answer,
-  including a refused write;
-- a refusal from the runtime (a parse error, a missing Node) is shown with its
-  position and keeps the entry's text verbatim; it never shows a copy action
-  for text that was not formatted;
-- an empty entry is explained instead of parsed, and the runtime is not called.
-
-The engine test runs the packaged adapter against the pinned Prettier build,
-because the page can only stay under the host's 256 KiB document ceiling when
-Prettier runs in the runtime instead of in the document.
+- an entry is formatted by the in-page Prettier, the editor stays editable,
+  and the result is Prettier's own output, token for token;
+- pasted URL parameters, XML and YAML are recognized and converted to JSON,
+  unrecognized or broken input is inserted verbatim with an explanation;
+- minify, escape, XML and TypeScript actions derive their document without
+  touching the editor, and copying any of them is a host request;
+- the filter bar evaluates a small JavaScript subset against the current JSON,
+  reports failures, and never mutates or copies over the original;
+- the built page fits the host's 1 MiB surface-document ceiling (D-1091) and
+  the manifest ships no runtime at all.
 """
 
 from __future__ import annotations
@@ -24,7 +23,6 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -34,12 +32,9 @@ PACKAGE = ROOT / "plugins" / "com.mypaste.json"
 ESBUILD = ROOT / "node_modules" / ".bin" / "esbuild"
 NODE = shutil.which("node")
 
-sys.path.insert(0, str(ROOT / "scripts"))
-import vendor_prettier  # noqa: E402
-
-# The host reads a surface document with its fixed text ceiling (D-1075 in the
-# host repository); a larger page is refused before it is served.
-HOST_SURFACE_BYTES = 256 * 1024
+# The host reads a surface document with its own fixed ceiling (D-1091);
+# 256 KiB still bounds every plugin text that crosses the bridge.
+HOST_SURFACE_BYTES = 1024 * 1024
 
 RUNNER = r"""
 import assert from "node:assert/strict";
@@ -53,6 +48,10 @@ class ElementStub {
     this.listeners = new Map();
     this.text = "";
     this.hidden = false;
+    this.disabled = false;
+    this.value = "";
+    this.selectionStart = 0;
+    this.selectionEnd = 0;
     this.className = "";
     this.dataset = {};
     this.attrs = {};
@@ -68,12 +67,17 @@ class ElementStub {
     list.push(listener);
     this.listeners.set(type, list);
   }
+  dispatch(type, event = {}) {
+    for (const listener of this.listeners.get(type) ?? []) listener(event);
+  }
   setAttribute(name, value) { this.attrs[name] = value; }
   click() { for (const listener of this.listeners.get("click") ?? []) listener({}); }
 }
 
-const IDS = ["summary", "status", "result", "meta", "code-body", "copy",
-             "original", "original-text"];
+const IDS = ["summary", "status", "editor", "meta", "copy-json", "format",
+             "minify", "escape", "to-xml", "to-ts", "output", "output-title",
+             "output-meta", "output-text", "copy-output", "filter",
+             "filter-run"];
 const PAGE = path.join(process.argv[2], "page.mjs");
 
 /** One fresh page: a surface document is delivered exactly one item. */
@@ -102,13 +106,19 @@ function boot() {
     elements,
     posted,
     text: (id) => elements.get(id).textContent,
+    element: (id) => elements.get(id),
     deliver(item) {
       for (const listener of listeners) {
         listener({ source: parent, data: { v: 1, type: "item", item } });
       }
     },
-    invoke() {
-      return posted.find((message) => message.type === "invoke");
+    paste(text) {
+      let prevented = false;
+      elements.get("editor").dispatch("paste", {
+        clipboardData: { getData: () => text },
+        preventDefault() { prevented = true; },
+      });
+      assert.equal(prevented, true, "the page owns the paste");
     },
     answer(request, payload) {
       for (const listener of listeners) {
@@ -116,6 +126,9 @@ function boot() {
           v: 1, type: "result", requestId: request.requestId, ...payload,
         } });
       }
+    },
+    copyRequests() {
+      return posted.filter((message) => message.type === "copy");
     },
   };
 }
@@ -132,203 +145,243 @@ async function open() {
 async function until(check, what) {
   const start = Date.now();
   while (!check()) {
-    if (Date.now() - start > 10000) throw new Error(`timeout waiting for ${what}`);
+    if (Date.now() - start > 20000) throw new Error(`timeout waiting for ${what}`);
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 }
 
-// A valid document: the page asks its own runtime to format, paints the
-// answer, and copies exactly what it painted through the host.
+function json(value) {
+  return JSON.parse(value);
+}
+
+const SOURCE = '{"name":"MyPaste","count":2,"ok":true,"items":[1,null,"x"]}';
+const FORMATTED =
+  '{ "name": "MyPaste", "count": 2, "ok": true, "items": [1, null, "x"] }\n';
+
+// Delivery: Prettier runs inside the page, the editor holds its output, and
+// the copy button asks the host instead of touching a clipboard.
 {
   const page = await open();
-  const source = '{"name":"MyPaste","count":2,"ok":true,"items":[1,null,"x"]}';
-  const expected = '{ "name": "MyPaste", "count": 2, "ok": true, "items": [1, null, "x"] }\n';
-  page.deliver({ kind: "text", title: "示例", text: source });
-  await until(() => page.invoke() !== undefined, "runtime request");
-  const request = page.invoke();
-  assert.equal(request.v, 1);
-  assert.equal(request.pluginId, "com.mypaste.json");
-  assert.equal(request.commandId, "format.document");
-  assert.equal(request.text, source);
-  assert.equal(page.text("code-body"), "");
-  assert.equal(page.text("status"), "正在用包内 Prettier 解析…");
-
-  page.answer(request, { ok: true, output: expected });
-  await until(() => page.text("code-body") !== "", "formatted document");
-  assert.equal(page.text("code-body"), expected);
+  page.deliver({ kind: "text", title: "示例", text: SOURCE });
+  await until(() => page.text("status") === "", "in-page formatting");
   assert.equal(page.text("summary"), "示例");
-  assert.equal(page.text("status"), "");
-  assert.equal(page.elements.get("result").hidden, false);
-  assert.equal(page.elements.get("copy").hidden, false);
+  assert.equal(page.element("editor").value, FORMATTED);
   assert.equal(page.text("meta"),
-    `1 行 · ${new TextEncoder().encode(expected).length} 字节`);
+    `1 行 · ${new TextEncoder().encode(FORMATTED).length} 字节`);
+  assert.equal(page.element("copy-json").disabled, false);
 
-  const painted = page.elements.get("code-body").children;
-  const classes = painted.filter((node) => node.className).map((node) => node.className);
-  for (const kind of ["tok-key", "tok-string", "tok-number", "tok-keyword", "tok-punct"]) {
-    assert.ok(classes.includes(kind), `${kind} token painted`);
-  }
-  const keys = painted.filter((node) => node.className === "tok-key")
-    .map((node) => node.textContent);
-  assert.deepEqual(keys, ['"name"', '"count"', '"ok"', '"items"']);
-
-  page.elements.get("copy").click();
-  await until(() => page.posted.some((message) => message.type === "copy"),
-    "copy request");
-  const copyRequest = page.posted.find((message) => message.type === "copy");
-  assert.equal(copyRequest.text, expected);
+  page.element("copy-json").click();
+  await until(() => page.copyRequests().length === 1, "copy request");
+  const copyRequest = page.copyRequests()[0];
+  assert.equal(copyRequest.text, FORMATTED);
   page.answer(copyRequest, { ok: true });
-  await until(() => page.text("status") === "已复制格式化后的 JSON。", "copy confirmation");
+  await until(() => page.text("status") === "已复制 JSON。", "copy confirmation");
 
-  page.elements.get("copy").click();
-  await until(() => page.posted.filter((message) => message.type === "copy").length === 2,
-    "second copy request");
-  const refused = page.posted.filter((message) => message.type === "copy")[1];
-  page.answer(refused, { ok: false, message: "宿主拒绝写入" });
+  page.element("copy-json").click();
+  await until(() => page.copyRequests().length === 2, "second copy request");
+  page.answer(page.copyRequests()[1], { ok: false, message: "宿主拒绝写入" });
   await until(() => page.text("status") === "复制失败：宿主拒绝写入", "refused copy");
 }
 
-// The runtime refuses the text: its position is reported, the entry's text is
-// kept verbatim, and no copy action is offered for text that was not formatted.
+// Broken JSON: the parse position is explained, the entry's text is kept
+// verbatim so the user can still edit it, and nothing is invented.
 {
   const page = await open();
   const broken = '{"a": 1,\n "b": 2,\n oops}';
-  const reason = "第 3 行第 2 列附近无法解析（Unexpected token）";
   page.deliver({ kind: "text", title: "坏掉的", text: broken });
-  await until(() => page.invoke() !== undefined, "runtime request");
-  page.answer(page.invoke(), { ok: false, message: reason });
-  await until(() => page.text("status").startsWith("无法格式化"), "refusal");
-  assert.equal(page.text("status"), `无法格式化：${reason}`);
-  assert.equal(page.elements.get("original").hidden, false);
-  assert.equal(page.text("original-text"), broken);
-  assert.equal(page.elements.get("result").hidden, true);
-  assert.equal(page.elements.get("copy").hidden, true);
+  await until(() => page.text("status").startsWith("无法排版："), "parse failure");
+  assert.match(page.text("status"), /^无法排版：第 \d+ 行第 \d+ 列/);
+  assert.equal(page.element("editor").value, broken);
 }
 
-// A machine without Node: the runtime says so and the page repeats it; there
-// is no second formatter and no silent fallback.
-{
-  const page = await open();
-  const source = '{"a":1}';
-  page.deliver({ kind: "text", title: "无 Node", text: source });
-  await until(() => page.invoke() !== undefined, "runtime request");
-  page.answer(page.invoke(), {
-    ok: false, message: "本机没有 Node，无法运行包内 Prettier（安装 Node 后重试）",
-  });
-  await until(() => page.text("status").startsWith("无法格式化"), "refusal");
-  assert.equal(page.text("original-text"), source);
-  assert.equal(page.elements.get("copy").hidden, true);
-}
-
-// An empty entry is explained and the runtime is not called.
+// An empty entry is explained, not parsed, and nothing can be copied.
 {
   const page = await open();
   page.deliver({ kind: "text", title: "", text: "   \n" });
   await until(() => page.text("status").includes("条目为空"), "empty state");
   assert.equal(page.text("summary"), "当前条目");
-  assert.equal(page.invoke(), undefined);
-  assert.equal(page.elements.get("copy").hidden, true);
+  assert.equal(page.element("copy-json").disabled, true);
+  assert.deepEqual(page.copyRequests(), []);
+}
+
+// The four derived actions and the beautify action: minify rewrites the
+// editor, format restores Prettier's layout, and escape, XML and TypeScript
+// write only the result panel. Copying the result is still a host request.
+{
+  const page = await open();
+  page.deliver({ kind: "text", title: "示例", text: SOURCE });
+  await until(() => page.text("status") === "", "in-page formatting");
+
+  page.element("minify").click();
+  assert.equal(page.element("editor").value, JSON.stringify(json(SOURCE)));
+  assert.equal(page.text("status"), "已压缩为单行 JSON。");
+  assert.equal(page.element("output").hidden, true);
+
+  page.element("format").click();
+  await until(() => page.text("status") === "已按 Prettier 排版。", "beautify");
+  assert.equal(page.element("editor").value, FORMATTED);
+
+  page.element("escape").click();
+  assert.equal(page.element("output").hidden, false);
+  assert.equal(page.text("output-title"), "转义结果");
+  assert.equal(page.text("output-text"), JSON.stringify(FORMATTED));
+  assert.equal(page.element("editor").value, FORMATTED, "derived, not rewritten");
+
+  page.element("to-xml").click();
+  assert.equal(page.text("output-title"), "XML");
+  assert.match(page.text("output-text"), /^<root>/);
+  assert.match(page.text("output-text"), /<name>MyPaste<\/name>/);
+  assert.equal(page.element("editor").value, FORMATTED, "derived, not rewritten");
+
+  page.element("to-ts").click();
+  assert.equal(page.text("output-title"), "TypeScript");
+  assert.match(page.text("output-text"), /^export interface Root \{/);
+  assert.match(page.text("output-text"), /name: string;/);
+  assert.match(page.text("output-text"), /count: number;/);
+  assert.match(page.text("output-text"), /items: \(number \| null \| string\)\[\];/);
+  assert.equal(page.element("editor").value, FORMATTED, "derived, not rewritten");
+
+  const derived = page.text("output-text");
+  page.element("copy-output").click();
+  await until(() => page.copyRequests().length === 1, "copy result request");
+  assert.equal(page.copyRequests()[0].text, derived);
+  page.answer(page.copyRequests()[0], { ok: true });
+  await until(() => page.text("status") === "已复制 TypeScript。", "copied result");
+}
+
+// The filter bar: member access, a leading-dot array filter, a syntax error
+// and a dangerous key. The evaluated document never changes the editor.
+{
+  const page = await open();
+  const document = JSON.stringify({
+    users: [
+      { name: "Ada", age: 36 },
+      { name: "Bob", age: 12 },
+      { name: "Cyd", age: 24 },
+    ],
+  });
+  page.deliver({ kind: "text", title: "用户", text: document });
+  await until(() => page.text("status") === "", "in-page formatting");
+  const original = page.element("editor").value;
+
+  page.element("filter").value = "data.users[0].name";
+  page.element("filter-run").click();
+  assert.equal(page.text("output-title"), "过滤结果");
+  assert.equal(page.text("output-text"), "Ada");
+  assert.equal(page.text("status"), "已对当前 JSON 求值；原数据未改动。");
+
+  page.element("filter").value = ".users.filter(x => x.age > 18).map(x => x.name)";
+  page.element("filter").dispatch("keydown", {
+    key: "Enter", preventDefault() {},
+  });
+  assert.deepEqual(json(page.text("output-text")), ["Ada", "Cyd"]);
+
+  page.element("filter").value = "data.users[0].";
+  page.element("filter-run").click();
+  assert.match(page.text("status"), /^过滤失败：/);
+
+  page.element("filter").value = "data.constructor";
+  page.element("filter-run").click();
+  assert.match(page.text("status"), /^过滤失败：/);
+  assert.equal(page.element("editor").value, original, "filter never mutates");
+}
+
+// Paste recognition: URL parameters, XML and YAML become formatted JSON; a
+// document the page cannot convert is inserted verbatim with the reason.
+{
+  const page = await open();
+
+  page.paste("name=MyPaste&count=2&tag=a&tag=b");
+  await until(() => page.text("status").startsWith("已把粘贴的"), "URL params");
+  assert.equal(page.text("status"), "已把粘贴的 URL 参数 转为 JSON 并排版。");
+  assert.deepEqual(json(page.element("editor").value), {
+    name: "MyPaste", count: "2", tag: ["a", "b"],
+  });
+
+  page.paste("<root><name>MyPaste</name><count>2</count></root>");
+  await until(() => page.text("status") === "已把粘贴的 XML 转为 JSON 并排版。",
+    "XML");
+  assert.deepEqual(json(page.element("editor").value), {
+    root: { name: "MyPaste", count: "2" },
+  });
+
+  page.paste("name: MyPaste\ncount: 2\nitems:\n  - alpha\n  - beta\n");
+  await until(() => page.text("status") === "已把粘贴的 YAML 转为 JSON 并排版。",
+    "YAML");
+  assert.deepEqual(json(page.element("editor").value), {
+    name: "MyPaste", count: 2, items: ["alpha", "beta"],
+  });
+
+  page.element("editor").value = "";
+  page.paste("<root><a></root>");
+  await until(() => page.text("status").startsWith("识别为 XML，但转换失败："),
+    "failed conversion");
+  assert.match(page.text("status"), /已原样插入。$/);
+  assert.equal(page.element("editor").value, "<root><a></root>");
+
+  page.element("editor").value = "";
+  page.paste("just some words");
+  await until(() => page.text("status").includes("已原样插入"), "unrecognized");
+  assert.equal(page.element("editor").value, "just some words");
 }
 
 console.log("json surface page: ok");
 """
 
-ENGINE = r"""
-import { spawnSync } from "node:child_process";
-import assert from "node:assert/strict";
-
-const adapter = process.argv[2];
-const cases = JSON.parse(process.argv[3]);
-
-function run(text) {
-  const done = spawnSync(process.execPath, [adapter, "json"], {
-    input: JSON.stringify({ id: "t", input: { type: "text", text } }) + "\n",
-    encoding: "utf8",
-  });
-  assert.equal(done.status, 0, done.stderr);
-  return JSON.parse(done.stdout);
-}
-
-const formatted = run(cases.source);
-assert.equal(formatted.ok, true);
-assert.equal(formatted.id, "t");
-assert.equal(formatted.result.output, cases.expected);
-
-const refused = run(cases.broken);
-assert.equal(refused.ok, false);
-assert.equal(refused.id, "t");
-assert.equal(refused.error.code, "format-failed");
-assert.match(refused.error.message,
-  /^第 \d+ 行第 \d+ 列附近无法解析（.+）$/u);
-
-console.log("json engine: ok");
-"""
-
 
 @unittest.skipUnless(NODE and ESBUILD.is_file(), "node and esbuild are required")
 class JSONSurfacePageTest(unittest.TestCase):
-    def test_page_asks_its_runtime_and_paints_the_answer(self) -> None:
+    def test_page_formats_converts_and_filters_in_the_document(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             page = Path(directory) / "page.mjs"
             subprocess.run(
                 [str(ESBUILD), str(PACKAGE / "src" / "main.ts"),
-                 "--bundle", "--format=esm", "--platform=neutral",
-                 f"--outfile={page}", "--log-level=warning"],
-                cwd=ROOT, check=True, capture_output=True, text=True,
+                 "--bundle", "--format=esm",
+                 "--loader:.html=text", f"--outfile={page}"],
+                check=True, capture_output=True, text=True,
             )
             runner = Path(directory) / "runner.mjs"
             runner.write_text(RUNNER, encoding="utf-8")
-            result = subprocess.run(
+            done = subprocess.run(
                 [NODE, str(runner), directory],
-                cwd=ROOT, capture_output=True, text=True, timeout=120,
+                capture_output=True, text=True, timeout=300,
             )
-        if result.returncode != 0:
-            self.fail(f"页面测试失败：\n{result.stdout}\n{result.stderr}")
-        self.assertIn("json surface page: ok", result.stdout)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertIn("json surface page: ok", done.stdout)
 
-    def test_built_page_fits_the_host_document_ceiling(self) -> None:
-        document = (PACKAGE / "preview.html").read_text(encoding="utf-8")
-        self.assertIn("Generated by scripts/build-surfaces.mjs", document)
-        self.assertNotIn("<!--bundle-->", document)
-        # The host refuses a surface entry over this size before serving it
-        # (D-1075); the page therefore cannot carry the Prettier build.
-        self.assertLessEqual(len(document.encode("utf-8")), HOST_SURFACE_BYTES)
-        self.assertIn('id="code-body"', document)
-        manifest = json.loads((PACKAGE / "mypaste.plugin.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["kind"], "ui")
+    def test_built_page_fits_the_surface_ceiling(self) -> None:
+        subprocess.run(
+            [NODE, "scripts/build-surfaces.mjs", "--package", "com.mypaste.json"],
+            cwd=ROOT, check=True, capture_output=True, text=True,
+        )
+        page = PACKAGE / "preview.html"
+        size = page.stat().st_size
+        self.assertLessEqual(size, HOST_SURFACE_BYTES)
+        text = page.read_text(encoding="utf-8")
+        self.assertNotIn("<!--bundle-->", text)
+        # The page is self-contained: no external script, no network load.
+        self.assertNotIn("<script src", text)
+        self.assertIn('id="editor"', text)
+        self.assertIn('id="filter"', text)
+        self.assertIn('data-scheme="dark"', text)
+        # Square corners everywhere (D-1045); no rounded box in the page.
+        self.assertNotIn("border-radius", text)
+        self.assertIn("Prettier 内置于页面", text)
+
+    def test_manifest_declares_no_runtime(self) -> None:
+        manifest = json.loads(
+            (PACKAGE / "mypaste.plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["manifestVersion"], 3)
+        self.assertEqual(manifest["version"], "3.0.0")
         self.assertEqual(manifest["capabilities"], ["entity.read"])
+        self.assertNotIn("runtime", manifest)
+        self.assertNotIn("commands", manifest)
         self.assertEqual(manifest["surface"]["entry"], "preview.html")
-        self.assertEqual(manifest["runtime"]["entrypoint"], "json")
-
-
-@unittest.skipUnless(NODE, "node is required to run the packaged engine")
-class PrettierJSONEngineTest(unittest.TestCase):
-    def test_engine_formats_json_and_reports_positions(self) -> None:
-        source = '{"name":"MyPaste","count":2,"ok":true,"items":[1,null,"x"]}'
-        expected = '{ "name": "MyPaste", "count": 2, "ok": true, "items": [1, null, "x"] }\n'
-        broken = '{"a": 1,\n "b": 2,\n oops}'
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            vendor_prettier.vendor(ROOT, root / "prettier", ("babel", "estree"))
-            adapter = root / "prettier.mjs"
-            shutil.copyfile(PACKAGE / "src" / "engines" / "prettier.mjs", adapter)
-            runner = root / "engine.mjs"
-            runner.write_text(ENGINE, encoding="utf-8")
-            cases = json.dumps({
-                "source": source, "expected": expected, "broken": broken,
-            })
-            result = subprocess.run(
-                [NODE, str(runner), str(adapter), cases],
-                cwd=ROOT, capture_output=True, text=True, timeout=120,
-            )
-            # The vendored subset is what the package ships; a missing plugin
-            # would surface here as a module-not-found failure.
-            if result.returncode != 0:
-                self.fail(f"引擎测试失败：\n{result.stdout}\n{result.stderr}")
-            self.assertIn("json engine: ok", result.stdout)
-            version = vendor_prettier.pinned_version(ROOT)
-            self.assertTrue((root / "prettier" / "VERSION").read_text(
-                encoding="utf-8").startswith(f"prettier {version}"))
+        self.assertEqual(manifest["surface"]["forms"], ["text"])
+        self.assertEqual(manifest["surface"]["role"], "open")
+        # The runtime and engine sources of 2.0.0 are gone, not just unused.
+        self.assertFalse((PACKAGE / "src" / "cmd").exists())
+        self.assertFalse((PACKAGE / "src" / "engines").exists())
 
 
 if __name__ == "__main__":
