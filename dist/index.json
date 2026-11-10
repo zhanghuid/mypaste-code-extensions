@@ -38,11 +38,11 @@
     {
       "id": "com.mypaste.json",
       "name": "JSON 编辑器",
-      "version": "3.0.0",
+      "version": "3.1.0",
       "kind": "ui",
-      "description": "在页面内用 Prettier 排版 JSON，并把结果做成可编辑的编辑器：粘贴 URL 参数、XML 或 YAML 自动转成 JSON，可压缩、转义、转 XML、转 TypeScript，底部 JavaScript 表达式过滤。Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。",
-      "fileName": "com.mypaste.json-3.0.0.mypaste-plugin",
-      "sha256": "cf0f4a789c64c09760106e7bb1d1a8856372cba291fdff0af2f89fd104674452",
+      "description": "在页面内用 Prettier 排版 JSON，结果可编辑：标签页标题、工具栏与状态栏和代码编辑一致，格式化动作收在一个下拉里；粘贴 URL 参数、XML 或 YAML 自动转成 JSON。可压缩、转义、转 XML、转 TypeScript，工具栏可按 JavaScript 表达式过滤。Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。",
+      "fileName": "com.mypaste.json-3.1.0.mypaste-plugin",
+      "sha256": "3213aa4015a75379672df6785a44882e2070a8d949bb8b8b6f02aba5ef99c80b",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -236,11 +236,11 @@
     {
       "id": "com.mypaste.diff-view",
       "name": "高亮对比",
-      "version": "3.0.0",
+      "version": "3.1.0",
       "kind": "ui",
       "description": "把这条文本与屏幕上相邻的一条文本逐行对照：先对齐整行，再只标出真正改动的词。对比在本机完成，不联网；除本次条目外只读相邻的一条文本。",
-      "fileName": "com.mypaste.diff-view-3.0.0.mypaste-plugin",
-      "sha256": "e973ca4f1cb1810fc928237deceb81a65ed822cc9fa3dfa9869212d0f005bceb",
+      "fileName": "com.mypaste.diff-view-3.1.0.mypaste-plugin",
+      "sha256": "2a9890f60e061a832ec372bcec36db2085e6489ad08d4934ac8450d5c0d2ca4a",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     }

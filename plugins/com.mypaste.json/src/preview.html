@@ -35,247 +35,442 @@
     /*
      * The host's resolved tokens arrive as --mp-* (D-1043); every value below
      * prefers them and keeps this document's own palette as the fallback for
-     * an older host. The host owns the theme, so there is no second copy.
+     * an older host. The code surface follows the resolved appearance (D-1046).
      */
     --bg: var(--mp-surface-solid, #f6f2ea);
-    --panel: var(--mp-surface-raised, #fbf8f2);
+    --solid: var(--mp-surface-solid, #f6f2ea);
+    --surface: var(--mp-surface-raised, #fbf8f2);
     --ink: var(--mp-ink, #241f19);
     --muted: var(--mp-ink-soft, #776b5c);
     --line: var(--mp-line, rgba(60, 45, 25, 0.16));
     --accent: var(--mp-accent, #9a5427);
     --accent-ink: var(--mp-accent-ink, #fff8ef);
-    --focus: var(--mp-accent, #9a5427);
+    --focus: color-mix(in srgb, var(--mp-accent, #9a5427) 35%, transparent);
+    --editor-bg: var(--mp-code-surface, #ede5d8);
+    --editor-ink: var(--mp-code-ink, #2f261e);
+    --selection: color-mix(in srgb, var(--editor-ink) 22%, transparent);
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-    /* The code surface follows the resolved appearance (D-1046). */
-    --code-bg: var(--mp-code-surface, #ede5d8);
-    --code-ink: var(--mp-code-ink, #2f261e);
   }
   :root[data-scheme="dark"] {
     color-scheme: dark;
     --bg: var(--mp-surface-solid, #171412);
-    --panel: var(--mp-surface-raised, #201c18);
+    --solid: var(--mp-surface-solid, #171412);
+    --surface: var(--mp-surface-raised, #201c18);
     --ink: var(--mp-ink, #f0e6d9);
     --muted: var(--mp-ink-soft, #9a8c7b);
     --line: var(--mp-line, rgba(255, 236, 214, 0.14));
     --accent: var(--mp-accent, #e2955f);
     --accent-ink: var(--mp-accent-ink, #241a12);
-    --focus: var(--mp-accent, #e2955f);
-    --code-bg: var(--mp-code-surface, #171412);
-    --code-ink: var(--mp-code-ink, #f0e6d9);
+    --focus: color-mix(in srgb, var(--mp-accent, #e2955f) 35%, transparent);
+    --editor-bg: var(--mp-code-surface, #171412);
+    --editor-ink: var(--mp-code-ink, #f0e6d9);
+    --selection: color-mix(in srgb, var(--editor-ink) 26%, transparent);
   }
-
-  /* No rounded boxes anywhere (D-1045); the code surface keeps one material. */
+  /* No rounded boxes (D-1045); the code surface keeps one material. */
   * { box-sizing: border-box; }
-  html, body { min-height: 100%; }
+  html, body { margin: 0; height: 100%; }
   body {
-    margin: 0;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
     background: var(--bg);
     color: var(--ink);
-    font-family: system-ui, -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-    overflow-x: hidden;
+    font: 13px/1.5 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
   }
-
-  .shell {
-    width: 100%;
-    max-width: 1080px;
-    margin: 0 auto;
-    padding: 20px 18px 32px;
-  }
-
-  .head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid var(--line);
-  }
-  .head-text { min-width: 0; }
-  h1 {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-  }
-  .summary {
-    margin: 4px 0 0;
-    color: var(--muted);
-    font-size: 13px;
-    overflow-wrap: anywhere;
-  }
-
-  /* Every action in a row is one size (D-1051). */
-  .action {
-    flex: none;
-    height: 30px;
-    padding: 0 12px;
-    border: 1px solid var(--line);
-    background: transparent;
-    color: var(--ink);
-    font: inherit;
-    font-size: 12px;
-    font-weight: 600;
+  button {
+    font-family: inherit;
+    border-radius: 0;
     cursor: pointer;
   }
-  .action:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  .action:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 2px;
-  }
-  .action:disabled { color: var(--muted); cursor: default; opacity: 0.6; }
 
-  .status {
-    min-height: 0;
-    margin: 0;
-    padding: 10px 0;
-    color: var(--muted);
-    font-size: 13px;
-    overflow-wrap: anywhere;
-  }
-  .status:empty { padding: 0; }
-
-  .toolbar {
+  /* The tab strip names the document, the way the code editor's tab does. */
+  .tabs {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 12px 0;
+    align-items: stretch;
+    padding: 6px 12px 0;
     border-bottom: 1px solid var(--line);
+    background: var(--solid);
   }
-
-  .meta {
-    margin: 0;
-    padding: 8px 0 6px;
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    padding: 0 12px;
+    border-bottom: 2px solid transparent;
     color: var(--muted);
-    font-family: var(--mono);
-    font-size: 11.5px;
-    letter-spacing: 0.02em;
+  }
+  .tab.is-active {
+    background: var(--surface);
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+  }
+  .tab .tab-file-icon { width: 14px; height: 14px; flex: none; color: var(--muted); }
+  #summary {
+    min-width: 0;
+    max-width: 60vw;
+    overflow: hidden;
+    font: 600 13px/1.4 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /*
-   * One editable code surface: square corners, no shadow, and the host's code
-   * palette so the text sits on the surface the theme designed (D-1046).
+   * The toolbar: the format dropdown and the filter on the left, the copy
+   * action on the right. Every control in the row shares one height (D-1051);
+   * copy is an icon so the row never reads as a wall of text (D-1055).
+   */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface);
+  }
+  .toolbar-left, .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .toolbar-left { flex-wrap: wrap; row-gap: 6px; }
+  .menu-root { position: relative; display: inline-flex; }
+  .menu-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 9px;
+    border: 1px solid var(--line);
+    background: var(--solid);
+    color: var(--ink);
+    font: 12px/1 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
+  }
+  .menu-trigger:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
+  }
+  .menu-trigger:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--focus);
+  }
+  .menu-trigger[aria-expanded="true"] { border-color: var(--accent); }
+  .menu-trigger .trigger-chevron { width: 12px; height: 12px; flex: none; color: var(--muted); }
+
+  .menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 40;
+    min-width: 200px;
+    max-width: calc(100vw - 16px);
+    max-height: min(360px, calc(100vh - 16px));
+    overflow-y: auto;
+    padding: 4px;
+    border: 1px solid var(--line);
+    background:
+      linear-gradient(var(--surface), var(--surface)),
+      var(--solid);
+    color: var(--ink);
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--ink) 20%, transparent);
+  }
+  .menu[hidden] { display: none; }
+  .menu:focus { outline: none; }
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 30px;
+    padding: 0 8px;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: 12.5px/1.4 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
+    text-align: left;
+  }
+  .menu-item:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+  }
+  .menu-item:focus-visible {
+    outline: none;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .menu-item:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
+  .menu-separator {
+    height: 1px;
+    margin: 4px 8px;
+    background: var(--line);
+  }
+
+  .filter-root {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 220px;
+    max-width: 360px;
+    min-width: 140px;
+  }
+  #filter {
+    flex: 1;
+    min-width: 0;
+    height: 28px;
+    padding: 0 9px;
+    border: 1px solid var(--line);
+    background: var(--solid);
+    color: var(--ink);
+    font: 12px/1 var(--mono);
+  }
+  #filter:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--focus);
+  }
+  .filter-run {
+    flex: none;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    background: var(--solid);
+    color: var(--ink);
+    font: 12px/1 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
+  }
+  .filter-run:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ink) 30%, var(--line)); }
+  .filter-run:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--focus);
+  }
+
+  .icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--line);
+    background: var(--solid);
+    color: var(--ink);
+  }
+  .icon-button .icon { width: 15px; height: 15px; }
+  .icon-button:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
+  }
+  .icon-button:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--focus);
+  }
+  .icon-button:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
+
+  /*
+   * One editable code surface, shared with the code editor: a line-number
+   * gutter beside a scrolling textarea on the host's code palette (D-1046).
    */
   .editor {
-    display: block;
-    width: 100%;
-    min-height: 340px;
-    padding: 12px;
-    border: 1px solid var(--line);
-    background: var(--code-bg);
-    color: var(--code-ink);
-    font-family: var(--mono);
-    font-size: 12.5px;
-    line-height: 1.6;
-    tab-size: 2;
-    resize: vertical;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+    background: var(--editor-bg);
+  }
+  .editor:focus-within { box-shadow: inset 0 0 0 1px var(--accent); }
+  #editor-gutter {
+    height: 100%;
+    margin: 0;
+    padding: 14px 10px 14px 14px;
+    overflow: hidden;
+    border-right: 1px solid color-mix(in srgb, var(--editor-ink) 14%, transparent);
+    color: var(--mp-code-comment, var(--muted));
+    font: 12.5px/1.65 var(--mono);
+    text-align: right;
     white-space: pre;
+    user-select: none;
+  }
+  #editor {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 14px 16px;
+    border: 0;
+    background: transparent;
+    color: var(--editor-ink);
+    caret-color: var(--accent);
+    font: 12.5px/1.65 var(--mono);
+    white-space: pre;
+    tab-size: 2;
+    resize: none;
+    outline: none;
     overflow: auto;
   }
-  .editor:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  #editor::selection { background: var(--selection); }
+  #editor::placeholder { color: var(--muted); }
 
+  /* A derived document (escape, XML, TypeScript, filter) sits below the editor. */
   .output {
-    margin-top: 18px;
-    padding-top: 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: 42vh;
     border-top: 1px solid var(--line);
+    background: var(--solid);
   }
+  .output[hidden] { display: none; }
   .output-head {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
   }
-  .output-head h2 {
+  #output-title {
+    flex: none;
     margin: 0;
-    font-size: 13px;
+    color: var(--ink);
+    font-size: 12px;
     font-weight: 600;
   }
-  .output-head .meta { flex: 1; padding: 0; }
-  .output pre {
-    margin: 0;
-    max-height: 340px;
-    overflow: auto;
-    padding: 12px;
-    border: 1px solid var(--line);
-    background: var(--code-bg);
-    color: var(--code-ink);
-    font-family: var(--mono);
-    font-size: 12.5px;
-    line-height: 1.6;
-    white-space: pre;
-    tab-size: 2;
-  }
-
-  .filter-bar {
-    display: flex;
-    gap: 8px;
-    margin-top: 18px;
-    padding-top: 12px;
-    border-top: 1px solid var(--line);
-  }
-  .filter {
+  #output-meta {
     flex: 1;
     min-width: 0;
-    height: 30px;
-    padding: 0 10px;
-    border: 1px solid var(--line);
-    background: var(--panel);
-    color: var(--ink);
-    font-family: var(--mono);
-    font-size: 12.5px;
-  }
-  .filter:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-
-  .foot {
-    margin-top: 20px;
+    margin: 0;
+    overflow: hidden;
     color: var(--muted);
-    font-size: 11.5px;
-    line-height: 1.7;
-    overflow-wrap: anywhere;
+    font: 11px/1.4 var(--mono);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #output-text {
+    min-height: 0;
+    margin: 0;
+    padding: 12px;
+    overflow: auto;
+    color: var(--editor-ink);
+    background: var(--editor-bg);
+    font: 12.5px/1.6 var(--mono);
+    white-space: pre;
+  }
+
+  /* The status bar mirrors the code editor's footer. */
+  .statusbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 26px;
+    padding: 4px 12px;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--muted);
+    font: 11px/1.4 var(--mono);
+  }
+  .statusbar-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  #status {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #meta {
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
   }
 </style>
 </head>
 <body>
-<main class="shell">
-  <header class="head">
-    <div class="head-text">
-      <h1>JSON 编辑器</h1>
-      <p class="summary" id="summary">等待条目…</p>
+  <div class="tabs" role="tablist">
+    <div class="tab is-active" role="tab" aria-selected="true">
+      <svg class="tab-file-icon" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M3 2.5h6l3 3v8h-9z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+        <path d="M9 2.5v3h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+      </svg>
+      <span id="summary">等待条目…</span>
     </div>
-    <button class="action" id="copy-json" type="button">复制 JSON</button>
-  </header>
-  <p class="status" id="status" role="status" aria-live="polite"></p>
-  <div class="toolbar" role="toolbar" aria-label="JSON 动作">
-    <button class="action" id="format" type="button">美化</button>
-    <button class="action" id="minify" type="button">压缩</button>
-    <button class="action" id="escape" type="button">转义</button>
-    <button class="action" id="to-xml" type="button">→ XML</button>
-    <button class="action" id="to-ts" type="button">→ TypeScript</button>
   </div>
-  <section>
-    <p class="meta" id="meta"></p>
-    <textarea class="editor" id="editor" spellcheck="false" autocomplete="off"
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <div class="menu-root" id="doc-format-root">
+        <button type="button" class="menu-trigger" id="doc-format-toggle"
+          aria-haspopup="menu" aria-expanded="false" aria-label="格式化与转换" title="格式化与转换">
+          <span>格式化</span>
+          <svg class="trigger-chevron" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="menu" id="doc-format-menu" role="menu" aria-label="格式化与转换" tabindex="-1" hidden>
+          <button type="button" class="menu-item" id="format" role="menuitem">美化 · Prettier</button>
+          <button type="button" class="menu-item" id="minify" role="menuitem">压缩为单行</button>
+          <button type="button" class="menu-item" id="escape" role="menuitem">转义为字符串</button>
+          <div class="menu-separator" role="separator"></div>
+          <button type="button" class="menu-item" id="to-xml" role="menuitem">转为 XML</button>
+          <button type="button" class="menu-item" id="to-ts" role="menuitem">转为 TypeScript</button>
+        </div>
+      </div>
+      <div class="filter-root">
+        <input id="filter" type="text" spellcheck="false" autocomplete="off"
+          placeholder="JavaScript 表达式，如 data.items[0].id"
+          aria-label="JavaScript 表达式过滤">
+        <button type="button" class="filter-run" id="filter-run">运行</button>
+      </div>
+    </div>
+    <div class="toolbar-right">
+      <button type="button" class="icon-button" id="copy-json" title="复制 JSON" aria-label="复制 JSON">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="5.5" y="5.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M3.5 10.5v-7h7" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="editor">
+    <pre id="editor-gutter" aria-hidden="true"></pre>
+    <textarea id="editor" spellcheck="false" autocomplete="off"
       autocapitalize="off" wrap="off" aria-label="可编辑的 JSON"></textarea>
-  </section>
+  </div>
   <section class="output" id="output" hidden>
     <div class="output-head">
       <h2 id="output-title">结果</h2>
-      <p class="meta" id="output-meta"></p>
-      <button class="action" id="copy-output" type="button">复制结果</button>
+      <p id="output-meta"></p>
+      <button type="button" class="icon-button" id="copy-output" title="复制结果" aria-label="复制结果">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="5.5" y="5.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M3.5 10.5v-7h7" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        </svg>
+      </button>
     </div>
     <pre id="output-text" tabindex="0" aria-label="转换结果"></pre>
   </section>
-  <section class="filter-bar">
-    <input class="filter" id="filter" type="text" spellcheck="false"
-      placeholder="data.users[0].name 或 .filter(x =&gt; x.age &gt; 18)"
-      aria-label="JavaScript 表达式过滤">
-    <button class="action" id="filter-run" type="button">过滤</button>
-  </section>
-  <footer class="foot">
-    Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。
-    过滤框只对当前 JSON 求值，不改动原数据。
+  <footer class="statusbar">
+    <span id="status" role="status" aria-live="polite"></span>
+    <div class="statusbar-right">
+      <span id="meta"></span>
+    </div>
   </footer>
-</main>
+  <p class="sr-only">Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。过滤框只对当前 JSON 求值，不改动原数据。</p>
 <script>
 <!--bundle-->
 </script>

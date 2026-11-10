@@ -21,6 +21,7 @@ and what it asks the host for:
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -77,7 +78,8 @@ class ElementStub {
 const IDS = ["summary", "status", "editor", "meta", "copy-json", "format",
              "minify", "escape", "to-xml", "to-ts", "output", "output-title",
              "output-meta", "output-text", "copy-output", "filter",
-             "filter-run"];
+             "filter-run", "doc-format-root", "doc-format-toggle",
+             "doc-format-menu", "editor-gutter"];
 const PAGE = path.join(process.argv[2], "page.mjs");
 
 /** One fresh page: a surface document is delivered exactly one item. */
@@ -364,15 +366,18 @@ class JSONSurfacePageTest(unittest.TestCase):
         self.assertIn('id="editor"', text)
         self.assertIn('id="filter"', text)
         self.assertIn('data-scheme="dark"', text)
-        # Square corners everywhere (D-1045); no rounded box in the page.
-        self.assertNotIn("border-radius", text)
+        # Square corners (D-1045): the only radii allowed are the button reset
+        # (0) and a semantically round dot (50%). Anything else is a box.
+        radii = re.findall(r"border-radius:\s*([^;}]+)", text)
+        self.assertTrue(
+            all(value.strip() in {"0", "50%"} for value in radii), radii)
         self.assertIn("Prettier 内置于页面", text)
 
     def test_manifest_declares_no_runtime(self) -> None:
         manifest = json.loads(
             (PACKAGE / "mypaste.plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["manifestVersion"], 3)
-        self.assertEqual(manifest["version"], "3.0.0")
+        self.assertEqual(manifest["version"], "3.1.0")
         self.assertEqual(manifest["capabilities"], ["entity.read"])
         self.assertNotIn("runtime", manifest)
         self.assertNotIn("commands", manifest)

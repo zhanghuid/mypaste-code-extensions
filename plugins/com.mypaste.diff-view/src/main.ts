@@ -460,7 +460,12 @@ function editRequest(
 ): { side: Side; caret?: number } | null {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return null;
-  if (target.closest('[data-role="editor"]') || target.closest("footer")) {
+  if (
+    target.closest('[data-role="editor"]')
+    || target.closest("footer")
+    || target.closest(".toolbar")
+    || target.closest(".tabs")
+  ) {
     return null;
   }
   const head = target.closest<HTMLElement>(".pane-head");

@@ -29,6 +29,10 @@ const status = one<HTMLParagraphElement>("#status");
 const editor = one<HTMLTextAreaElement>("#editor");
 const meta = one<HTMLParagraphElement>("#meta");
 const copyJson = one<HTMLButtonElement>("#copy-json");
+const formatRoot = one<HTMLElement>("#doc-format-root");
+const formatToggle = one<HTMLButtonElement>("#doc-format-toggle");
+const formatMenu = one<HTMLElement>("#doc-format-menu");
+const editorGutter = one<HTMLElement>("#editor-gutter");
 const formatButton = one<HTMLButtonElement>("#format");
 const minifyButton = one<HTMLButtonElement>("#minify");
 const escapeButton = one<HTMLButtonElement>("#escape");
@@ -48,6 +52,43 @@ const bridge = connectSurface();
 let derived = "";
 /** The newest delivery or paste wins; an older async job may finish later. */
 let generation = 0;
+
+/**
+ * The format dropdown: the five actions live behind one trigger, the way the
+ * code editor groups its actions. The toolbar is never clipped, so the sheet
+ * is positioned by the stylesheet and opening it only toggles visibility.
+ */
+function setMenuOpen(open: boolean): void {
+  formatMenu.hidden = !open;
+  formatToggle.setAttribute("aria-expanded", String(open));
+}
+setMenuOpen(false);
+formatToggle.addEventListener("click", (event) => {
+  event.stopPropagation?.();
+  setMenuOpen(formatMenu.hidden);
+});
+formatMenu.addEventListener("keydown", (event) => {
+  if ((event as KeyboardEvent).key === "Escape") {
+    setMenuOpen(false);
+    formatToggle.focus?.();
+  }
+});
+window.addEventListener("click", (event) => {
+  const target = event.target;
+  if (target instanceof Node && !formatRoot.contains(target)) setMenuOpen(false);
+});
+
+/** Line numbers beside the textarea, kept in step with its scroll. */
+function renderGutter(): void {
+  const lines = editor.value.split("\n").length;
+  const numbers: string[] = [];
+  for (let line = 1; line <= lines; line += 1) numbers.push(String(line));
+  editorGutter.textContent = numbers.join("\n");
+}
+
+editor.addEventListener("scroll", () => {
+  editorGutter.scrollTop = editor.scrollTop;
+});
 
 function setStatus(text: string): void {
   status.textContent = text;
@@ -75,6 +116,7 @@ function updateMeta(): void {
 function setEditor(text: string): void {
   editor.value = text;
   updateMeta();
+  renderGutter();
 }
 
 function hideOutput(): void {
@@ -265,6 +307,7 @@ editor.addEventListener("paste", (event) => {
 
 editor.addEventListener("input", () => {
   updateMeta();
+  renderGutter();
   hideOutput();
   clearWhenEmpty();
 });
@@ -282,12 +325,25 @@ copyOutput.addEventListener("click", () => {
   void copy(derived, outputTitle.textContent === "" ? "结果" : ` ${outputTitle.textContent}`);
 });
 formatButton.addEventListener("click", () => {
+  setMenuOpen(false);
   void applyFormat();
 });
-minifyButton.addEventListener("click", applyMinify);
-escapeButton.addEventListener("click", applyEscape);
-xmlButton.addEventListener("click", applyXml);
-tsButton.addEventListener("click", applyTypeScript);
+minifyButton.addEventListener("click", () => {
+  setMenuOpen(false);
+  applyMinify();
+});
+escapeButton.addEventListener("click", () => {
+  setMenuOpen(false);
+  applyEscape();
+});
+xmlButton.addEventListener("click", () => {
+  setMenuOpen(false);
+  applyXml();
+});
+tsButton.addEventListener("click", () => {
+  setMenuOpen(false);
+  applyTypeScript();
+});
 filterRun.addEventListener("click", applyFilter);
 filter.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
@@ -298,6 +354,7 @@ filter.addEventListener("keydown", (event) => {
 
 hideOutput();
 updateMeta();
+renderGutter();
 clearWhenEmpty();
 
 bridge.onItem(({ item }) => {

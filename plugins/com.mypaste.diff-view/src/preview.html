@@ -13,6 +13,7 @@
      * no second copy to drift.
      */
     --bg: var(--mp-surface-solid, #f3ece1);
+    --solid: var(--mp-surface-solid, #f3ece1);
     --surface: var(--mp-surface-raised, #fbf7f0);
     --ink: var(--mp-ink, #2f261e);
     --muted: var(--mp-ink-soft, #8b7c6a);
@@ -33,6 +34,7 @@
   :root[data-scheme="dark"] {
     color-scheme: dark;
     --bg: var(--mp-surface-solid, #171412);
+    --solid: var(--mp-surface-solid, #171412);
     --surface: var(--mp-surface-raised, #201c18);
     --ink: var(--mp-ink, #f0e6d9);
     --muted: var(--mp-ink-soft, #9a8c7b);
@@ -40,7 +42,7 @@
     --accent: var(--mp-accent, #e2955f);
     --accent-ink: var(--mp-accent-ink, #241a12);
     --focus: color-mix(in srgb, var(--mp-accent, #e2955f) 35%, transparent);
-    --added: color-mix(in srgb, var(--mp-success, #93b277) 14%, transparent);
+    --added: color-mix(in srgb, var(--mp-success, #4f8a49) 18%, transparent);
     --removed: color-mix(in srgb, var(--mp-danger, #d58a68) 12%, transparent);
     --mark: color-mix(in srgb, var(--mp-accent, #e2955f) 34%, transparent);
   }
@@ -48,41 +50,115 @@
   html, body { margin: 0; height: 100%; }
   body {
     display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
     background: var(--bg);
     color: var(--ink);
     font: 13px/1.5 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
   }
+  button {
+    font-family: inherit;
+    border-radius: 0;
+    cursor: pointer;
+  }
 
-  header {
+  /*
+   * The tab strip, shared with the code editor: one active tab names the
+   * document being compared. The active tab is marked by its surface and a
+   * two-pixel accent rule along the bottom (D-1071); the tab itself stays
+   * square (D-1045).
+   */
+  .tabs {
+    display: flex;
+    align-items: stretch;
+    padding: 6px 12px 0;
+    border-bottom: 1px solid var(--line);
+    background: var(--solid);
+  }
+  .tab {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 18px;
-    border-bottom: 1px solid var(--line);
-    background: var(--surface);
-  }
-  .kicker {
-    color: var(--muted);
-    font-family: var(--mp-font-display, "New York", "Songti SC", Georgia, serif);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    white-space: nowrap;
-  }
-  #diff-stats {
-    flex: 1;
+    gap: 7px;
     min-width: 0;
-    overflow: hidden;
+    padding: 0 12px;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+  }
+  .tab.is-active {
+    background: var(--surface);
     color: var(--ink);
-    font: 12px/1.4 var(--mono);
+    border-bottom-color: var(--accent);
+  }
+  .tab .tab-file-icon { width: 14px; height: 14px; flex: none; color: var(--muted); }
+  .tab-title {
+    min-width: 0;
+    max-width: 60vw;
+    overflow: hidden;
+    font: 600 13px/1.4 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .metric {
+
+  /*
+   * The toolbar holds the language badge on the left and the two icon actions
+   * on the right. Every control in the row shares one height (D-1051); copy
+   * and save are icons so the row never reads as a wall of text (D-1055).
+   */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface);
+  }
+  .toolbar-left, .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 9px;
+    border: 1px solid var(--line);
+    background: var(--solid);
     color: var(--muted);
-    font: 11px/1 var(--mono);
+    font: 11.5px/1 var(--mono);
     white-space: nowrap;
   }
+  .icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--line);
+    background: var(--solid);
+    color: var(--ink);
+  }
+  .icon-button .icon { width: 15px; height: 15px; }
+  .icon-button[data-action="save"] {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  .icon-button:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
+  }
+  .icon-button[data-action="save"]:hover:not(:disabled) {
+    border-color: var(--accent);
+    filter: brightness(1.05);
+  }
+  .icon-button:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--focus);
+  }
+  .icon-button:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
+
   .pane-heads {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -168,7 +244,8 @@
     align-items: stretch;
   }
   .rows.editing .diff-row { display: block; }
-  .rows.editing .line { border-right: 0; }
+  .rows.editing .line { height: 100%; }
+  .rows.editing .line.before { border-right: 0; }
   .edit-side {
     display: flex;
     min-width: 0;
@@ -196,61 +273,92 @@
   .edit-input::selection { background: var(--mark); }
   .diff-column { min-width: 0; min-height: 0; overflow: auto; }
 
-  footer {
+  /*
+   * The status bar mirrors the code editor's footer: the comparison's own
+   * state on the left, its size on the right.
+   */
+  .statusbar {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 18px;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 26px;
+    padding: 4px 12px;
     border-top: 1px solid var(--line);
     background: var(--surface);
+    color: var(--muted);
+    font: 11px/1.4 var(--mono);
   }
-  #diff-status {
-    flex: 1;
+  .statusbar-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  #diff-stats {
     min-width: 0;
     overflow: hidden;
-    color: var(--muted);
-    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #diff-status {
+    min-width: 0;
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   #diff-status[data-tone="error"] { color: var(--mp-danger-ink, #b4472c); }
   #diff-status[hidden] { display: none; }
-  footer button {
-    padding: 6px 14px;
-    border: 1px solid var(--line);
-    background: transparent;
-    color: var(--ink);
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-  }
-  footer button:hover:not(:disabled) { border-color: var(--accent); }
-  footer button:disabled { opacity: 0.45; cursor: default; }
-  footer button[data-action="save"] {
-    border-color: transparent;
-    background: var(--accent);
-    color: var(--accent-ink);
-  }
 </style>
 </head>
 <body>
-  <header>
-    <span class="kicker">高亮对比</span>
-    <span id="diff-stats">等待宿主交付文本…</span>
-    <span class="metric" id="diff-language"></span>
-  </header>
+  <div class="tabs" role="tablist">
+    <div class="tab is-active" role="tab" aria-selected="true">
+      <svg class="tab-file-icon" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M3 2.5h6l3 3v8h-9z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+        <path d="M9 2.5v3h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+      </svg>
+      <span class="tab-title" id="current-title">当前条目</span>
+    </div>
+  </div>
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <span class="badge" id="diff-language"></span>
+    </div>
+    <div class="toolbar-right">
+      <button type="button" class="icon-button" data-action="copy"
+        title="复制当前文本" aria-label="复制当前文本">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="5.5" y="5.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M3.5 10.5v-7h7" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        </svg>
+      </button>
+      <button type="button" class="icon-button" data-action="save"
+        title="保存为新条目" aria-label="保存为新条目">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+            <path d="M3 2.5h8l2 2v9h-10z"/>
+            <path d="M5 2.5v4h6v-4"/>
+            <path d="M5 13.5v-4h6v4"/>
+          </g>
+        </svg>
+      </button>
+    </div>
+  </div>
   <div class="pane-heads">
     <div class="pane-head before" data-side="before">对照 · <strong id="companion-title">—</strong></div>
-    <div class="pane-head after" data-side="after">当前 · <strong id="current-title">—</strong></div>
+    <div class="pane-head after" data-side="after">当前文本</div>
   </div>
   <div class="scroller" id="diff-scroller">
     <div class="rows" id="diff-rows"></div>
     <p class="empty-state" id="diff-empty" hidden>等一等，宿主正在交付两条文本。</p>
   </div>
-  <footer>
+  <footer class="statusbar">
     <span id="diff-status" role="status" aria-live="polite" hidden></span>
-    <button type="button" data-action="copy">复制当前文本</button>
-    <button type="button" data-action="save">保存为新条目</button>
+    <div class="statusbar-right">
+      <span id="diff-stats">等待宿主交付文本…</span>
+    </div>
   </footer>
 <script>
 <!--bundle-->

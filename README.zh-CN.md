@@ -117,7 +117,7 @@
 `com.mypaste.code-card`、`com.mypaste.code-edit`、`com.mypaste.diff-view`、
 `com.mypaste.image-edit`、`com.mypaste.json` 与 `com.mypaste.timestamp` 各自交付
 一个页面。code-edit 另外交付 runtime 与内部命令，用于自带格式化（3.3.0）；
-json（3.0.0）是纯表面包：Prettier 的 standalone 构建加 babel、estree 两个插件
+json（3.1.0）是纯表面包：Prettier 的 standalone 构建加 babel、estree 两个插件
 打进页面本身，格式化、转换与过滤都在文档内完成，不需要 Node，也没有 runtime。
 宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），构建出的页面在此之内。其余
 四个不运行进程：
@@ -144,7 +144,9 @@ json（3.0.0）是纯表面包：Prettier 的 standalone 构建加 babel、estre
 v3 移除了宿主工作台：没有缓冲区交换、没有宿主画的编辑器工具栏、也没有宿主画
 的文档动作行（宿主 D-1065、D-1068）。每个页面自己画控件。例如 code-edit 的
 页面按 GitHub 网页编辑器画整条 chrome：可编辑标题的标签页，一条工具栏（「语言」
-与「格式化」两个下拉 + 复制与保存图标），行号槽与代码面，底部状态栏。「格式化」
+与「格式化」两个下拉 + 复制与保存图标），行号槽与代码面，底部状态栏。高亮对比
+与 JSON 编辑器沿用同一条 chrome，只在工具栏里放各自的动作：对照页是语言徽标
+加复制、保存，JSON 页是「格式化」下拉、过滤框与复制。「格式化」
 下拉把注册表变成一张扁平菜单，「语言」下拉决定分词器与内置操作。「格式化」
 始终带有编辑器自带的、针对识别语言的内置操作——Go、
 JavaScript、TypeScript、Python、Rust、PHP、HTML、CSS、JSON、YAML、SQL 与
@@ -288,12 +290,12 @@ JSON 用 `encoding/json`，SQL 用共享的 `sqlkit`，CSS 用按花括号层级
 `replace` 到同一份源码，因此两个包编译并交付同一套分析、格式化与压缩实现，
 不会各自漂移。
 
-`com.mypaste.json` 是纯表面包（3.0.0）：归档里只有 manifest 与一份
+`com.mypaste.json` 是纯表面包（3.1.0）：归档里只有 manifest 与一份
 `preview.html`，不运行任何进程。页面是可编辑的 JSON 编辑器；Prettier 的
 standalone 构建连同 babel、estree 两个插件打进页面，美化不离开文档，也不需要
 Node。宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），构建出的页面在此
 之内。粘贴 URL 参数、XML 或 YAML 时由页面转换成 JSON；压缩、转义、JSON→XML
-与 JSON→TypeScript 写入独立的结果面板；底部过滤框对当前 JSON 求值一个很小的
+与 JSON→TypeScript 写入独立的结果面板；工具栏的过滤框对当前 JSON 求值一个很小的
 JavaScript 子集（成员访问、下标、数组方法、比较，以及以点开头的简写）。页面
 没有数据库或文件访问，也不发起网络请求；复制是 `copy` 桥消息，由宿主执行。
 

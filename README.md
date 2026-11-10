@@ -147,7 +147,7 @@ declaration fails the build instead of shipping.
 `com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view`,
 `com.mypaste.image-edit`, `com.mypaste.json` and `com.mypaste.timestamp` ship a
 page of their own. Code-edit additionally ships a runtime and internal commands
-for its built-in formatting (3.3.0). Json (3.0.0) is surface-only: Prettier's
+for its built-in formatting (3.3.0). Json (3.1.0) is surface-only: Prettier's
 standalone build plus the babel and estree plugins are bundled into the page,
 so it formats, converts and filters in the document with no Node and no
 runtime. The host reads a surface document up to 1 MiB (D-1091 in the host
@@ -180,7 +180,10 @@ editor toolbar and no host-drawn document action row (host D-1065, D-1068).
 Each page draws its own controls. Code-edit's page, for example, draws a
 GitHub-style editor chrome: an editable title tab, a toolbar with two dropdowns
 (语言 and 格式化) plus copy and save icons, a line-number gutter and a status
-bar. The 格式化 dropdown turns the registry into a flat menu, and the 语言
+bar. Diff-view and json reuse that chrome, each with its own actions in the
+toolbar: the language badge plus copy and save for the comparison, the 格式化
+dropdown, the filter box and copy for the JSON editor. The 格式化 dropdown
+turns the registry into a flat menu, and the 语言
 dropdown picks the tokenizer and the built-in operations. The menu always
 carries the editor's own built-in operations for
 the detected language — Go, JavaScript, TypeScript, Python, Rust, PHP, HTML,
@@ -359,14 +362,14 @@ a Go module that both `com.mypaste.sql` and the code-edit runtime `replace` to
 the same source tree, so the two packages compile and ship the same analyzer,
 formatter and compressor rather than drifting apart.
 
-`com.mypaste.json` is surface-only (3.0.0): the archive is its manifest and one
+`com.mypaste.json` is surface-only (3.1.0): the archive is its manifest and one
 `preview.html`, and no process runs. The page is an editable JSON editor;
 Prettier's standalone build with the babel and estree plugins is bundled into
 it, so beautifying never leaves the document and needs no Node. The host reads
 surface documents up to 1 MiB (D-1091 in the host repository), which the built
 page fits. Pasting URL parameters, XML or YAML converts to JSON in the page;
 minify, escape, JSON→XML and JSON→TypeScript write a derived result panel, and
-a bottom filter bar evaluates a small JavaScript subset (member access,
+the toolbar's filter box evaluates a small JavaScript subset (member access,
 indexing, array methods, comparisons, a leading-dot shorthand) against the
 current JSON. The page holds no database or file access and makes no network
 request; copying is a `copy` bridge message the host performs.
