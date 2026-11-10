@@ -465,8 +465,7 @@ function editRequest(
   if (
     target.closest('[data-role="editor"]')
     || target.closest("footer")
-    || target.closest(".toolbar")
-    || target.closest(".tabs")
+    || target.closest(".doc-head")
   ) {
     return null;
   }

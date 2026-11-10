@@ -147,7 +147,7 @@ declaration fails the build instead of shipping.
 `com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view`,
 `com.mypaste.image-edit`, `com.mypaste.json` and `com.mypaste.timestamp` ship a
 page of their own. Code-edit additionally ships a runtime and internal commands
-for its built-in formatting (3.3.0). Json (3.2.0) is surface-only: Prettier's
+for its built-in formatting (3.3.0). Json (3.2.1) is surface-only: Prettier's
 standalone build plus the babel and estree plugins are bundled into the page,
 so it formats, converts and filters in the document with no Node and no
 runtime. The host reads a surface document up to 1 MiB (D-1091 in the host
@@ -172,7 +172,7 @@ repository), which the built page fits. The other four run no process:
 `chrome` is optional, and only an `open` surface may set `"page"`: the page
 draws the whole card, so the host hides its own header and footer and the page
 closes through the bridge's `close` request. Omitting it keeps the host card
-(`"host"`). Code-edit (3.7.0), diff-view (3.2.0) and json (3.2.0) declare
+(`"host"`). Code-edit (3.7.1), diff-view (3.2.1) and json (3.2.1) declare
 `"page"`; image-edit and timestamp keep the host card.
 
 The host serves the page to a sandboxed frame and mediates reading this
@@ -371,7 +371,7 @@ a Go module that both `com.mypaste.sql` and the code-edit runtime `replace` to
 the same source tree, so the two packages compile and ship the same analyzer,
 formatter and compressor rather than drifting apart.
 
-`com.mypaste.json` is surface-only (3.2.0): the archive is its manifest and one
+`com.mypaste.json` is surface-only (3.2.1): the archive is its manifest and one
 `preview.html`, and no process runs. The page is an editable JSON editor;
 Prettier's standalone build with the babel and estree plugins is bundled into
 it, so beautifying never leaves the document and needs no Node. The host reads

@@ -401,7 +401,7 @@ class JSONSurfacePageTest(unittest.TestCase):
         manifest = json.loads(
             (PACKAGE / "mypaste.plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["manifestVersion"], 3)
-        self.assertEqual(manifest["version"], "3.2.0")
+        self.assertEqual(manifest["version"], "3.2.1")
         self.assertEqual(manifest["capabilities"], ["entity.read"])
         self.assertNotIn("runtime", manifest)
         self.assertNotIn("commands", manifest)

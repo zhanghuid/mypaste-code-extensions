@@ -56,7 +56,7 @@ let generation = 0;
 
 /**
  * The format dropdown: the five actions live behind one trigger, the way the
- * code editor groups its actions. The toolbar is never clipped, so the sheet
+ * code editor groups its actions. The header is never clipped, so the sheet
  * is positioned by the stylesheet and opening it only toggles visibility.
  */
 function setMenuOpen(open: boolean): void {

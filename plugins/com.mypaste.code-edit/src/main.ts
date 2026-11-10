@@ -82,6 +82,34 @@ const copyButton = one<HTMLButtonElement>("[data-action=copy]");
 const saveButton = one<HTMLButtonElement>("[data-action=save]");
 const closeButton = one<HTMLButtonElement>("#doc-close");
 
+/** Measures the title's text so the accent rule can end with the name. */
+const titleCanvas = document.createElement("canvas");
+const titleContext =
+  typeof titleCanvas.getContext === "function" ? titleCanvas.getContext("2d") : null;
+
+/**
+ * The title is a filename, not a form field: the input takes exactly the width
+ * of its text (measured in the header's own font), so the accent rule under
+ * the identity ends just past the name. Capped so a long title cannot push the
+ * document's actions out of the header. Without a measuring context the
+ * fallback counts characters in `ch`, full-width glyphs as two.
+ */
+function fitTitle(): void {
+  const text = titleInput.value || "未命名";
+  if (titleContext && typeof getComputedStyle === "function") {
+    const style = getComputedStyle(titleInput);
+    titleContext.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const width = titleContext.measureText(text).width;
+    titleInput.style.width = `${Math.min(360, Math.max(64, Math.ceil(width) + 2))}px`;
+    return;
+  }
+  let columns = 0;
+  for (const glyph of text) {
+    columns += /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/.test(glyph) ? 2 : 1;
+  }
+  titleInput.style.width = `${Math.min(40, Math.max(6, columns + 1))}ch`;
+}
+
 let originalText = "";
 let choice: CodeLanguage | "auto" | "text" = "auto";
 let busy = false;
@@ -623,11 +651,14 @@ input.addEventListener("keydown", (event) => {
 copyButton.addEventListener("click", () => void copy());
 saveButton.addEventListener("click", () => void save());
 closeButton.addEventListener("click", () => bridge.close());
+titleInput.addEventListener("input", fitTitle);
+fitTitle();
 
 bridge.onItem((item) => {
   originalText = item.text;
   input.value = item.text;
   titleInput.value = item.title.slice(0, SAVE_TITLE_LIMIT);
+  fitTitle();
   choice = "auto";
   render();
   updateButtons();

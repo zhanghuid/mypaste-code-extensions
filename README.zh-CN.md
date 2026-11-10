@@ -117,7 +117,7 @@
 `com.mypaste.code-card`、`com.mypaste.code-edit`、`com.mypaste.diff-view`、
 `com.mypaste.image-edit`、`com.mypaste.json` 与 `com.mypaste.timestamp` 各自交付
 一个页面。code-edit 另外交付 runtime 与内部命令，用于自带格式化（3.3.0）；
-json（3.2.0）是纯表面包：Prettier 的 standalone 构建加 babel、estree 两个插件
+json（3.2.1）是纯表面包：Prettier 的 standalone 构建加 babel、estree 两个插件
 打进页面本身，格式化、转换与过滤都在文档内完成，不需要 Node，也没有 runtime。
 宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），构建出的页面在此之内。其余
 四个不运行进程：
@@ -139,7 +139,7 @@ json（3.2.0）是纯表面包：Prettier 的 standalone 构建加 babel、estre
 
 `chrome` 可选，且只有 `open` 表面能声明 `"page"`：卡片外框整块归页面，宿主
 隐藏自己的页眉与页脚，页面经桥的 `close` 请求关闭。省略时保留宿主卡片
-（`"host"`）。code-edit（3.7.0）、diff-view（3.2.0）与 json（3.2.0）声明
+（`"host"`）。code-edit（3.7.1）、diff-view（3.2.1）与 json（3.2.1）声明
 `"page"`；image-edit 与 timestamp 保留宿主卡片。
 
 宿主把页面放进沙箱 frame，并中介这些操作：读取本次调用的条目、把文本或图片
@@ -297,7 +297,7 @@ JSON 用 `encoding/json`，SQL 用共享的 `sqlkit`，CSS 用按花括号层级
 `replace` 到同一份源码，因此两个包编译并交付同一套分析、格式化与压缩实现，
 不会各自漂移。
 
-`com.mypaste.json` 是纯表面包（3.2.0）：归档里只有 manifest 与一份
+`com.mypaste.json` 是纯表面包（3.2.1）：归档里只有 manifest 与一份
 `preview.html`，不运行任何进程。页面是可编辑的 JSON 编辑器；Prettier 的
 standalone 构建连同 babel、estree 两个插件打进页面，美化不离开文档，也不需要
 Node。宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），构建出的页面在此

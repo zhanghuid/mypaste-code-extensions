@@ -71,7 +71,7 @@
   html, body { margin: 0; height: 100%; }
   body {
     display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
     background: var(--bg);
     color: var(--ink);
     font: 13px/1.5 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
@@ -82,105 +82,125 @@
     cursor: pointer;
   }
 
-  /* The tab strip names the document, the way the code editor's tab does. */
-  .tabs {
-    display: flex;
-    align-items: stretch;
-    padding: 6px 12px 0;
-    border-bottom: 1px solid var(--line);
-    background: var(--solid);
-  }
-  .tab {
+  /*
+   * The document header. The page owns the whole card now (D-1097), so this is
+   * one 44px band instead of a strip holding an empty tab: the summary sits at
+   * the left with a square accent rule beneath it (D-1045), and all of the
+   * document's tools share the row at the right, every one of them a 28px
+   * control (D-1051). The filter grows into the space between the two, so the
+   * header stays the only chrome row. Closing is set apart by a hairline.
+   */
+  .doc-head {
     display: flex;
     align-items: center;
-    gap: 7px;
-    min-width: 0;
-    padding: 0 12px;
-    border-bottom: 2px solid transparent;
-    color: var(--muted);
-  }
-  .tab.is-active {
+    gap: 12px;
+    height: 44px;
+    padding: 0 12px 0 16px;
+    border-bottom: 1px solid var(--line);
     background: var(--surface);
-    color: var(--ink);
-    border-bottom-color: var(--accent);
   }
-  .tab .tab-file-icon { width: 14px; height: 14px; flex: none; color: var(--muted); }
+  .doc-id {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    height: 100%;
+    padding-right: 8px;
+  }
+  .doc-id::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--accent);
+  }
+  .doc-icon { width: 15px; height: 15px; flex: none; color: var(--muted); }
   #summary {
     min-width: 0;
-    max-width: 60vw;
+    max-width: 40vw;
     overflow: hidden;
     font: 600 13px/1.4 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /*
-   * Closing belongs to the page now that it owns the card (D-1097): one square
-   * icon at the strip's far end, muted until it is pointed at, the same glyph
-   * the other two surfaces use.
-   */
-  .tab-close {
+  .doc-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+  .menu-root { position: relative; display: inline-flex; flex: none; }
+  /* Ghost trigger: the band holds one kind of control, boxes belong to fields. */
+  .menu-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 8px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: 12px/1 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
+  }
+  .menu-trigger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+    color: var(--ink);
+  }
+  .menu-trigger:focus-visible {
+    outline: none;
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  .menu-trigger[aria-expanded="true"] { color: var(--accent); }
+  .menu-trigger .trigger-chevron { width: 12px; height: 12px; flex: none; }
+  .doc-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    align-self: center;
-    width: 26px;
-    height: 26px;
-    margin-left: auto;
+    flex: none;
+    width: 28px;
+    height: 28px;
     padding: 0;
     border: 0;
     background: transparent;
     color: var(--muted);
   }
-  .tab-close .icon { width: 14px; height: 14px; }
-  .tab-close:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
-  .tab-close:focus-visible {
+  .doc-action .icon { width: 15px; height: 15px; }
+  .doc-action:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+    color: var(--ink);
+  }
+  .doc-action:focus-visible {
     outline: none;
     color: var(--ink);
     box-shadow: inset 0 0 0 1px var(--accent);
   }
-
-  /*
-   * The toolbar: the format dropdown and the filter on the left, the copy
-   * action on the right. Every control in the row shares one height (D-1051);
-   * copy is an icon so the row never reads as a wall of text (D-1055).
-   */
-  .toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 8px 12px;
-    background: var(--surface);
-  }
-  .toolbar-left, .toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-  }
-  .toolbar-left { flex-wrap: wrap; row-gap: 6px; }
-  .menu-root { position: relative; display: inline-flex; }
-  .menu-trigger {
+  .doc-action:disabled { opacity: 0.4; cursor: default; }
+  .doc-sep { width: 1px; height: 16px; flex: none; margin: 0 4px; background: var(--line); }
+  .doc-close {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    flex: none;
+    width: 28px;
     height: 28px;
-    padding: 0 9px;
-    border: 1px solid var(--line);
-    background: var(--solid);
-    color: var(--ink);
-    font: 12px/1 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
   }
-  .menu-trigger:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
-  }
-  .menu-trigger:focus-visible {
+  .doc-close .icon { width: 14px; height: 14px; }
+  .doc-close:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+  .doc-close:focus-visible {
     outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--focus);
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--accent);
   }
-  .menu-trigger[aria-expanded="true"] { border-color: var(--accent); }
-  .menu-trigger .trigger-chevron { width: 12px; height: 12px; flex: none; color: var(--muted); }
 
   .menu {
     position: absolute;
@@ -427,23 +447,15 @@
 </style>
 </head>
 <body>
-  <div class="tabs" role="tablist">
-    <div class="tab is-active" role="tab" aria-selected="true">
-      <svg class="tab-file-icon" viewBox="0 0 16 16" aria-hidden="true">
+  <header class="doc-head">
+    <div class="doc-id">
+      <svg class="doc-icon" viewBox="0 0 16 16" aria-hidden="true">
         <path d="M3 2.5h6l3 3v8h-9z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
         <path d="M9 2.5v3h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
       </svg>
       <span id="summary">等待条目…</span>
     </div>
-    <button type="button" class="tab-close" id="doc-close" title="关闭" aria-label="关闭">
-      <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
-        <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor"
-          stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
-    </button>
-  </div>
-  <div class="toolbar">
-    <div class="toolbar-left">
+    <div class="doc-actions">
       <div class="menu-root" id="doc-format-root">
         <button type="button" class="menu-trigger" id="doc-format-toggle"
           aria-haspopup="menu" aria-expanded="false" aria-label="格式化与转换" title="格式化与转换">
@@ -463,20 +475,25 @@
       </div>
       <div class="filter-root">
         <input id="filter" type="text" spellcheck="false" autocomplete="off"
-          placeholder="JavaScript 表达式，如 data.items[0].id"
+          placeholder="JavaScript 表达式" title="例：data.items[0].id"
           aria-label="JavaScript 表达式过滤">
         <button type="button" class="filter-run" id="filter-run">运行</button>
       </div>
-    </div>
-    <div class="toolbar-right">
-      <button type="button" class="icon-button" id="copy-json" title="复制 JSON" aria-label="复制 JSON">
+      <button type="button" class="doc-action" id="copy-json" title="复制 JSON" aria-label="复制 JSON">
         <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
           <rect x="5.5" y="5.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.4"/>
           <path d="M3.5 10.5v-7h7" fill="none" stroke="currentColor" stroke-width="1.4"/>
         </svg>
       </button>
+      <span class="doc-sep" aria-hidden="true"></span>
+      <button type="button" class="doc-close" id="doc-close" title="关闭" aria-label="关闭">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor"
+            stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
-  </div>
+  </header>
   <div class="editor">
     <pre id="editor-gutter" aria-hidden="true"></pre>
     <textarea id="editor" spellcheck="false" autocomplete="off"

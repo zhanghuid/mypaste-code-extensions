@@ -70,7 +70,7 @@
   html, body { margin: 0; height: 100%; }
   body {
     display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     background: var(--bg);
     color: var(--ink);
     font: 13px/1.5 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
@@ -82,41 +82,51 @@
   }
 
   /*
-   * The tab strip. A single active tab carries the editable document title,
-   * the way GitHub's editor names its file in the tab. The active tab is
-   * marked by its surface and a rounded accent bar along the bottom (D-1071),
-   * never a rounded corner on the tab itself (D-1045).
+   * The document header. The page owns the whole card now (D-1097), so this is
+   * one 44px band instead of a strip holding an empty tab: the editable title
+   * sits at the left with a square accent rule beneath it (D-1045 forbids a
+   * rounded tab), and the document's actions sit at the right, every one of
+   * them a 28px square so the row has a single size (D-1051). Closing is set
+   * apart by a hairline and is the only control the page does not tint.
    */
-  .tabs {
-    display: flex;
-    align-items: stretch;
-    padding: 6px 12px 0;
-    border-bottom: 1px solid var(--line);
-    background: var(--solid);
-  }
-  .tab {
+  .doc-head {
     display: flex;
     align-items: center;
-    gap: 7px;
-    min-width: 0;
-    padding: 0 12px;
-    border-bottom: 2px solid transparent;
-    color: var(--muted);
-  }
-  .tab.is-active {
+    justify-content: space-between;
+    gap: 12px;
+    height: 44px;
+    padding: 0 12px 0 16px;
+    border-bottom: 1px solid var(--line);
     background: var(--surface);
-    color: var(--ink);
-    border-bottom-color: var(--accent);
   }
-  .tab .tab-file-icon { width: 14px; height: 14px; flex: none; color: var(--muted); }
-  #doc-title {
+  .doc-id {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     min-width: 0;
-    width: 220px;
-    height: 28px;
+    height: 100%;
+    padding-right: 8px;
+  }
+  .doc-id::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--accent);
+  }
+  .doc-icon { width: 15px; height: 15px; flex: none; color: var(--muted); }
+  /* The title is sized to its text by fitTitle(), so it reads as a filename. */
+  #doc-title {
+    min-width: 48px;
+    max-width: calc(100vw - 340px);
+    height: 26px;
     padding: 0;
     border: 0;
     background: transparent;
-    color: inherit;
+    color: var(--ink);
     font: 600 13px/1.4 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
   }
   #doc-title:focus { outline: none; }
@@ -129,105 +139,89 @@
     background: var(--accent);
   }
   #doc-dirty[hidden] { display: none; }
-  /*
-   * Closing belongs to the page now that it owns the card (D-1097): one square
-   * icon at the strip's far end, muted until it is pointed at, the same glyph
-   * the other two surfaces use.
-   */
-  .tab-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    align-self: center;
-    width: 26px;
-    height: 26px;
-    margin-left: auto;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-  }
-  .tab-close .icon { width: 14px; height: 14px; }
-  .tab-close:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
-  .tab-close:focus-visible {
-    outline: none;
-    color: var(--ink);
-    box-shadow: inset 0 0 0 1px var(--accent);
-  }
-
-  /*
-   * The toolbar: two labelled dropdowns on the left, icon actions on the
-   * right. Every control in the row shares one height (D-1051); copy and save
-   * are icons so the row never reads as a wall of text (D-1055).
-   */
-  .toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 8px 12px;
-    background: var(--surface);
-  }
-  .toolbar-left, .toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .menu-root { position: relative; display: inline-flex; }
-  .menu-trigger {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 9px;
-    border: 1px solid var(--line);
-    background: var(--solid);
-    color: var(--ink);
-    font: 12px/1 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
-  }
-  .menu-trigger:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
-  }
-  .menu-trigger:focus-visible {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--focus);
-  }
-  .menu-trigger[aria-expanded="true"] { border-color: var(--accent); }
-  .menu-trigger:disabled { opacity: 0.45; cursor: default; }
-  .menu-trigger .trigger-chevron { width: 12px; height: 12px; flex: none; color: var(--muted); }
-  #doc-language-badge { font-family: var(--mono); font-size: 11.5px; }
-
-  .icon-button {
+  .doc-actions { display: flex; align-items: center; gap: 4px; }
+  .doc-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 28px;
     height: 28px;
     padding: 0;
-    border: 1px solid var(--line);
-    background: var(--solid);
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+  }
+  .doc-action .icon { width: 15px; height: 15px; }
+  .doc-action:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
     color: var(--ink);
   }
-  .icon-button .icon { width: 15px; height: 15px; }
-  .icon-button[data-action="save"] {
-    border-color: var(--accent);
+  .doc-action:focus-visible {
+    outline: none;
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  .doc-action:disabled { opacity: 0.4; cursor: default; }
+  .doc-action[data-action="save"] {
     background: var(--accent);
     color: var(--accent-ink);
   }
-  .icon-button:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
+  .doc-action[data-action="save"]:hover:not(:disabled) {
+    background: var(--accent);
+    color: var(--accent-ink);
+    filter: brightness(1.08);
   }
-  .icon-button[data-action="save"]:hover:not(:disabled) {
-    border-color: var(--accent);
-    filter: brightness(1.05);
+  .doc-sep { width: 1px; height: 16px; flex: none; margin: 0 4px; background: var(--line); }
+  .doc-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
   }
-  .icon-button:focus-visible {
+  .doc-close .icon { width: 14px; height: 14px; }
+  .doc-close:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+  .doc-close:focus-visible {
     outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--focus);
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--accent);
   }
-  .icon-button:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
+
+  /*
+   * The header's dropdowns: ghost text triggers rather than boxed chips, so
+   * the band holds one kind of control and the title stays the only filled
+   * element at the left. Their menus are fixed sheets, so the header never
+   * clips them.
+   */
+  .doc-actions .menu-root { position: relative; display: inline-flex; }
+  .menu-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 8px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: 12px/1 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
+  }
+  .menu-trigger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+    color: var(--ink);
+  }
+  .menu-trigger:focus-visible {
+    outline: none;
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  .menu-trigger[aria-expanded="true"] { color: var(--accent); }
+  .menu-trigger:disabled { opacity: 0.45; cursor: default; }
+  .menu-trigger .trigger-chevron { width: 12px; height: 12px; flex: none; }
+  #doc-language-badge { font-family: var(--mono); font-size: 11.5px; }
 
   /*
    * A dropdown is an opaque raised sheet (a transient popup, not a ghost over
@@ -397,9 +391,9 @@
 </style>
 </head>
 <body>
-  <div class="tabs" role="tablist">
-    <div class="tab is-active" role="tab" aria-selected="true">
-      <svg class="tab-file-icon" viewBox="0 0 16 16" aria-hidden="true">
+  <header class="doc-head">
+    <div class="doc-id">
+      <svg class="doc-icon" viewBox="0 0 16 16" aria-hidden="true">
         <path d="M3 2.5h6l3 3v8h-9z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
         <path d="M9 2.5v3h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
       </svg>
@@ -407,15 +401,7 @@
         autocomplete="off" aria-label="文档名称">
       <span id="doc-dirty" aria-label="未保存" hidden></span>
     </div>
-    <button type="button" class="tab-close" id="doc-close" title="关闭" aria-label="关闭">
-      <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
-        <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor"
-          stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
-    </button>
-  </div>
-  <div class="toolbar">
-    <div class="toolbar-left">
+    <div class="doc-actions">
       <div class="menu-root" id="doc-language-root">
         <button type="button" class="menu-trigger" id="doc-language-toggle"
           aria-haspopup="menu" aria-expanded="false" aria-label="选择语言" title="语言">
@@ -436,15 +422,14 @@
         </button>
         <div class="menu" id="doc-format-menu" role="menu" aria-label="格式化与本地操作" tabindex="-1" hidden></div>
       </div>
-    </div>
-    <div class="toolbar-right">
-      <button type="button" data-action="copy" class="icon-button" title="复制文本" aria-label="复制文本">
+      <span class="doc-sep" aria-hidden="true"></span>
+      <button type="button" data-action="copy" class="doc-action" title="复制文本" aria-label="复制文本">
         <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
           <rect x="5.5" y="5.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.4"/>
           <path d="M3.5 10.5v-7h7" fill="none" stroke="currentColor" stroke-width="1.4"/>
         </svg>
       </button>
-      <button type="button" class="icon-button" data-action="save" title="保存为新条目" aria-label="保存为新条目">
+      <button type="button" class="doc-action" data-action="save" title="保存为新条目" aria-label="保存为新条目">
         <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
           <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
             <path d="M3 2.5h8l2 2v9h-10z"/>
@@ -453,8 +438,15 @@
           </g>
         </svg>
       </button>
+      <span class="doc-sep" aria-hidden="true"></span>
+      <button type="button" class="doc-close" id="doc-close" title="关闭" aria-label="关闭">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor"
+            stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
-  </div>
+  </header>
   <div class="editor">
     <pre id="editor-gutter" aria-hidden="true"></pre>
     <div class="editor-code">
