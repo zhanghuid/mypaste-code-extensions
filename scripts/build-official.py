@@ -6,7 +6,7 @@ two shapes, and the shipped archive never contains the source tree:
 
 - a compiled Go program (manifest, optional assets, one built binary — or, for
   a package with a `targets` list, one binary per platform under
-  `bin/<goos>-<goarch>/`);
+  `bin/<goos>/<goarch>/`);
 - a surface document (manifest plus the one HTML page `surface.entry` names,
   bundled from src/ by scripts/build-surfaces.mjs);
 - or both: a UI package that also declares a runtime and internal commands
@@ -66,7 +66,7 @@ def build_binary(spec: dict, staging: Path) -> None:
     for target in targets:
         # A single-target package keeps the flat layout the first host knew:
         # the binary sits beside the manifest. A multi-target package nests
-        # one binary per platform under bin/<goos>-<goarch>/, which the host
+        # one binary per platform under bin/<goos>/<goarch>/, which the host
         # resolves through (D-1057 in the host repository).
         if len(targets) == 1:
             output = staging / spec["entrypoint"]
@@ -102,7 +102,10 @@ def build_surface(plugin_id: str, output: Path) -> None:
 
 def package_kind(manifest: dict, plugin_id: str) -> str:
     """The package's kind, which must agree with its shape (protocol v3)."""
-    expected = "ui" if manifest.get("surface") is not None else "command"
+    # A UI package either owns an entry surface or a settings-window menu tab
+    # (D-1085). A runtime with neither is a command package.
+    has_page = manifest.get("surface") is not None or bool(manifest.get("menus"))
+    expected = "ui" if has_page else "command"
     kind = manifest.get("kind", expected)
     if kind not in {"ui", "command"} or kind != expected:
         fail(f"{plugin_id}: kind {kind!r} does not match its shape "

@@ -29,6 +29,8 @@
   `scripts/package.py` 从纯源码打包；语言表见下文。
 - **二进制能力包**（`plugins/com.mypaste.ferry`、`plugins/com.mypaste.sql`）
   ——编译后的 Go 程序，由 `scripts/build-official.py` 构建。
+- **设置页包**（`plugins/com.mypaste.sync`）——手写 `panel.html` 加编译后的
+  Go runtime，由 `scripts/build-official.py` 构建。
 - **表面包**（`plugins/com.mypaste.code-card`、`plugins/com.mypaste.code-edit`、
   `plugins/com.mypaste.diff-view`、`plugins/com.mypaste.image-edit`、
   `plugins/com.mypaste.timestamp`）——一个 HTML 页面，不运行进程；见下文
@@ -227,6 +229,19 @@ manifest 与构建出的 `ferry` 二进制，绝无源码树。它对话的中�
 安装确认里逐项列出，唯一的启用开关就是全部的许可决定（宿主 D-1039）。
 没有签名或可信层级可取得。
 
+`com.mypaste.sync`——S3 快照扩展——是有自己 runtime 的 UI 包：设置窗口的
+「同步」菜单（`sync.panel`，顺序 50）是手写的 `panel.html`，所有动作都在编译
+后的 `sync` runtime 里完成。runtime 经宿主只读的 `data.read` / `asset.read`
+读取历史与资产，重建与宿主导出一致的 `.mypaste-backup` 归档，按
+`MYPaste-Sync/1` 加密（PBKDF2-HMAC-SHA256 210000 次、16 字节盐、AES-256-GCM，
+头部作 AAD），自己用 SigV4 签 ListObjectsV2 / PutObject / 分段 GetObject，
+每次传输都经宿主的 `backup.sync` 服务。凭据、盐与口令只存在包的私有
+`storage.plugin` 目录（0600），不进入页面或日志。定时触发每 15 分钟检查一次
+保存的计划；失败从 15 分钟起倍增至 24 小时。两个 darwin 二进制按
+`bin/<goos>/<goarch>/` 交付（宿主 D-1057），归档就是宿主未改动的
+`.mypaste-backup` 格式，两边可以互相恢复。Go 源码在
+`plugins/com.mypaste.sync/src/`（独立 `go.mod`）。
+
 `com.mypaste.sql`——SQL 工具包扩展（七方言的语法高亮、语法诊断、格式化与
 压缩，词法分析用 [chroma](https://github.com/alecthomas/chroma)）——同样以
 编译二进制交付。它是纯能力：只暴露 `highlight`、`format` 与 `compress`
@@ -237,7 +252,7 @@ manifest 与构建出的 `ferry` 二进制，绝无源码树。它对话的中�
 `bin/<goos>/<goarch>/` 下嵌套每平台一个二进制（Windows 为 `.exe`）；宿主按
 这个布局解析声明的入口（宿主 D-1057）。
 
-`com.mypaste.code-edit` 是唯一的组合型官方包：`kind` 为 `"ui"`，同时交付
+`com.mypaste.code-edit` 是两个组合型官方包之一：`kind` 为 `"ui"`，同时交付
 页面与编译后的 runtime，并声明不带 `placement`、`output: ["text"]` 的内部
 格式化命令。协议 v3 只让本包自己的表面看到这些命令；它们不会出现在 Cmd+K
 命令面板或其他表面的注册表里。runtime 在 stdin/stdout 上使用与 v2 进程相同

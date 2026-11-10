@@ -22,6 +22,21 @@ under `src/`).
 """
 
 OFFICIAL = {
+    "com.mypaste.sync": {
+        # A settings-window menu package with a runtime of its own: the page
+        # invokes sync.request, and an interval trigger runs sync.auto. Both
+        # binaries ship in the same archive; the host resolves one by GOOS and
+        # GOARCH (D-1057). The page is a hand-written asset, not a built
+        # surface.
+        "module": "plugins/com.mypaste.sync/src",
+        "entrypoint": "sync",
+        "package": "./cmd/mypaste-sync",
+        "targets": [
+            {"goos": "darwin", "goarch": "arm64"},
+            {"goos": "darwin", "goarch": "amd64"},
+        ],
+        "assets": {"panel.html": "panel.html"},
+    },
     "com.mypaste.code-edit": {
         # A UI package with a runtime of its own: the page plus the Go
         # formatter that runs in process. Only this package's surface can

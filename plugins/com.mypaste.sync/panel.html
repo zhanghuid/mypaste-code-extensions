@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="zh-CN" data-scheme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>同步</title>
+<style>
+  :root {
+    --surface-solid: #ffffff;
+    --surface-raised: #f6f6f3;
+    --ink: #1d1d1f;
+    --ink-soft: #6b6b70;
+    --line: #d8d8d4;
+    --accent: #2f6fed;
+    --accent-ink: #ffffff;
+    --danger: #c0392b;
+    --success: #218739;
+    --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    --font-display: var(--font-body);
+    color-scheme: light;
+  }
+  :root[data-scheme="dark"] {
+    --surface-solid: #1c1c1e;
+    --surface-raised: #262628;
+    --ink: #f2f2f4;
+    --ink-soft: #a1a1a6;
+    --line: #3a3a3d;
+    --accent: #6f9dff;
+    --accent-ink: #101014;
+    --danger: #ff7b6f;
+    --success: #5fd07e;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; border-radius: 0; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--surface-solid);
+    color: var(--ink);
+    font: 13px/1.5 var(--font-body);
+    padding: 22px 24px 28px;
+    overflow: auto;
+  }
+  .page { max-width: 760px; }
+  h1 {
+    margin: 0;
+    font: 600 20px/1.25 var(--font-display);
+    letter-spacing: 0.01em;
+  }
+  .intro { margin: 6px 0 0; color: var(--ink-soft); }
+  .tabs {
+    display: flex;
+    gap: 22px;
+    margin: 20px 0 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tab {
+    position: relative;
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--ink-soft);
+    font: 600 12px/1 var(--font-body);
+    letter-spacing: 0.06em;
+    padding: 0 0 11px;
+    cursor: pointer;
+  }
+  .tab[aria-selected="true"] { color: var(--ink); }
+  .tab[aria-selected="true"]::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 0 0 2px 2px;
+  }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .panel[hidden] { display: none; }
+  .card {
+    border: 1px solid var(--line);
+    background: var(--surface-raised);
+    padding: 16px;
+    display: grid;
+    gap: 13px;
+  }
+  .card + .card { margin-top: 14px; }
+  .card h2 {
+    margin: 0;
+    font: 600 13px/1.3 var(--font-display);
+    letter-spacing: 0.02em;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  label { display: grid; gap: 6px; color: var(--ink-soft); font-size: 12px; }
+  label.wide { grid-column: 1 / -1; }
+  input[type="url"], input[type="text"], input[type="password"], select {
+    appearance: none;
+    width: 100%;
+    height: 34px;
+    border: 1px solid var(--line);
+    background: var(--surface-solid);
+    color: var(--ink);
+    font: 13px/1 var(--font-body);
+    padding: 0 10px;
+  }
+  select {
+    padding-right: 26px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
+      linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+    background-position: calc(100% - 13px) 15px, calc(100% - 8px) 15px;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+  }
+  input:focus-visible, select:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  button.action {
+    appearance: none;
+    height: 32px;
+    border: 1px solid var(--line);
+    background: var(--surface-solid);
+    color: var(--ink);
+    font: 600 11px/1 var(--font-body);
+    letter-spacing: 0.04em;
+    padding: 0 14px;
+    cursor: pointer;
+  }
+  button.action.primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  button.action.danger { border-color: var(--danger); color: var(--danger); }
+  button.action:hover:not(:disabled) { border-color: var(--ink-soft); }
+  button.action.primary:hover:not(:disabled) { border-color: var(--accent); }
+  button.action:disabled { opacity: 0.45; cursor: default; }
+  button.action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .note { margin: 0; color: var(--ink-soft); font-size: 12px; }
+  .warning {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--danger);
+    background: var(--surface-solid);
+    padding: 10px 12px;
+    color: var(--ink-soft);
+    font-size: 12px;
+  }
+  .warning strong { display: block; margin-bottom: 3px; color: var(--ink); }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--ink);
+    font-size: 13px;
+  }
+  .check input {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--line);
+    background: var(--surface-solid);
+    display: grid;
+    place-content: center;
+    cursor: pointer;
+  }
+  .check input:checked { border-color: var(--accent); background: var(--accent); }
+  .check input:checked::after {
+    content: "";
+    width: 8px;
+    height: 4px;
+    border-left: 2px solid var(--accent-ink);
+    border-bottom: 2px solid var(--accent-ink);
+    transform: translateY(-1px) rotate(-45deg);
+  }
+  .status {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    min-height: 34px;
+    border-top: 1px solid var(--line);
+    padding-top: 11px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    margin-top: 5px;
+    border-radius: 50%;
+    background: var(--ink-soft);
+    flex: none;
+  }
+  .status[data-tone="success"] .dot { background: var(--success); }
+  .status[data-tone="danger"] .dot { background: var(--danger); }
+  .status[data-tone="busy"] .dot { background: var(--accent); }
+  .status-copy { display: grid; gap: 3px; min-width: 0; }
+  .status-label { font-weight: 600; }
+  .status-detail { color: var(--ink-soft); font-size: 12px; overflow-wrap: anywhere; }
+  .feedback { min-height: 20px; margin: 14px 0 0; color: var(--ink-soft); font-size: 12px; }
+  .feedback[data-tone="danger"] { color: var(--danger); }
+  .feedback[data-tone="success"] { color: var(--success); }
+</style>
+</head>
+<body>
+<main class="page">
+  <h1>同步</h1>
+  <p class="intro">把加密后的 MyPaste 快照上传到你自己的 S3 存储桶。连接、归档、加密与上传都由这个扩展完成；扩展只经宿主提供的只读服务读取历史与图片。</p>
+
+  <div class="tabs" role="tablist" aria-label="同步设置">
+    <button class="tab" id="tab-connection" role="tab" type="button" aria-selected="true" aria-controls="panel-connection" tabindex="0">连接</button>
+    <button class="tab" id="tab-schedule" role="tab" type="button" aria-selected="false" aria-controls="panel-schedule" tabindex="-1">自动上传</button>
+  </div>
+
+  <section class="panel" id="panel-connection" role="tabpanel" aria-labelledby="tab-connection">
+    <div class="card">
+      <h2>S3 存储桶</h2>
+      <div class="grid">
+        <label>Endpoint
+          <input id="endpoint" type="url" spellcheck="false" autocomplete="off" placeholder="https://s3.example.com">
+        </label>
+        <label>Region
+          <input id="region" type="text" spellcheck="false" autocomplete="off" placeholder="us-east-1">
+        </label>
+        <label>Bucket
+          <input id="bucket" type="text" spellcheck="false" autocomplete="off" placeholder="my-clipboard-backups">
+        </label>
+        <label>Prefix
+          <input id="prefix" type="text" spellcheck="false" autocomplete="off" placeholder="mypaste/">
+        </label>
+      </div>
+      <p class="note">留空 Endpoint 时按 Region 连接 AWS。对象只包含加密后的备份归档。</p>
+    </div>
+
+    <div class="card">
+      <h2>凭据</h2>
+      <div class="grid">
+        <label>Access Key
+          <input id="access-key" type="password" spellcheck="false" autocomplete="new-password" placeholder="留空则保留已存值">
+        </label>
+        <label>Secret Key
+          <input id="secret-key" type="password" spellcheck="false" autocomplete="new-password" placeholder="留空则保留已存值">
+        </label>
+        <label class="wide">加密口令
+          <input id="passphrase" type="password" spellcheck="false" autocomplete="new-password" placeholder="至少 12 个字符；留空则保留已存值">
+        </label>
+      </div>
+      <p class="note">凭据与口令保存在扩展自己的私有存储（0600）中，不会回到页面，也不会写入日志。</p>
+    </div>
+
+    <div class="actions">
+      <button class="action primary" id="save" type="button">保存连接</button>
+      <button class="action" id="test" type="button">测试连接</button>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-schedule" role="tabpanel" aria-labelledby="tab-schedule" hidden>
+    <div class="card">
+      <h2>自动上传</h2>
+      <label class="check"><input id="enabled" type="checkbox"> 按计划自动上传加密快照</label>
+      <label>上传间隔
+        <select id="interval"></select>
+      </label>
+      <div class="actions">
+        <button class="action primary" id="save-schedule" type="button">保存计划</button>
+      </div>
+      <p class="note">保存计划会立即写入设置；关闭自动上传不会删除远端已有的快照。</p>
+    </div>
+
+    <div class="card">
+      <h2>立即上传</h2>
+      <div class="status" id="status" data-tone="disabled" role="status" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span>
+        <div class="status-copy">
+          <span class="status-label" id="status-label">未配置</span>
+          <span class="status-detail" id="status-detail">填写存储桶与凭据后即可测试。</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="action" id="run" type="button">立即上传</button>
+      </div>
+      <div class="warning">
+        <strong>远端对象是加密归档</strong>
+        <span>对象命名、上传顺序与本地临时文件都由扩展控制；页面不能读取 Bucket 内容、密钥或本地路径。</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>远端恢复</h2>
+      <p class="note">下载远端最新的加密快照，解密后交给宿主校验并恢复。宿主会再次确认，恢复会替换本机的历史、看板与设置。</p>
+      <div class="actions">
+        <button class="action danger" id="restore" type="button">从远端恢复</button>
+      </div>
+    </div>
+  </section>
+
+  <p class="feedback" id="feedback" role="status" aria-live="polite"></p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var pending = new Map();
+  var sequence = 0;
+  var state = null;
+  var busy = 0;
+
+  var root = document.documentElement;
+  var fields = {
+    endpoint: document.getElementById("endpoint"),
+    region: document.getElementById("region"),
+    bucket: document.getElementById("bucket"),
+    prefix: document.getElementById("prefix"),
+    accessKey: document.getElementById("access-key"),
+    secretKey: document.getElementById("secret-key"),
+    passphrase: document.getElementById("passphrase")
+  };
+  var enabled = document.getElementById("enabled");
+  var interval = document.getElementById("interval");
+  var save = document.getElementById("save");
+  var test = document.getElementById("test");
+  var saveSchedule = document.getElementById("save-schedule");
+  var run = document.getElementById("run");
+  var restore = document.getElementById("restore");
+  var feedback = document.getElementById("feedback");
+  var status = document.getElementById("status");
+  var statusLabel = document.getElementById("status-label");
+  var statusDetail = document.getElementById("status-detail");
+  var tabs = [document.getElementById("tab-connection"), document.getElementById("tab-schedule")];
+  var panels = [document.getElementById("panel-connection"), document.getElementById("panel-schedule")];
+
+  // The page talks to its own package's runtime through the menu channel's
+  // invoke method; the runtime answers with one JSON string per request.
+  var PLUGIN_ID = "com.mypaste.sync";
+  var COMMAND_ID = "sync.request";
+
+  function request(text) {
+    return new Promise(function (resolve, reject) {
+      var requestId = ++sequence;
+      pending.set(requestId, { resolve: resolve, reject: reject });
+      parent.postMessage({
+        v: 1,
+        type: "invoke",
+        requestId: requestId,
+        pluginId: PLUGIN_ID,
+        commandId: COMMAND_ID,
+        text: text
+      }, "*");
+    });
+  }
+
+  function call(action, args) {
+    var payload = { action: action };
+    if (args) {
+      Object.keys(args).forEach(function (key) { payload[key] = args[key]; });
+    }
+    return request(JSON.stringify(payload)).then(function (output) {
+      return output ? JSON.parse(output) : null;
+    });
+  }
+
+  function applyTheme(message) {
+    root.dataset.scheme = message.scheme === "dark" ? "dark" : "light";
+    var tokens = message.tokens || {};
+    Object.keys(tokens).forEach(function (name) {
+      root.style.setProperty("--" + name, tokens[name]);
+    });
+  }
+
+  window.addEventListener("message", function (event) {
+    var message = event.data;
+    if (!message || message.v !== 1) return;
+    if (message.type === "theme") { applyTheme(message); return; }
+    if (message.type !== "result") return;
+    var entry = pending.get(message.requestId);
+    if (!entry) return;
+    pending.delete(message.requestId);
+    if (message.ok) entry.resolve(message.output);
+    else entry.reject(new Error(message.error || "操作失败"));
+  });
+
+  function message(text, tone) {
+    feedback.textContent = text || "";
+    if (tone) feedback.dataset.tone = tone;
+    else delete feedback.dataset.tone;
+  }
+
+  function word(key, fallback) {
+    var actions = state && state.words && state.words.actions ? state.words.actions : [];
+    for (var index = 0; index < actions.length; index += 1) {
+      if (actions[index].key === key) return actions[index].name || fallback;
+    }
+    return fallback;
+  }
+
+  function when(value) {
+    if (!value) return "";
+    var date = new Date(value);
+    return isNaN(date.getTime()) ? "" : date.toLocaleString("zh-CN");
+  }
+
+  function renderStatus() {
+    if (!state) return;
+    var current = state.status;
+    var settings = state.settings;
+    var tone = "disabled";
+    var label = "已暂停";
+    var detail = "";
+    if (current.running) {
+      tone = "busy";
+      label = "正在上传";
+      detail = "完成后会显示本次对象与字节数。";
+    } else if (current.lastError) {
+      tone = "danger";
+      label = "上次上传失败";
+      detail = current.lastError;
+    } else if (!settings.configured) {
+      tone = "disabled";
+      label = "未配置";
+      detail = "填写存储桶与凭据后即可测试。";
+    } else if (!settings.passphraseSet) {
+      tone = "disabled";
+      label = "需要加密口令";
+      detail = "设置至少 12 个字符的加密口令后才能上传。";
+    } else if (current.enabled) {
+      tone = "success";
+      label = "自动上传已开启";
+      detail = current.nextAttemptAt
+        ? "下次尝试：" + when(current.nextAttemptAt)
+        : "按计划上传加密快照。";
+    } else if (current.lastSuccessAt) {
+      tone = "success";
+      label = "已暂停自动上传";
+      detail = "上次成功：" + when(current.lastSuccessAt) +
+        (current.lastObject ? " · " + current.lastObject : "");
+    } else {
+      detail = "可以立即上传一份快照。";
+    }
+    status.dataset.tone = tone;
+    statusLabel.textContent = label;
+    statusDetail.textContent = detail;
+    var canRun = settings.configured && settings.passphraseSet && !current.running;
+    run.disabled = busy > 0 || !canRun;
+    restore.disabled = busy > 0 || !canRun;
+    test.disabled = busy > 0 || !settings.configured;
+  }
+
+  function apply(next) {
+    state = next;
+    var settings = next.settings;
+    fields.endpoint.value = settings.endpoint || "";
+    fields.region.value = settings.region || "";
+    fields.bucket.value = settings.bucket || "";
+    fields.prefix.value = settings.prefix || "";
+    enabled.checked = Boolean(next.status.enabled);
+    var choices = next.intervalChoices || [];
+    interval.textContent = "";
+    choices.forEach(function (choice) {
+      var option = document.createElement("option");
+      option.value = String(choice.value);
+      option.textContent = choice.label;
+      interval.appendChild(option);
+    });
+    interval.value = String(next.status.intervalHours);
+    interval.disabled = busy > 0;
+    enabled.disabled = busy > 0;
+    save.textContent = word("save", "保存连接");
+    test.textContent = word("test", "测试连接");
+    run.textContent = word("upload", "立即上传");
+    restore.textContent = word("restore", "从远端恢复");
+    renderStatus();
+  }
+
+  function setBusy(delta) {
+    busy += delta;
+    save.disabled = busy > 0;
+    saveSchedule.disabled = busy > 0;
+    fields.endpoint.disabled = busy > 0;
+    fields.region.disabled = busy > 0;
+    fields.bucket.disabled = busy > 0;
+    fields.prefix.disabled = busy > 0;
+    fields.accessKey.disabled = busy > 0;
+    fields.secretKey.disabled = busy > 0;
+    fields.passphrase.disabled = busy > 0;
+    enabled.disabled = busy > 0;
+    interval.disabled = busy > 0;
+    restore.disabled = busy > 0;
+    if (state) {
+      save.disabled = busy > 0;
+      saveSchedule.disabled = busy > 0;
+      renderStatus();
+    }
+  }
+
+  async function perform(pendingText, task, successText) {
+    setBusy(1);
+    message(pendingText);
+    try {
+      var value = await task();
+      if (value) apply(value);
+      if (successText) message(successText, "success");
+      return value;
+    } catch (error) {
+      // A failed upload records its own sentence in the extension's state;
+      // refresh it so the status line explains what happened.
+      try {
+        apply(await call("state"));
+      } catch (ignored) {
+        // The status line keeps the previous state when even that fails.
+      }
+      message(error instanceof Error ? error.message : "操作失败", "danger");
+      throw error;
+    } finally {
+      setBusy(-1);
+    }
+  }
+
+  save.addEventListener("click", function () {
+    perform("正在保存连接…", function () {
+      return call("save", {
+        connection: {
+          endpoint: fields.endpoint.value.trim(),
+          region: fields.region.value.trim(),
+          bucket: fields.bucket.value.trim(),
+          prefix: fields.prefix.value.trim(),
+          accessKey: fields.accessKey.value,
+          secretKey: fields.secretKey.value,
+          passphrase: fields.passphrase.value
+        }
+      });
+    }, "连接已保存").then(function () {
+      fields.accessKey.value = "";
+      fields.secretKey.value = "";
+      fields.passphrase.value = "";
+    }).catch(function () {});
+  });
+
+  test.addEventListener("click", function () {
+    perform("正在测试连接…", function () {
+      return call("test");
+    }, "连接成功").catch(function () {});
+  });
+
+  saveSchedule.addEventListener("click", function () {
+    perform("正在保存计划…", function () {
+      return call("schedule", {
+        schedule: {
+          enabled: enabled.checked,
+          intervalHours: Number(interval.value)
+        }
+      });
+    }, "计划已保存").catch(function () {});
+  });
+
+  run.addEventListener("click", function () {
+    perform("正在上传…", function () {
+      return call("run").then(function (runResult) {
+        apply(runResult.state);
+        var bytes = Number(runResult.result.bytes || 0).toLocaleString("zh-CN");
+        message("已上传 " + bytes + " 字节 · " + runResult.result.object, "success");
+        return runResult.state;
+      });
+    }, "").catch(function () {});
+  });
+
+  restore.addEventListener("click", function () {
+    perform("正在下载远端快照…", function () {
+      return call("restore").then(function (outcome) {
+        if (outcome.state) apply(outcome.state);
+        if (outcome.result && outcome.result.cancelled) {
+          message("已取消恢复，本机数据未改变", "");
+        } else {
+          var items = Number((outcome.result && outcome.result.items) || 0).toLocaleString("zh-CN");
+          message("已恢复 " + items + " 条历史", "success");
+        }
+        return outcome.state;
+      });
+    }, "").catch(function () {});
+  });
+
+  function selectTab(index, focus) {
+    tabs.forEach(function (tab, position) {
+      var selected = position === index;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      panels[position].hidden = !selected;
+      if (selected && focus) tab.focus();
+    });
+  }
+
+  tabs.forEach(function (tab, index) {
+    tab.addEventListener("click", function () { selectTab(index); });
+    tab.addEventListener("keydown", function (event) {
+      var next = index;
+      if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+      else if (event.key === "ArrowLeft") next = (index + tabs.length - 1) % tabs.length;
+      else return;
+      event.preventDefault();
+      selectTab(next, true);
+    });
+  });
+
+  parent.postMessage({ v: 1, type: "ready" }, "*");
+  call("state").then(apply).catch(function (error) {
+    message(error instanceof Error ? error.message : "无法读取同步设置", "danger");
+  });
+})();
+</script>
+</body>
+</html>

@@ -41,7 +41,8 @@ FORMS = {
 SERVICES = {
     "entity.read", "entity.save", "copy", "clipboard.write", "entry.payload",
     "secret.read", "network.outbound", "storage.plugin", "companion.read",
-    "history.exchange",
+    "history.exchange", "backup.sync", "data.read", "asset.read",
+    "settings.data",
 }
 # Where the host shows a command. A command without one is a pure capability:
 # it is never shown, only reached through the registry by a surface.
@@ -55,7 +56,7 @@ SURFACE_ROLES = {"open", "preview"}
 KINDS = {"ui", "command"}
 # Vocabulary v3 removed. A package that still names it is a v2 manifest that
 # only changed its version number.
-LEGACY_KEYS = {"menu", "menus", "workbench", "appliesTo", "global"}
+LEGACY_KEYS = {"menu", "workbench", "appliesTo", "global"}
 LEGACY_COMMAND_KEYS = {
     "surface", "input", "languages", "menu", "workbench", "appliesTo",
     "global",
@@ -80,11 +81,14 @@ def plugin_dirs() -> list[Path]:
 def resolve_kind(manifest: dict, package_name: str) -> str:
     """The package's declared kind, checked against its shape.
 
-    A surface makes a package `ui`; no surface makes it `command`. The
-    protocol lets a manifest omit the field and have the host derive it, so an
-    omitted kind is accepted here and reported as the derived value.
+    A surface or a settings-window menu makes a package `ui`; neither makes it
+    `command`. The protocol lets a manifest omit the field and have the host
+    derive it, so an omitted kind is accepted here and reported as the derived
+    value.
     """
-    expected = "ui" if manifest.get("surface") is not None else "command"
+    has_page = (manifest.get("surface") is not None
+                or bool(manifest.get("menus")))
+    expected = "ui" if has_page else "command"
     kind = manifest.get("kind", expected)
     if kind not in KINDS:
         fail(f"{package_name}: kind must be ui or command")

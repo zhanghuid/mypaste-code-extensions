@@ -33,6 +33,8 @@ This repository holds:
 - **Binary capability packages** (`plugins/com.mypaste.ferry`,
   `plugins/com.mypaste.sql`) — compiled Go programs built by
   `scripts/build-official.py`.
+- **Settings-page packages** (`plugins/com.mypaste.sync`) — a hand-written
+  `panel.html` plus a compiled Go runtime, built by `scripts/build-official.py`.
 - **Surface packages** (`plugins/com.mypaste.code-card`,
   `plugins/com.mypaste.code-edit`, `plugins/com.mypaste.diff-view`,
   `plugins/com.mypaste.image-edit`, `plugins/com.mypaste.timestamp`) — one HTML
@@ -267,6 +269,23 @@ lists them in the install confirmation, and the single enable switch is the
 whole permission decision (D-1039 in the host repository). There is no
 signature or trusted tier to obtain.
 
+`com.mypaste.sync` — the S3 snapshot extension — is a UI package with a
+runtime of its own: its settings-window menu (`sync.panel`, order 50) is a
+hand-written `panel.html`, and every action runs in the compiled `sync`
+runtime. The runtime reads history and assets through the host's read-only
+`data.read` / `asset.read`, assembles the same `.mypaste-backup` archive the
+host exports, encrypts it as `MYPaste-Sync/1` (PBKDF2-HMAC-SHA256, 210000
+iterations, 16-byte salt, AES-256-GCM with the header as AAD), signs
+ListObjectsV2 / PutObject / ranged GetObject with SigV4, and performs every
+transfer through the host's `backup.sync` service. Credentials, salt and
+passphrase live only in the package's private `storage.plugin` directory
+(0600) and never reach the page or the log. An interval trigger checks the
+saved schedule every 15 minutes; failures back off from 15 minutes up to 24
+hours. Both darwin binaries ship under `bin/<goos>/<goarch>/` (host D-1057),
+and the archive is the host's `.mypaste-backup` format unchanged, so either
+side can restore the other. Go source lives in `plugins/com.mypaste.sync/src/`
+(own `go.mod`).
+
 `com.mypaste.sql` — the SQL toolkit extension (syntax highlighting, syntax
 diagnostics, formatting and compression for seven dialects, lexed by
 [chroma](https://github.com/alecthomas/chroma)) — ships as a compiled binary
@@ -280,7 +299,7 @@ spec declares a `targets` list, so the archive nests one binary per platform
 under `bin/<goos>/<goarch>/` (`.exe` on windows); the host resolves the declared
 entrypoint through that layout (D-1057 in the host repository).
 
-`com.mypaste.code-edit` is the one combined official package: `kind` is `"ui"`,
+`com.mypaste.code-edit` is one of the two combined official packages: `kind` is `"ui"`,
 it ships its page and a compiled runtime, and it declares internal formatting
 commands with no `placement` and `output: ["text"]`. Protocol v3 exposes those
 commands only to the package's own surface; they never appear in the command

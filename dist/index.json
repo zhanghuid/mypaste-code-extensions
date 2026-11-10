@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated": "2026-11-09",
+  "generated": "2026-11-10",
   "packages": [
     {
       "id": "mypaste.format-go",
@@ -208,6 +208,17 @@
       "description": "在本地编辑代码或纯文本：行号、语法高亮、语言识别与格式化都随包提供，所有语言的格式化都在扩展内完成，不依赖本机安装 gofmt、rustfmt、Python、Prettier 或其它工具；本机有 Node 时，CSS、YAML、JavaScript 与 TypeScript 会改用包内 Prettier 或内置脚本，排版更完整，没有也照常可用；「格式化」菜单按当前语言列出内置格式化与 SQL 压缩；高亮完全本地，不依赖其它能力包。可另存为新的历史条目或复制到剪贴板，原条目保持不变，不联网、不读取其它条目。",
       "fileName": "com.mypaste.code-edit-3.4.2.mypaste-plugin",
       "sha256": "c3923126fe6d8c0a129c190fdd2fdcc7d7fc050afddeb6203046135e386a4ca4",
+      "runtimeProtocol": 2,
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
+    },
+    {
+      "id": "com.mypaste.sync",
+      "name": "同步",
+      "version": "1.0.0",
+      "kind": "ui",
+      "description": "把历史与资产加密后上传到自己的 S3 存储，也可以从远端恢复。归档、加密、S3 签名、凭据与自动上传计划都在扩展自己的进程里完成；数据只经宿主的只读视图读取，连接与恢复仍由宿主确认。凭据只存放在扩展的私有存储中，不进入页面、日志或宿主设置。",
+      "fileName": "com.mypaste.sync-1.0.0.mypaste-plugin",
+      "sha256": "60388a7a95424bae33df3851d6c6acf718ff9a20c26973445bf470f35c6321f4",
       "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },

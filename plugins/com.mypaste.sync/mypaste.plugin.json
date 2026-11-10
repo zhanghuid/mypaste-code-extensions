@@ -1,0 +1,69 @@
+{
+  "manifestVersion": 3,
+  "id": "com.mypaste.sync",
+  "name": "同步",
+  "version": "1.0.0",
+  "kind": "ui",
+  "description": "把历史与资产加密后上传到自己的 S3 存储，也可以从远端恢复。归档、加密、S3 签名、凭据与自动上传计划都在扩展自己的进程里完成；数据只经宿主的只读视图读取，连接与恢复仍由宿主确认。凭据只存放在扩展的私有存储中，不进入页面、日志或宿主设置。",
+  "capabilities": [
+    "entity.read",
+    "data.read",
+    "asset.read",
+    "backup.sync",
+    "storage.plugin"
+  ],
+  "runtime": {
+    "protocolVersion": 2,
+    "mode": "command",
+    "entrypoint": "sync"
+  },
+  "menus": [
+    {
+      "id": "sync.panel",
+      "title": "同步",
+      "entry": "panel.html",
+      "order": 50
+    }
+  ],
+  "commands": [
+    {
+      "id": "sync.request",
+      "title": "同步操作",
+      "description": "读取状态、保存连接、测试连接、安排自动上传、立即上传或从远端恢复",
+      "capabilities": [
+        "entity.read",
+        "data.read",
+        "asset.read",
+        "backup.sync",
+        "storage.plugin"
+      ],
+      "output": [
+        "text"
+      ],
+      "longRunning": true
+    },
+    {
+      "id": "sync.auto",
+      "title": "自动上传",
+      "description": "定时检查计划，到期时加密上传一份新快照",
+      "capabilities": [
+        "data.read",
+        "asset.read",
+        "backup.sync",
+        "storage.plugin"
+      ],
+      "placement": [
+        "trigger"
+      ],
+      "longRunning": true
+    }
+  ],
+  "triggers": [
+    {
+      "id": "schedule",
+      "kind": "interval",
+      "command": "sync.auto",
+      "minutes": 15
+    }
+  ]
+}

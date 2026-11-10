@@ -130,6 +130,9 @@ class PackageTests(unittest.TestCase):
         # The protocol lets a manifest omit `kind`; the shape then decides.
         self.assertEqual(packaging.resolve_kind({"surface": surface}, "p"), "ui")
         self.assertEqual(packaging.resolve_kind({}, "p"), "command")
+        # A settings-window menu is a page too (host D-1085).
+        self.assertEqual(
+            packaging.resolve_kind({"menus": [{"id": "sync.panel"}]}, "p"), "ui")
         self.assertEqual(
             packaging.resolve_kind({"surface": surface, "kind": "ui"}, "p"), "ui")
         self.assertEqual(packaging.resolve_kind({"kind": "command"}, "p"), "command")
@@ -145,7 +148,7 @@ class PackageTests(unittest.TestCase):
 
     def test_every_package_has_valid_manifest(self) -> None:
         packaging = load_packaging()
-        legacy_keys = {"menu", "menus", "workbench", "appliesTo", "global"}
+        legacy_keys = {"menu", "workbench", "appliesTo", "global"}
         legacy_command_keys = {
             "surface", "input", "languages", "menu",
             "workbench", "appliesTo", "global",
@@ -167,12 +170,14 @@ class PackageTests(unittest.TestCase):
                 self.assertIn(runtime["mode"], {"command", "resident"})
                 self.assertTrue(runtime.get("entrypoint"))
             # Protocol v3 derives a package's kind from its shape, but every
-            # manifest here declares it and must agree: a page makes a `ui`
-            # package, no page makes a `command` package.
+            # manifest here declares it and must agree: a surface or a
+            # settings-window menu makes a `ui` package, neither makes a
+            # `command` package (host D-1085).
             self.assertIn(manifest.get("kind"), {"ui", "command"}, manifest["id"])
             self.assertEqual(
                 manifest["kind"],
-                "ui" if manifest.get("surface") is not None else "command",
+                "ui" if manifest.get("surface") is not None or manifest.get("menus")
+                else "command",
                 manifest["id"],
             )
             # A surface names its page, the entity subtree it adapts and one of
@@ -204,11 +209,15 @@ class PackageTests(unittest.TestCase):
                     self.assertLessEqual(
                         set(command["capabilities"]),
                         {"entry.payload", "clipboard.write",
-                         "network.outbound", "storage.plugin"},
+                         "network.outbound", "storage.plugin",
+                         "data.read", "asset.read", "backup.sync",
+                         "settings.data", "history.exchange"},
                         (manifest["id"], command["id"]),
                     )
-                else:
+                elif command.get("placement"):
                     self.assertTrue(command.get("forms"), manifest["id"])
+                # A placement-less command is internal: a menu page or its own
+                # surface reaches it, with or without entity types.
                 self.assertFalse(set(command) & legacy_command_keys,
                                  (manifest["id"], command["id"]))
                 # A command may narrow the package grant by naming its own
