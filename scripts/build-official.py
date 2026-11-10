@@ -223,6 +223,27 @@ def write_archive(plugin_id: str, manifest: dict, staging: Path) -> Path:
     return target
 
 
+def content_digest(directory: Path) -> str:
+    """The package's canonical content digest, as the host computes it.
+
+    MyPaste pins the content of each official package (`pins.json` in the host)
+    with `internal/extension.ContentDigest`: the files sorted by their relative
+    slash-separated path, each path and its bytes prefixed by an 8-byte
+    big-endian length, hashed with SHA-256. The install directory is the
+    unpacked archive, so this value is what a matching host will compare.
+    """
+    hash = hashlib.sha256()
+    files = [path for path in directory.rglob("*") if path.is_file()]
+    for path in sorted(files, key=lambda item: item.relative_to(directory).as_posix()):
+        relative = path.relative_to(directory).as_posix().encode("utf-8")
+        data = path.read_bytes()
+        hash.update(len(relative).to_bytes(8, "big"))
+        hash.update(relative)
+        hash.update(len(data).to_bytes(8, "big"))
+        hash.update(data)
+    return hash.hexdigest()
+
+
 def record_digest(target: Path) -> str:
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
     target.with_suffix(target.suffix + ".sha256").write_text(
@@ -277,6 +298,8 @@ def main() -> None:
             prune_stale(plugin_id, manifest["version"])
             target = write_archive(plugin_id, manifest, staging)
             sha256 = record_digest(target)
+            print(f"content-digest {manifest['id']} {manifest['version']} "
+                  f"{content_digest(staging)}")
             update_index({
                 "id": manifest["id"],
                 "name": manifest["name"],
