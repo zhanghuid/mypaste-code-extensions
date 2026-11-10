@@ -10,7 +10,9 @@ three shapes, and the shipped archive never contains the source tree:
 - a surface document (manifest plus the one HTML page `surface.entry` names,
   bundled from src/ by scripts/build-surfaces.mjs);
 - a settings-window menu page (manifest plus the page each `menus[].entry`
-  names, copied verbatim; no surface, no process).
+  names, copied verbatim; no surface, no process);
+- a run-script bridge (manifest plus the shell entrypoint the manifest's
+  runtime names, copied verbatim).
 
 A package may also combine shapes: a UI package that declares a runtime and
 internal commands (com.mypaste.code-edit) ships its page, its binary, its
@@ -158,6 +160,15 @@ def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
             fail(f"{plugin_id}: spec declares menus but the manifest has none")
         for entry in entries:
             copy_asset(source, staging, entry, entry)
+    if spec.get("script"):
+        # A run-script bridge ships its manifest and the one shell entrypoint
+        # the manifest names, verbatim. The host starts it through the same
+        # subprocess runtime as any other command package; the script only
+        # forwards a closed host call.
+        entrypoint = (runtime or {}).get("entrypoint", "")
+        if not entrypoint:
+            fail(f"{plugin_id}: spec declares a script but the manifest has no entrypoint")
+        copy_asset(source, staging, entrypoint, entrypoint)
     if spec.get("module"):
         # `assets` is either a list (copied at the same relative path) or a
         # mapping (source path -> archive path) for packages whose private
@@ -187,8 +198,9 @@ def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
                 or ".." in Path(destination).parts):
             fail(f"{plugin_id}: invalid prettier destination {destination}")
         vendor_prettier.vendor(ROOT, staging / destination, plugins)
-    if not (spec.get("surface") or spec.get("menus") or spec.get("module")):
-        fail(f"{plugin_id}: spec declares no surface, menu page or module")
+    if not (spec.get("surface") or spec.get("menus") or spec.get("module")
+            or spec.get("script")):
+        fail(f"{plugin_id}: spec declares no surface, menu page, module or script")
     return manifest
 
 

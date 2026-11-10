@@ -1,0 +1,63 @@
+{
+  "manifestVersion": 3,
+  "kind": "command",
+  "id": "com.mypaste.saved-searches",
+  "name": "保存搜索",
+  "version": "2.0.0",
+  "description": "保存当前查询、修改或删除保存搜索；查询与看板范围都由宿主保存。",
+  "capabilities": [
+    "saved-searches.control"
+  ],
+  "runtime": {
+    "protocolVersion": 2,
+    "entrypoint": "run.sh",
+    "mode": "command"
+  },
+  "commands": [
+    {
+      "id": "saved-searches.open",
+      "title": "保存当前搜索",
+      "description": "打开保存搜索对话框，名称与范围由你决定",
+      "capabilities": [
+        "saved-searches.control"
+      ],
+      "pageAction": "saved-searches",
+      "placement": [
+        "palette"
+      ]
+    },
+    {
+      "id": "saved-searches.create",
+      "title": "保存搜索",
+      "description": "保存一条查询与它的看板范围",
+      "capabilities": [
+        "saved-searches.control"
+      ],
+      "placement": [
+        "trigger"
+      ]
+    },
+    {
+      "id": "saved-searches.update",
+      "title": "修改保存搜索",
+      "description": "更新保存搜索的名称、查询或范围",
+      "capabilities": [
+        "saved-searches.control"
+      ],
+      "placement": [
+        "trigger"
+      ]
+    },
+    {
+      "id": "saved-searches.delete",
+      "title": "删除保存搜索",
+      "description": "删除一条保存搜索，不影响历史内容",
+      "capabilities": [
+        "saved-searches.control"
+      ],
+      "placement": [
+        "trigger"
+      ]
+    }
+  ]
+}

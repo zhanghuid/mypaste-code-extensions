@@ -36,6 +36,11 @@ This repository holds:
 - **Settings-page packages** (`plugins/com.mypaste.sync`,
   `plugins/com.mypaste.data-settings`) — a hand-written `panel.html`, plus a
   compiled Go runtime for sync; built by `scripts/build-official.py`.
+- **Run-script bridge packages** (`plugins/com.mypaste.boards`,
+  `plugins/com.mypaste.saved-searches`, `plugins/com.mypaste.backup-scheduler`)
+  — a manifest and a shell entrypoint that forwards one closed host call; the
+  host owns the data, dialogs and every write. Built by
+  `scripts/build-official.py` (`"script": True`) and shipped verbatim.
 - **Surface packages** (`plugins/com.mypaste.code-card`,
   `plugins/com.mypaste.code-edit`, `plugins/com.mypaste.diff-view`,
   `plugins/com.mypaste.image-edit`, `plugins/com.mypaste.json`,
@@ -119,7 +124,9 @@ commands.
 Capabilities use the host's closed service list and should ask for the least
 one that does the job: `entity.read`, `entity.save`, `copy`, `clipboard.write`,
 `entry.payload`, `secret.read`, `network.outbound`, `storage.plugin`,
-`companion.read`, `history.exchange`.
+`companion.read`, `backup.schedule`, `boards.control`,
+`saved-searches.control`, `backup.sync`, `data.read`, `asset.read`,
+`settings.data`.
 
 `scripts/package.py` rejects a package whose commands omit or misuse these
 fields, or whose manifest still names v2 vocabulary (`surface: "editor"`,

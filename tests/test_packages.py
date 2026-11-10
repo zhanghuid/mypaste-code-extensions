@@ -211,10 +211,13 @@ class PackageTests(unittest.TestCase):
                         {"entry.payload", "clipboard.write",
                          "network.outbound", "storage.plugin",
                          "data.read", "asset.read", "backup.sync",
-                         "settings.data", "history.exchange"},
+                         "settings.data", "backup.schedule",
+                         "boards.control", "saved-searches.control"},
                         (manifest["id"], command["id"]),
                     )
-                elif command.get("placement"):
+                elif command.get("placement") and not command.get("pageAction"):
+                    # A page action opens a host page and carries no entity of
+                    # its own; every other shown command adapts one.
                     self.assertTrue(command.get("forms"), manifest["id"])
                 # A placement-less command is internal: a menu page or its own
                 # surface reaches it, with or without entity types.

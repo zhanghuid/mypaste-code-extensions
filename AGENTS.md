@@ -46,7 +46,11 @@ plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
 - Capabilities are the closed service list of PLUGINS.md section 6
   (`entity.read`, `entity.save`, `copy`, `clipboard.write`, `entry.payload`,
   `secret.read`, `network.outbound`, `storage.plugin`, `companion.read`,
-  `history.exchange`); ask for the least one that does the job.
+  `backup.schedule`, `boards.control`, `saved-searches.control`,
+  `backup.sync`, `data.read`, `asset.read`, `settings.data`); ask for the
+  least one that does the job. A run-script package that needs one of the
+  three control services must also declare the page action it opens
+  (`boards` or `saved-searches`) on exactly one palette command.
 - Official packages (`plugins/com.mypaste.*`, listed in
   `scripts/official_packages.py`) are packaged only by
   `scripts/build-official.py`; `scripts/package.py` skips them and their

@@ -1,0 +1,85 @@
+{
+  "manifestVersion": 3,
+  "kind": "command",
+  "id": "com.mypaste.boards",
+  "name": "看板",
+  "version": "2.0.0",
+  "description": "新建、编辑、删除看板与成员关系并导出看板；数据、导出对话框与写入都由宿主完成。",
+  "capabilities": [
+    "boards.control"
+  ],
+  "runtime": {
+    "protocolVersion": 2,
+    "entrypoint": "run.sh",
+    "mode": "command"
+  },
+  "commands": [
+    {
+      "id": "boards.open",
+      "title": "新建看板",
+      "description": "打开看板对话框，为本机历史新建一个集合",
+      "capabilities": [
+        "boards.control"
+      ],
+      "pageAction": "boards",
+      "placement": [
+        "palette"
+      ]
+    },
+    {
+      "id": "boards.create",
+      "title": "新建看板",
+      "description": "用名称与颜色创建一个看板",
+      "capabilities": [
+        "boards.control"
+      ],
+      "placement": [
+        "trigger"
+      ]
+    },
+    {
+      "id": "boards.update",
+      "title": "编辑看板",
+      "description": "修改看板的名称或颜色",
+      "capabilities": [
+        "boards.control"
+      ],
+      "placement": [
+        "trigger"
+      ]
+    },
+    {
+      "id": "boards.delete",
+      "title": "删除看板",
+      "description": "删除看板与它的成员关系，不删除剪贴板内容",
+      "capabilities": [
+        "boards.control"
+      ],
+      "placement": [
+        "trigger"
+      ]
+    },
+    {
+      "id": "boards.member",
+      "title": "调整看板成员",
+      "description": "把条目加入看板或从看板移出，只改关系",
+      "capabilities": [
+        "boards.control"
+      ],
+      "placement": [
+        "trigger"
+      ]
+    },
+    {
+      "id": "boards.export",
+      "title": "导出看板",
+      "description": "把看板内容导出到所选位置，不上传",
+      "capabilities": [
+        "boards.control"
+      ],
+      "placement": [
+        "trigger"
+      ]
+    }
+  ]
+}

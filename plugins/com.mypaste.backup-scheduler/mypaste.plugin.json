@@ -1,0 +1,74 @@
+{
+  "manifestVersion": 3,
+  "kind": "command",
+  "id": "com.mypaste.backup-scheduler",
+  "name": "自动备份",
+  "version": "2.0.0",
+  "description": "触发一次自动备份并读取排程摘要；排程、轮换与归档写入都由宿主完成。",
+  "capabilities": [
+    "backup.schedule"
+  ],
+  "runtime": {
+    "protocolVersion": 2,
+    "entrypoint": "run.sh",
+    "mode": "command"
+  },
+  "commands": [
+    {
+      "id": "backup.trigger",
+      "title": "立即备份",
+      "description": "按当前配置的空间上限创建一个新归档",
+      "capabilities": [
+        "backup.schedule"
+      ],
+      "placement": [
+        "trigger"
+      ]
+    },
+    {
+      "id": "backup.status",
+      "title": "读取备份排程",
+      "description": "返回排程、间隔与保留数量的只读摘要",
+      "capabilities": [
+        "backup.schedule"
+      ],
+      "placement": [
+        "trigger"
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "autoBackupEnabled",
+      "type": "boolean",
+      "title": "启用自动备份",
+      "description": "开启后按间隔在本机创建归档，不上传任何内容。",
+      "default": false
+    },
+    {
+      "key": "autoBackupIntervalHours",
+      "type": "enum",
+      "title": "备份间隔",
+      "description": "两次自动归档之间的最小间隔。",
+      "values": [
+        "24",
+        "72",
+        "168"
+      ],
+      "default": "24"
+    },
+    {
+      "key": "autoBackupMaxMB",
+      "type": "enum",
+      "title": "空间上限",
+      "description": "自动备份目录允许占用的最大空间。",
+      "values": [
+        "256",
+        "512",
+        "1024",
+        "2048"
+      ],
+      "default": "256"
+    }
+  ]
+}

@@ -41,8 +41,8 @@ FORMS = {
 SERVICES = {
     "entity.read", "entity.save", "copy", "clipboard.write", "entry.payload",
     "secret.read", "network.outbound", "storage.plugin", "companion.read",
-    "history.exchange", "backup.sync", "data.read", "asset.read",
-    "settings.data",
+    "backup.schedule", "boards.control", "saved-searches.control",
+    "backup.sync", "data.read", "asset.read", "settings.data",
 }
 # Where the host shows a command. A command without one is a pure capability:
 # it is never shown, only reached through the registry by a surface.

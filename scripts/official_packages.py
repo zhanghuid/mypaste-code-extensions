@@ -85,6 +85,15 @@ OFFICIAL = {
     "com.mypaste.timestamp": {
         "surface": True,
     },
+    "com.mypaste.boards": {
+        "script": True,
+    },
+    "com.mypaste.saved-searches": {
+        "script": True,
+    },
+    "com.mypaste.backup-scheduler": {
+        "script": True,
+    },
     "com.mypaste.ferry": {
         "module": "plugins/com.mypaste.ferry/src",
         "entrypoint": "ferry",

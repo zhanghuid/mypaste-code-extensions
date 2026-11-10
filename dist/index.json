@@ -223,6 +223,17 @@
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
+      "id": "com.mypaste.saved-searches",
+      "name": "保存搜索",
+      "version": "2.0.0",
+      "kind": "command",
+      "description": "保存当前查询、修改或删除保存搜索；查询与看板范围都由宿主保存。",
+      "fileName": "com.mypaste.saved-searches-2.0.0.mypaste-plugin",
+      "sha256": "f4fc29f4c1bbcf5057c8a5579b4bc0dbf3db77984fec83cf0e8c928ae95ffab8",
+      "runtimeProtocol": 2,
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
+    },
+    {
       "id": "com.mypaste.sync",
       "name": "同步",
       "version": "1.0.0",
@@ -264,6 +275,28 @@
       "fileName": "com.mypaste.timestamp-1.0.0.mypaste-plugin",
       "sha256": "59fee7be968ee5b2526fc11a27a71b8ad675eb8f7de8548963d48f0956a69d8e",
       "runtimeProtocol": 0,
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
+    },
+    {
+      "id": "com.mypaste.boards",
+      "name": "看板",
+      "version": "2.0.0",
+      "kind": "command",
+      "description": "新建、编辑、删除看板与成员关系并导出看板；数据、导出对话框与写入都由宿主完成。",
+      "fileName": "com.mypaste.boards-2.0.0.mypaste-plugin",
+      "sha256": "5c68743c98f02ca4c88596d9864917e30fd71d53b0865579002e5a6e249b2f92",
+      "runtimeProtocol": 2,
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
+    },
+    {
+      "id": "com.mypaste.backup-scheduler",
+      "name": "自动备份",
+      "version": "2.0.0",
+      "kind": "command",
+      "description": "触发一次自动备份并读取排程摘要；排程、轮换与归档写入都由宿主完成。",
+      "fileName": "com.mypaste.backup-scheduler-2.0.0.mypaste-plugin",
+      "sha256": "50f893934cb1fe1b62c95c750e41e117cde01af2d9b0c8645a4dcb61b08e7d67",
+      "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
