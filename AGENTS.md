@@ -22,13 +22,12 @@ plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
   - **settings-window menu page** — a manifest `menus` entry (or several) plus
     the page each `entry` names, copied verbatim: no surface, no runtime
     (com.mypaste.data-settings).
-- Highlighting packages are capabilities: they request only `entity.read`,
-  declare one `highlight` command with `forms: ["text"]` and no `placement`,
-  and return bounded token arrays, never HTML or CSS.
-- Formatting packages are capabilities too: only `entity.read`, one `format`
+- Formatting packages are capabilities: only `entity.read`, one `format`
   command with `output: ["text"]` and no `placement`. They must return the
   original input on failure and must never execute user code; the host never
-  writes their answer to the clipboard.
+  writes their answer to the clipboard. Syntax highlighting is no longer a
+  capability package: the code-edit and code-card surfaces render it with their
+  own tokenizers, and `com.mypaste.sql` still returns SQL tokens.
 - Every manifest is `manifestVersion: 3`. Every command declares non-empty
   `forms` (a subtree of the host's entity tree: `text`/`plain`/`rich`, `link`,
   `color`, `media`/`image`/`audio`/`video`, `file`/`document`/`archive`/

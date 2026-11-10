@@ -2,8 +2,8 @@
 
 [English](README.md) · 简体中文
 
-为 [MyPaste](https://github.com/zhanghuid/mypaste-go) 提供的独立代码格式化、
-语法高亮与跨设备同步扩展。
+为 [MyPaste](https://github.com/zhanghuid/mypaste-go) 提供的独立代码格式化与
+跨设备同步扩展。
 
 本仓库与 MyPaste 应用有意分开。扩展是本地的 `.mypaste-plugin` 包，由用户显式
 安装，并按 manifest 摘要逐次授予能力。这里的任何东西都不会自动更新、自动
@@ -43,23 +43,24 @@
 
 ### 脚本能力包
 
-每种语言有两个可独立安装的包：
+每种语言有一个格式化包：
 
-| 语言 | 格式化 | 高亮 |
-| --- | --- | --- |
-| PHP | `mypaste.format-php` | `mypaste.highlight-php` |
-| JSON | `mypaste.format-json` | `mypaste.highlight-json` |
-| JavaScript | `mypaste.format-javascript` | `mypaste.highlight-javascript` |
-| TypeScript | `mypaste.format-typescript` | `mypaste.highlight-typescript` |
-| HTML | `mypaste.format-html` | `mypaste.highlight-html` |
-| Python | `mypaste.format-python` | `mypaste.highlight-python` |
-| Go | `mypaste.format-go` | `mypaste.highlight-go` |
-| Rust | `mypaste.format-rust` | `mypaste.highlight-rust` |
+| 语言 | 格式化 |
+| --- | --- |
+| PHP | `mypaste.format-php` |
+| JSON | `mypaste.format-json` |
+| JavaScript | `mypaste.format-javascript` |
+| TypeScript | `mypaste.format-typescript` |
+| HTML | `mypaste.format-html` |
+| Python | `mypaste.format-python` |
+| Go | `mypaste.format-go` |
+| Rust | `mypaste.format-rust` |
 
-两类都只申请 `entity.read`。格式化返回文本，从不写剪贴板；高亮返回有界的
-token 数组，从不返回 HTML 或 CSS。两者都不能读历史、用文件、联网或执行任意
-命令。它们都不声明 `placement`，宿主因此从不直接展示：由表面通过注册表集成。
-语言是包自己的内部概念，宿主从不推断。
+每个都只申请 `entity.read`。格式化返回文本，从不写剪贴板。它不能读历史、用
+文件、联网或执行任意命令。它不声明 `placement`，宿主因此从不直接展示：由
+表面通过注册表集成。语言是包自己的内部概念，宿主从不推断。语法高亮不再作为
+能力包存在：code-edit 与 code-card 两个表面用自己的分词器渲染（见「表面包」），
+`com.mypaste.sql` 仍返回 SQL token。
 
 ## manifest 版本 3
 
@@ -83,8 +84,8 @@ token 数组，从不返回 HTML 或 CSS。两者都不能读历史、用文件�
 `forms` 相同。
 
 命令上的 `capabilities` 声明这一条命令自己需要哪些服务。宿主在把实体交给命令
-之前会检查它，而表面集成正是把缓冲区当作管道输入交过去——所以每个格式化器与
-高亮器都在这里重复声明 `entity.read`。它只能收窄包的授权，不能扩大。
+之前会检查它，而表面集成正是把缓冲区当作管道输入交过去——所以每个格式化器
+都在这里重复声明 `entity.read`。它只能收窄包的授权，不能扩大。
 
 `placement` 声明宿主自己在哪里展示命令：
 
@@ -142,8 +143,9 @@ json（3.0.0）是纯表面包：Prettier 的 standalone 构建加 babel、estre
 
 v3 移除了宿主工作台：没有缓冲区交换、没有宿主画的编辑器工具栏、也没有宿主画
 的文档动作行（宿主 D-1065、D-1068）。每个页面自己画控件。例如 code-edit 的
-页面自己画「复制文本」与「保存为新条目」，把注册表变成头部的「格式化」菜单与
-「高亮」下拉。「格式化」始终带有编辑器自带的、针对识别语言的内置操作——Go、
+页面自己画图标工具栏——「功能区」面板开关、复制与保存——把注册表变成「功能区」
+面板，里面是语言网格与「格式化」菜单。「格式化」始终带有编辑器自带的、针对
+识别语言的内置操作——Go、
 JavaScript、TypeScript、Python、Rust、PHP、HTML、CSS、JSON、YAML、SQL 与
 Shell，外加 SQL 压缩——通过本包 runtime 以 `format.go`、`compress.sql` 之类
 的命令 id 调用，因此不安装任何其他包也能格式化；所有语言都在扩展内完成，
@@ -154,21 +156,23 @@ Shell，外加 SQL 压缩——通过本包 runtime 以 `format.go`、`compress.
 加入菜单并标注来源，但内置已经为该语言提供的操作绝不重复出现：内置优先。
 声明了 placement 的命令属于宿主的卡片动作，不会成为这里的菜单行。没有任何
 适用操作时（纯文本没有格式化器），菜单用一行说明，而不是声称缺少能力包。
-token 命令进入「高亮」，默认与失败回退都用页面自己的分词器；高亮从不依赖
-已安装的包。选区动作由页面切片、对切片调用同一条全文命令、再拼回缓冲区，
+语法高亮是页面自己的分词器，覆盖全部十二种语言——与卡片预览同一个——所以
+从不依赖已安装的包。选区动作由页面切片、对切片调用同一条全文命令、再拼回缓冲区，
 能力本身不需要知道选区。当前不适用的动作（没有选区的选区动作、没有关键字的
 语言里的关键字大小写）留在菜单里置灰，而不是消失。当前
-宿主会用 `forms` 补全缺省的 `output`，两种命令在线上都是文本；在线上出现
-「是否声明」之前，code-edit 也接受协议固定的 `format` / `compress` /
-`highlight` 命令 id 作为声明形态。
+宿主会用 `forms` 补全缺省的 `output`，token 命令在线上也是文本；在线上出现
+「是否声明」之前，code-edit 仍把协议固定的 `highlight` id 挡在格式化列表之外
+（`highlight` 命令返回 render token 而非文本——`com.mypaste.sql`），并只把
+`format` / `compress` 当作文本。
 
 - `{v: 1, type: "registry", requestId, forms}` → `{v: 1, type: "result",
   requestId, ok, commands: [{pluginId, commandId, title, description?,
   output?}]}`——适配这些实体形态的能力命令。
 - `{v: 1, type: "invoke", requestId, pluginId, commandId, text}` → `{v: 1,
   type: "result", requestId, ok, output?, diagnostics?, render?}`——对当前
-  缓冲区运行一条命令。宿主转交的 `render.tokens` 是有界的 `{text, kind}`
-  序列；页面只在它们拼回发出的缓冲区时采用，否则保留自己的高亮。
+  缓冲区运行一条命令。格式化消费 `output`；宿主转交的 `render` 携带
+  有界的 `{text, kind}` token，本页面不使用，因为自己的分词器是唯一的
+  高亮。
 
 文本另存与复制以精确键的消息过桥（`{v: 1, type: "save", requestId, text,
 title}` 与 `{v: 1, type: "copy", requestId, text}`）；宿主对文本再校验一次
@@ -208,9 +212,9 @@ plugins/com.mypaste.code-card/
   preview.html         生成物：归档里带的页面
 
 plugins/com.mypaste.code-edit/   编辑器（自己的分词器、语言表与桥；
-                                 注册表驱动的「格式化」与「高亮」下拉；
-                                 cmd/ 是 runtime，engines/ 是随包交付的
-                                 格式化脚本）
+                                 「功能区」面板，里面是语言网格与注册表
+                                 驱动的「格式化」菜单；cmd/ 是 runtime，
+                                 engines/ 是随包交付的格式化脚本）
 plugins/com.mypaste.diff-view/   对比页面（自己的 diff 引擎与语言表；
                                  读取 companion）
 plugins/com.mypaste.image-edit/  图片编辑器（自己的画布工具）
@@ -361,7 +365,8 @@ sh scripts/release.sh
      逐一安装。
    - 「安装 / 更新插件…」并选择一个 `.mypaste-plugin` 文件。
 3. 刷新列表，只授予每个包声明的能力，然后在剪贴板命令面板里使用命令。
-4. 高亮：在集成注册表的表面里打开代码条目，或从命令面板运行高亮命令。
+4. 语法高亮：在 code-edit 或 code-card 表面里打开代码条目，各自用自己的
+   分词器渲染。
 
 文件夹导入接受嵌套的包目录，跳过隐藏目录、`node_modules` 与 `.git`，
 忽略符号链接，并逐包报告结果。部分失败不回滚已成功安装的包。

@@ -94,7 +94,7 @@ class PackageTests(unittest.TestCase):
         )
         packaging.validate_target(
             {"id": "highlight", "forms": ["text"]},
-            "mypaste.highlight-json",
+            "com.mypaste.sql",
         )
         invalid = [
             {"id": "format"},
@@ -188,11 +188,9 @@ class PackageTests(unittest.TestCase):
                 self.assertIn(surface["role"], packaging.SURFACE_ROLES)
                 self.assertTrue(surface.get("forms"), manifest["id"])
                 self.assertNotIn("languages", surface)
-            # The eight headless highlight and eight headless format packages
-            # have no surface at all: they are pure capabilities the surfaces
-            # reach through the registry.
-            if (manifest["id"].startswith("mypaste.highlight-")
-                    or manifest["id"].startswith("mypaste.format-")):
+            # The eight headless format packages have no surface at all: they
+            # are pure capabilities the surfaces reach through the registry.
+            if manifest["id"].startswith("mypaste.format-"):
                 self.assertEqual(capabilities, {"entity.read"})
                 self.assertNotIn("surface", manifest)
             for command in manifest.get("commands", []):
@@ -259,17 +257,17 @@ class PackageTests(unittest.TestCase):
         A surface invocation hands its buffer to the command as pipe input,
         and the host checks the *command's* capability list before it does
         (`RunSurface` in the app repository), not only the package grant. A
-        v3 migration that drops this field leaves every highlighter and
-        formatter reachable-but-refused, so the invariant is checked here.
+        v3 migration that drops this field leaves every formatter
+        reachable-but-refused, so the invariant is checked here.
         """
         pure_capabilities = [
             package for package in PLUGINS.iterdir()
             if package.is_dir() and (
-                package.name.startswith(("mypaste.format-", "mypaste.highlight-"))
+                package.name.startswith("mypaste.format-")
                 or package.name == "com.mypaste.sql"
             )
         ]
-        self.assertEqual(len(pure_capabilities), 17)
+        self.assertEqual(len(pure_capabilities), 9)
         for package in sorted(pure_capabilities):
             manifest = json.loads(
                 (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
@@ -288,38 +286,6 @@ class PackageTests(unittest.TestCase):
                 continue
             self.assertEqual(command.get("capabilities"), ["entity.read"],
                              command["id"])
-
-    def test_highlighting_all_languages(self) -> None:
-        fixtures = {
-            "go": "package main\n\nfunc main() { println(\"hi\") }\n",
-            "json": '{"name":"MyPaste","private":true}\n',
-            "javascript": "const answer = 42;\nconsole.log(answer);\n",
-            "typescript": "interface Item { id: number }\nconst item: Item = { id: 1 };\n",
-            "html": "<!doctype html>\n<main class=\"app\">Hello</main>\n",
-            "php": "<?php\nfunction greet(string $name): string {\n  return \"Hi \" . $name;\n}\n",
-            "python": "def load_items():\n    return [1, 2, 3]\n",
-            "rust": "pub struct Item { pub id: i64 }\n\nfn main() { println!(\"hi\"); }\n",
-        }
-        for language, source in fixtures.items():
-            package = PLUGINS / f"mypaste.highlight-{language}"
-            response = invoke(package, {
-                "protocolVersion": 2,
-                "id": "test-id",
-                "method": "invoke",
-                "commandId": "highlight",
-                "capabilities": ["entity.read"],
-                "selection": {"id": 1, "kind": "text", "title": "x", "text": source},
-            })
-            self.assertTrue(response["ok"], response)
-            render = response["result"]["render"]
-            self.assertEqual(render["language"], language)
-            self.assertGreater(len(render["tokens"]), 0)
-            for token in render["tokens"]:
-                self.assertIn(token["kind"], {
-                    "", "keyword", "string", "comment", "number", "literal",
-                    "property", "function", "tag", "type",
-                })
-            self.assertEqual("".join(token["text"] for token in render["tokens"]), source)
 
     def test_formatting_all_available_languages(self) -> None:
         fixtures = {

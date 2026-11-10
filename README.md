@@ -2,7 +2,7 @@
 
 English · [简体中文](README.zh-CN.md)
 
-Independent code formatting, syntax-highlighting and sync extensions for
+Independent code formatting and sync extensions for
 [MyPaste](https://github.com/zhanghuid/mypaste-go).
 
 This repository is intentionally separate from the MyPaste app. Extensions are
@@ -54,25 +54,27 @@ This repository holds:
 
 ### Script capability packages
 
-Each language has two independently installable packages:
+Each language has one formatting package:
 
-| Language | Formatting | Highlighting |
-| --- | --- | --- |
-| PHP | `mypaste.format-php` | `mypaste.highlight-php` |
-| JSON | `mypaste.format-json` | `mypaste.highlight-json` |
-| JavaScript | `mypaste.format-javascript` | `mypaste.highlight-javascript` |
-| TypeScript | `mypaste.format-typescript` | `mypaste.highlight-typescript` |
-| HTML | `mypaste.format-html` | `mypaste.highlight-html` |
-| Python | `mypaste.format-python` | `mypaste.highlight-python` |
-| Go | `mypaste.format-go` | `mypaste.highlight-go` |
-| Rust | `mypaste.format-rust` | `mypaste.highlight-rust` |
+| Language | Formatting |
+| --- | --- |
+| PHP | `mypaste.format-php` |
+| JSON | `mypaste.format-json` |
+| JavaScript | `mypaste.format-javascript` |
+| TypeScript | `mypaste.format-typescript` |
+| HTML | `mypaste.format-html` |
+| Python | `mypaste.format-python` |
+| Go | `mypaste.format-go` |
+| Rust | `mypaste.format-rust` |
 
-Both kinds request only `entity.read`. Formatting answers with text and never
-writes the clipboard; highlighting answers with bounded token arrays and never
-returns HTML or CSS. Neither can read history, use files, reach the network, or
-spawn arbitrary commands. They declare no `placement`, so the host never shows
-them directly: a surface integrates them through the registry, and a language
-is the package's own internal concept — the host never infers one.
+Each requests only `entity.read`. Formatting answers with text and never writes
+the clipboard. It cannot read history, use files, reach the network, or spawn
+arbitrary commands. It declares no `placement`, so the host never shows it
+directly: a surface integrates it through the registry, and a language is the
+package's own internal concept — the host never infers one. Syntax highlighting
+is no longer a capability package: the code-edit and code-card surfaces render
+it with their own tokenizers (see "Surface packages"), and `com.mypaste.sql`
+still returns SQL tokens.
 
 ## Manifest version 3
 
@@ -99,8 +101,8 @@ the result can be saved or copied. It defaults to `forms`.
 
 `capabilities` on a command names the services that one command needs. The host
 checks it before handing the command the entity, and a surface invocation
-passes its buffer as pipe input — so every formatter and highlighter repeats
-`entity.read` here. It narrows the package grant and never widens it.
+passes its buffer as pipe input — so every formatter repeats `entity.read`
+here. It narrows the package grant and never widens it.
 
 `placement` names where the host itself shows the command:
 
@@ -175,9 +177,10 @@ item and never gives the page a way to browse history.
 
 v3 removed the host workbench: there is no buffer exchange, no host-drawn
 editor toolbar and no host-drawn document action row (host D-1065, D-1068).
-Each page draws its own controls. Code-edit's page, for example, draws 复制文本
-and 保存为新条目 itself and turns the registry into a header 格式化 menu plus a
-高亮 picker. The menu always carries the editor's own built-in operations for
+Each page draws its own controls. Code-edit's page, for example, draws an icon
+toolbar — a 功能区 panel toggle, copy and save — and turns the registry into a
+功能区 panel that carries the language grid and the 格式化 menu. The menu always
+carries the editor's own built-in operations for
 the detected language — Go, JavaScript, TypeScript, Python, Rust, PHP, HTML,
 CSS, JSON, YAML, SQL and Shell, plus SQL compression — invoked through this
 package's runtime under ids such as `format.go` and `compress.sql`, so
@@ -192,27 +195,28 @@ operation the built-ins already own for that language is never duplicated: the
 built-in wins. A command that declares a placement is the host's card action
 and never becomes a row here. When nothing applies — plain text has no
 formatter — the menu says that in one line instead of blaming a missing
-package. Token commands become the 高亮 picker, where 内置 (the page's own
-tokenizer) is the default and the fallback when a capability fails or returns
-no usable tokens; highlighting never depends on an installed package. A
+package. Syntax highlighting is this page's own tokenizer for all twelve
+languages — the same one the card preview uses — so it never depends on an
+installed package. A
 selection action slices the buffer, invokes the same whole-text command on that
 slice and splices the answer back, so a capability never needs to know about
 selections. Actions that do not currently apply (a selection action with no
 selection, keyword casing in
 a language without keywords) stay in the menu disabled rather than
 disappearing. Today the host fills an omitted
-output from `forms`, so both shapes arrive as text; code-edit also accepts the
-protocol's fixed `format` / `compress` / `highlight` command ids as the
-declared shape until the wire carries declaredness.
+output from `forms`, so a token command also arrives as text; code-edit still
+filters the protocol's fixed `highlight` id out of the format list (a
+`highlight` command returns render tokens, not text — `com.mypaste.sql`) and
+treats `format` / `compress` as text until the wire carries declaredness.
 
 - `{v: 1, type: "registry", requestId, forms}` → `{v: 1, type: "result",
   requestId, ok, commands: [{pluginId, commandId, title, description?,
   output?}]}` — the capability commands that adapt those entity forms.
 - `{v: 1, type: "invoke", requestId, pluginId, commandId, text}` → `{v: 1,
   type: "result", requestId, ok, output?, diagnostics?, render?}` — runs one
-  command against the current buffer. `render.tokens`, when the host forwards
-  them, are bounded `{text, kind}` pairs; the page accepts them only when they
-  add up to the buffer it sent and otherwise keeps its own highlighter.
+  command against the current buffer. Formatting consumes `output`; `render`,
+  when the host forwards it, carries bounded `{text, kind}` tokens that this
+  page leaves unused because its own tokenizer is the only highlighter.
 
 Text save and copy cross the bridge as exact-key messages
 (`{v: 1, type: "save", requestId, text, title}` and
@@ -262,9 +266,10 @@ plugins/com.mypaste.code-card/
   preview.html         GENERATED: the page the archive ships
 
 plugins/com.mypaste.code-edit/   the editor (its own tokenizer, language
-                                 table and bridge; registry-driven 格式化
-                                 and 高亮 pickers; cmd/ is its runtime and
-                                 engines/ the formatting scripts it ships)
+                                 table and bridge; a 功能区 panel holding the
+                                 language grid and the registry-driven 格式化
+                                 menu; cmd/ is its runtime and engines/ the
+                                 formatting scripts it ships)
 plugins/com.mypaste.diff-view/   the comparison page (its own diff engine and
                                  language table; reads a companion)
 plugins/com.mypaste.image-edit/  the image editor (canvas tools of its own)
@@ -445,8 +450,8 @@ package.
    - "Install / update plugin..." and select one `.mypaste-plugin` file.
 3. Refresh the list, grant only the capability each package declares, then use
    the command from the clipboard command palette.
-4. For highlighting, open a code item in a surface that integrates the
-   registry, or use a highlight command from the palette.
+4. For syntax highlighting, open a code item in the code-edit or code-card
+   surface; each renders it with its own tokenizer.
 
 Folder import accepts nested package folders, skips hidden directories,
 `node_modules` and `.git`, ignores symbolic links, and reports each package

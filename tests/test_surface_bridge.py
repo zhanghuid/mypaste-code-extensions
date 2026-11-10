@@ -103,7 +103,7 @@ emit({
   commands: [
     { pluginId: "mypaste.format-json", commandId: "format", title: "格式化 JSON", output: ["text"] },
     { pluginId: "", commandId: "format", title: "no plugin" },
-    { pluginId: "mypaste.highlight-json", commandId: "highlight", title: "高亮 JSON", outputDeclared: false },
+    { pluginId: "com.example.tokens", commandId: "highlight", title: "高亮示例", outputDeclared: false },
     { pluginId: "mypaste.code-card", commandId: "clipboard.code-card", title: "导出代码卡片", placement: ["card-action"] },
   ],
 });

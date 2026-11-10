@@ -14,17 +14,6 @@
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
-      "id": "mypaste.highlight-go",
-      "name": "Go Syntax Highlight",
-      "version": "3.0.2",
-      "kind": "command",
-      "description": "为 MyPaste 提供 Go 的有界语法高亮 token，不写入剪贴板。",
-      "fileName": "mypaste.highlight-go-3.0.2.mypaste-plugin",
-      "sha256": "022064515e022372e84dad09af64b79a332fc09bb676dff23dc3f45a27fe500a",
-      "runtimeProtocol": 2,
-      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
-    },
-    {
       "id": "mypaste.format-html",
       "name": "Html Format",
       "version": "3.0.2",
@@ -32,17 +21,6 @@
       "description": "使用本机可用工具格式化 Html；依赖缺失或语法错误时保留原文。",
       "fileName": "mypaste.format-html-3.0.2.mypaste-plugin",
       "sha256": "c4ac98a4819f1e0c39e77a925742e1638ff099b10be8d85dbc4b8099cf5e1566",
-      "runtimeProtocol": 2,
-      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
-    },
-    {
-      "id": "mypaste.highlight-html",
-      "name": "Html Syntax Highlight",
-      "version": "3.0.2",
-      "kind": "command",
-      "description": "为 MyPaste 提供 Html 的有界语法高亮 token，不写入剪贴板。",
-      "fileName": "mypaste.highlight-html-3.0.2.mypaste-plugin",
-      "sha256": "239b6a76b9e4367ba181f960caa5b80a7e8ee8a399127547a0b322967bc71623",
       "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -80,28 +58,6 @@
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
-      "id": "mypaste.highlight-javascript",
-      "name": "JavaScript Syntax Highlight",
-      "version": "3.0.2",
-      "kind": "command",
-      "description": "为 MyPaste 提供 JavaScript 的有界语法高亮 token，不写入剪贴板。",
-      "fileName": "mypaste.highlight-javascript-3.0.2.mypaste-plugin",
-      "sha256": "7d521e2acd54c6ad493493291d911019463f14a4162453918aee79210128334b",
-      "runtimeProtocol": 2,
-      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
-    },
-    {
-      "id": "mypaste.highlight-json",
-      "name": "Json Syntax Highlight",
-      "version": "3.0.2",
-      "kind": "command",
-      "description": "为 MyPaste 提供 Json 的有界语法高亮 token，不写入剪贴板。",
-      "fileName": "mypaste.highlight-json-3.0.2.mypaste-plugin",
-      "sha256": "9b8910b8b881de9a0cb6173c10badbf3c159f63c090f6c78d512ae83171c13b1",
-      "runtimeProtocol": 2,
-      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
-    },
-    {
       "id": "mypaste.format-php",
       "name": "Php Format",
       "version": "3.0.2",
@@ -109,17 +65,6 @@
       "description": "使用本机可用工具格式化 Php；依赖缺失或语法错误时保留原文。",
       "fileName": "mypaste.format-php-3.0.2.mypaste-plugin",
       "sha256": "aa599f319c63cf74b49b02ad75a606887736d5bd4d33354ff95667258b3aa072",
-      "runtimeProtocol": 2,
-      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
-    },
-    {
-      "id": "mypaste.highlight-php",
-      "name": "Php Syntax Highlight",
-      "version": "3.0.2",
-      "kind": "command",
-      "description": "为 MyPaste 提供 Php 的有界语法高亮 token，不写入剪贴板。",
-      "fileName": "mypaste.highlight-php-3.0.2.mypaste-plugin",
-      "sha256": "902cd58a1502394d5ccf26b6d8d0372bc21a90d96675c964ff1eb04cb24b7b38",
       "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -135,17 +80,6 @@
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
-      "id": "mypaste.highlight-python",
-      "name": "Python Syntax Highlight",
-      "version": "3.0.2",
-      "kind": "command",
-      "description": "为 MyPaste 提供 Python 的有界语法高亮 token，不写入剪贴板。",
-      "fileName": "mypaste.highlight-python-3.0.2.mypaste-plugin",
-      "sha256": "ebfdd6f91175a0419b5edfeefb0b296bfa505a075047280d5655815b5761fb2c",
-      "runtimeProtocol": 2,
-      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
-    },
-    {
       "id": "mypaste.format-rust",
       "name": "Rust Format",
       "version": "3.0.2",
@@ -153,17 +87,6 @@
       "description": "使用本机可用工具格式化 Rust；依赖缺失或语法错误时保留原文。",
       "fileName": "mypaste.format-rust-3.0.2.mypaste-plugin",
       "sha256": "ed1f1d401bbd08e7581c22d37647f56a3582b56f58f82865d1a75bd45d8c1b3a",
-      "runtimeProtocol": 2,
-      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
-    },
-    {
-      "id": "mypaste.highlight-rust",
-      "name": "Rust Syntax Highlight",
-      "version": "3.0.2",
-      "kind": "command",
-      "description": "为 MyPaste 提供 Rust 的有界语法高亮 token，不写入剪贴板。",
-      "fileName": "mypaste.highlight-rust-3.0.2.mypaste-plugin",
-      "sha256": "9882e9f6d248842230f66fe8f997317cbb4702b368a6a15e9f0c841dd6eb94aa",
       "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -190,17 +113,6 @@
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
-      "id": "mypaste.highlight-typescript",
-      "name": "TypeScript Syntax Highlight",
-      "version": "3.0.2",
-      "kind": "command",
-      "description": "为 MyPaste 提供 TypeScript 的有界语法高亮 token，不写入剪贴板。",
-      "fileName": "mypaste.highlight-typescript-3.0.2.mypaste-plugin",
-      "sha256": "549369e3d8b4942c4b553d9b2590aadcbe374233b51bfb1bf517b53db8ec287b",
-      "runtimeProtocol": 2,
-      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
-    },
-    {
       "id": "com.mypaste.code-card",
       "name": "代码卡片",
       "version": "3.0.0",
@@ -214,11 +126,11 @@
     {
       "id": "com.mypaste.code-edit",
       "name": "代码编辑",
-      "version": "3.4.2",
+      "version": "3.5.0",
       "kind": "ui",
-      "description": "在本地编辑代码或纯文本：行号、语法高亮、语言识别与格式化都随包提供，所有语言的格式化都在扩展内完成，不依赖本机安装 gofmt、rustfmt、Python、Prettier 或其它工具；本机有 Node 时，CSS、YAML、JavaScript 与 TypeScript 会改用包内 Prettier 或内置脚本，排版更完整，没有也照常可用；「格式化」菜单按当前语言列出内置格式化与 SQL 压缩；高亮完全本地，不依赖其它能力包。可另存为新的历史条目或复制到剪贴板，原条目保持不变，不联网、不读取其它条目。",
-      "fileName": "com.mypaste.code-edit-3.4.2.mypaste-plugin",
-      "sha256": "c3923126fe6d8c0a129c190fdd2fdcc7d7fc050afddeb6203046135e386a4ca4",
+      "description": "在本地编辑代码或纯文本：行号、语法高亮、语言识别与格式化都随包提供，所有语言的格式化都在扩展内完成，不依赖本机安装 gofmt、rustfmt、Python、Prettier 或其它工具；本机有 Node 时，CSS、YAML、JavaScript 与 TypeScript 会改用包内 Prettier 或内置脚本，排版更完整，没有也照常可用；图标工具栏上的「功能区」面板按当前语言列出内置格式化与 SQL 压缩，语言网格与格式化都收进面板；高亮完全本地，不依赖其它能力包。可另存为新的历史条目或复制到剪贴板，原条目保持不变，不联网、不读取其它条目。",
+      "fileName": "com.mypaste.code-edit-3.5.0.mypaste-plugin",
+      "sha256": "d8010b478b92e6ae5b46dee967350aef5d5a3e84c6531aec864ed67af233c964",
       "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },

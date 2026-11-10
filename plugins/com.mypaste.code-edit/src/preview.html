@@ -121,98 +121,72 @@
   #doc-dirty[hidden] { display: none; }
 
   /*
-   * One control size for the whole header row (D-1051). Every surface is
-   * square (D-1045), sits on --surface with a --line border, and draws its
-   * chevron as one inline SVG (D-1055) instead of a CSS triangle or a native
-   * select chrome that would bring its own radius.
+   * One control size for the whole header row (D-1051): every action is a
+   * square 30px surface (D-1045), a labelled control is the same height, and
+   * each icon is one inline SVG (D-1055). Copy and save collapse to icons so
+   * the row never reads as a wall of text; their titles stay in a tooltip.
    */
-  #doc-language,
-  #doc-highlight,
-  .menu-trigger,
-  header button[data-action] {
+  #doc-language-badge,
+  .icon-button {
     height: 30px;
     border: 1px solid var(--line);
     border-radius: 0;
     background: var(--surface);
     color: var(--ink);
     font: 12px/1 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
-    cursor: pointer;
   }
-  #doc-language,
-  #doc-highlight {
-    padding: 0 24px 0 8px;
-    appearance: none;
+  #doc-language-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+    color: var(--muted);
     font-family: var(--mono);
     font-size: 11px;
+    white-space: nowrap;
   }
-  .select { position: relative; display: inline-flex; }
-  header .chevron {
-    width: 9px;
-    height: 6px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    pointer-events: none;
+  .icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    padding: 0;
+    cursor: pointer;
   }
-  .select .chevron {
-    position: absolute;
-    top: 50%;
-    right: 8px;
-    color: var(--muted);
-    transform: translateY(-50%);
-  }
-  header button[data-action] { padding: 0 12px; }
-  header button[data-action="save"] {
+  .icon-button .icon { width: 15px; height: 15px; }
+  .icon-button[data-action="save"] {
     border-color: var(--accent);
     background: var(--accent);
     color: var(--accent-ink);
-    font-weight: 600;
   }
-  #doc-language:hover,
-  #doc-highlight:hover,
-  .menu-trigger:hover:not(:disabled),
-  header button[data-action]:hover:not(:disabled) {
+  .icon-button:hover:not(:disabled) {
     border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
   }
-  #doc-language:focus-visible,
-  #doc-highlight:focus-visible,
-  .menu-trigger:focus-visible,
-  header button[data-action]:focus-visible {
+  .icon-button:focus-visible {
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 2px var(--focus);
   }
-  #doc-language:disabled,
-  #doc-highlight:disabled,
-  .menu-trigger:disabled,
-  header button[data-action]:disabled {
+  .icon-button:disabled {
     color: var(--muted);
     cursor: default;
     opacity: 0.55;
   }
-  .format-actions { position: relative; display: inline-flex; }
-  .menu-trigger {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0 9px 0 10px;
-  }
-  .menu-trigger[aria-expanded="true"] { border-color: var(--accent); }
+  .panel-root { position: relative; display: inline-flex; }
+  #doc-panel-toggle[aria-expanded="true"] { border-color: var(--accent); }
 
   /*
-   * The menu is an opaque raised sheet: --surface is translucent in the
-   * host's warm palette, so it is laid over --solid instead of over the
-   * editor. That is the whole difference between a menu and a ghost.
+   * The 功能区 panel is an opaque raised sheet: --surface is translucent in
+   * the host's warm palette, so it is laid over --solid instead of over the
+   * editor. That is the whole difference between a panel and a ghost. It
+   * folds the language grid and the format list behind one toggle so the
+   * toolbar itself stays icons-only.
    */
-  #doc-format-menu {
+  #doc-panel {
     position: fixed;
     z-index: 40;
-    min-width: 220px;
+    min-width: 260px;
     max-width: calc(100vw - 16px);
     overflow-y: auto;
-    padding: 4px 0 6px;
     border: 1px solid var(--line);
     background:
       linear-gradient(var(--surface), var(--surface)),
@@ -220,8 +194,56 @@
     color: var(--ink);
     box-shadow: 0 12px 28px color-mix(in srgb, var(--ink) 20%, transparent);
   }
-  #doc-format-menu[hidden] { display: none; }
-  #doc-format-menu:focus { outline: none; }
+  #doc-panel[hidden] { display: none; }
+  #doc-panel:focus { outline: none; }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 7px 8px 7px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .panel-title {
+    color: var(--muted);
+    font: 600 10.5px/1.4 var(--mono);
+    letter-spacing: 0.08em;
+  }
+  .panel-section { padding: 6px 8px 8px; }
+  .panel-section + .panel-section { border-top: 1px solid var(--line); }
+  .panel-section-title {
+    padding: 6px 4px 4px;
+    color: var(--muted);
+    font: 600 10.5px/1.4 var(--mono);
+    letter-spacing: 0.08em;
+  }
+  .language-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+    gap: 4px;
+  }
+  .language-item {
+    height: 30px;
+    padding: 0 6px;
+    border: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    color: var(--ink);
+    font: 11px/1 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
+    text-align: left;
+    cursor: pointer;
+  }
+  .language-item:hover:not(:disabled) { border-color: var(--accent); }
+  .language-item:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--focus);
+  }
+  .language-item.is-active {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    font-weight: 600;
+  }
   .format-group + .format-group,
   .format-empty + .format-group {
     margin-top: 4px;
@@ -229,13 +251,13 @@
     border-top: 1px solid var(--line);
   }
   .format-group-title {
-    padding: 8px 12px 3px;
+    padding: 6px 4px 3px;
     color: var(--muted);
     font: 600 10.5px/1.4 var(--mono);
     letter-spacing: 0.08em;
   }
   .format-empty {
-    padding: 10px 12px 9px;
+    padding: 6px 4px 5px;
     color: var(--muted);
     font: 12px/1.5 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
   }
@@ -243,7 +265,7 @@
     display: block;
     width: 100%;
     height: 32px;
-    padding: 0 12px;
+    padding: 0 8px;
     overflow: hidden;
     border: 0;
     background: transparent;
@@ -344,11 +366,6 @@
   }
   button:hover:not(:disabled) { border-color: var(--accent); }
   button:disabled { opacity: 0.45; cursor: default; }
-  button.primary {
-    border-color: var(--accent);
-    background: var(--accent);
-    color: var(--accent-ink);
-  }
 
   footer {
     display: flex;
@@ -376,26 +393,55 @@
     <span class="kicker">代码编辑</span>
     <input id="doc-title" type="text" maxlength="120" spellcheck="false"
       autocomplete="off" aria-label="文档名称">
+    <span id="doc-language-badge" role="status" aria-label="当前语言"></span>
     <span class="metric" id="doc-caret">行 1，列 1</span>
     <span id="doc-dirty" hidden>未保存</span>
-    <span class="select">
-      <select id="doc-language" aria-label="语言"></select>
-      <svg class="chevron" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>
-    </span>
-    <div id="doc-format-root" class="format-actions">
-      <button type="button" id="doc-format" class="menu-trigger"
-        aria-haspopup="menu" aria-expanded="false" disabled>
-        格式化
-        <svg class="chevron" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>
+    <div id="doc-panel-root" class="panel-root">
+      <button type="button" id="doc-panel-toggle" class="icon-button"
+        aria-haspopup="menu" aria-expanded="false" title="功能区" aria-label="功能区" disabled>
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+            <path d="M2 4.5h12"/>
+            <circle cx="5.5" cy="4.5" r="1.6"/>
+            <path d="M2 11.5h12"/>
+            <circle cx="10.5" cy="11.5" r="1.6"/>
+          </g>
+        </svg>
       </button>
-      <div id="doc-format-menu" role="menu" aria-label="格式化与本地操作" tabindex="-1" hidden></div>
+      <div id="doc-panel" role="dialog" aria-label="功能区" tabindex="-1" hidden>
+        <div class="panel-head">
+          <span class="panel-title">功能区</span>
+          <button type="button" id="doc-panel-close" class="icon-button" aria-label="关闭功能区">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="panel-section">
+          <div class="panel-section-title">语言</div>
+          <div id="doc-language-grid" class="language-grid" role="group" aria-label="语言"></div>
+        </div>
+        <div class="panel-section">
+          <div class="panel-section-title">格式化</div>
+          <div id="doc-format-list" role="menu" aria-label="格式化与本地操作"></div>
+        </div>
+      </div>
     </div>
-    <span class="select">
-      <select id="doc-highlight" aria-label="高亮" title="选择语法高亮"></select>
-      <svg class="chevron" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>
-    </span>
-    <button type="button" data-action="copy">复制文本</button>
-    <button type="button" class="primary" data-action="save">保存为新条目</button>
+    <button type="button" data-action="copy" class="icon-button" title="复制文本" aria-label="复制文本">
+      <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="5.5" y="5.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M3.5 10.5v-7h7" fill="none" stroke="currentColor" stroke-width="1.4"/>
+      </svg>
+    </button>
+    <button type="button" class="icon-button" data-action="save" title="保存为新条目" aria-label="保存为新条目">
+      <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+        <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+          <path d="M3 2.5h8l2 2v9h-10z"/>
+          <path d="M5 2.5v4h6v-4"/>
+          <path d="M5 13.5v-4h6v4"/>
+        </g>
+      </svg>
+    </button>
   </header>
   <div class="editor">
     <pre id="editor-gutter" aria-hidden="true"></pre>

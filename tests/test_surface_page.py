@@ -1,11 +1,11 @@
-"""The code-edit page's action menu and highlight picker (protocol v3, D-1069).
+"""The code-edit page's action list and language grid (protocol v3, D-1069).
 
 The page is bundled with the same esbuild the surface build uses and runs under
 Node against a minimal DOM stub. The host's messages are driven by hand, so the
 test sees exactly what the page sends and paints:
 
-- the registry fills the action menu from text-output capabilities and the
-  highlight picker from token capabilities, never a placed command;
+- the registry fills the format list from text-output capabilities, never a
+  placed command and never a token (highlight) command;
 - the built-in operations come from this package's own runtime, work with an
   empty registry, and win over an external capability of the same name;
 - capability actions come in document/selection pairs, and the selection pair
@@ -17,8 +17,8 @@ test sees exactly what the page sends and paints:
   diagnostic position;
 - the local keyword-case action works without a package and leaves strings
   alone;
-- a highlight capability's tokens paint the overlay, and a failed call falls
-  back to the page's own tokenizer with a status-line explanation.
+- the 功能区 panel folds the language grid and the format list behind one
+  toggle, and the page's own tokenizer always paints the overlay.
 """
 
 from __future__ import annotations
@@ -55,6 +55,7 @@ class ElementStub {
     this.hidden = false;
     this.disabled = false;
     this.title = "";
+    this.className = "";
     this.selectionStart = 0;
     this.selectionEnd = 0;
     this.scrollTop = 0;
@@ -100,11 +101,13 @@ class ElementStub {
 
 const elements = {
   "#doc-title": new ElementStub("input"),
-  "#doc-language": new ElementStub("select"),
-  "#doc-format-root": new ElementStub("div"),
-  "#doc-format": new ElementStub("button"),
-  "#doc-format-menu": new ElementStub("div"),
-  "#doc-highlight": new ElementStub("select"),
+  "#doc-language-badge": new ElementStub("span"),
+  "#doc-language-grid": new ElementStub("div"),
+  "#doc-panel-root": new ElementStub("div"),
+  "#doc-panel-toggle": new ElementStub("button"),
+  "#doc-panel": new ElementStub("div"),
+  "#doc-format-list": new ElementStub("div"),
+  "#doc-panel-close": new ElementStub("button"),
   "#doc-caret": new ElementStub("span"),
   "#doc-dirty": new ElementStub("span"),
   "#editor-gutter": new ElementStub("pre"),
@@ -115,11 +118,11 @@ const elements = {
   "[data-action=save]": new ElementStub("button"),
 };
 const input = elements["#editor-input"];
-const formatButton = elements["#doc-format"];
-const formatMenu = elements["#doc-format-menu"];
-const formatRoot = elements["#doc-format-root"];
-const languageSelect = elements["#doc-language"];
-const highlightSelect = elements["#doc-highlight"];
+const panelToggle = elements["#doc-panel-toggle"];
+const panel = elements["#doc-panel"];
+const panelRoot = elements["#doc-panel-root"];
+const formatList = elements["#doc-format-list"];
+const languageGrid = elements["#doc-language-grid"];
 const status = elements["#doc-status"];
 const overlay = elements["#editor-highlight"];
 
@@ -166,20 +169,26 @@ const emit = (data) => {
   for (const listener of listeners) listener({ source: parent, data });
 };
 const last = () => posted.at(-1);
-const optionLabels = (select) => select.children.map((item) => item.textContent);
-const menuButtons = () => formatMenu.children.flatMap(
+const menuButtons = () => formatList.children.flatMap(
   (section) => section.children.filter((child) => child.tagName === "button"),
 );
 const menuButton = (label) => menuButtons().find((button) => button.textContent === label);
-const groupTitles = () => formatMenu.children
+const groupTitles = () => formatList.children
   .filter((section) => section.children[0]?.tagName !== undefined)
   .map((section) => section.children[0]?.textContent);
-const showMenu = () => { if (formatMenu.hidden) formatButton.dispatch("click"); };
-const hideMenu = () => { if (!formatMenu.hidden) formatButton.dispatch("click"); };
+const showMenu = () => { if (panel.hidden) panelToggle.dispatch("click"); };
+const hideMenu = () => { if (!panel.hidden) panelToggle.dispatch("click"); };
+const languageItem = (value) =>
+  languageGrid.children.find((button) => button.dataset.value === value);
+const chooseLanguage = (value) => {
+  const button = languageItem(value);
+  assert.ok(button, `语言网格缺少「${value}」`);
+  button.dispatch("click");
+};
 const clickAction = (label) => {
   showMenu();
   const button = menuButton(label);
-  assert.ok(button, `菜单缺少动作「${label}」`);
+  assert.ok(button, `格式化列表缺少动作「${label}」`);
   button.dispatch("click");
 };
 const checks = [];
@@ -189,7 +198,8 @@ assert.deepEqual(posted[0], { v: 1, type: "ready" });
 
 // The page asks for text capabilities on startup. The answer mixes both
 // capability shapes, a placed command the page must ignore, and declaredness
-// on a host that exposes it.
+// on a host that exposes it. A highlight (token) command must never become a
+// format row: highlighting is the page's own tokenizer, not a capability.
 const registry = posted.find((message) => message.type === "registry");
 assert.deepEqual(registry.forms, ["text"]);
 emit({
@@ -217,14 +227,14 @@ emit({
 });
 await tick();
 
-// With no capability package installed the built-ins still fill the menu: the
-// editor owns formatting now. The highlight picker stays complete with only
-// 内置, and a placed command is never a row.
+// With no capability package installed the built-ins still fill the list: the
+// editor owns formatting now. The language grid stays complete, and a placed
+// command is never a row.
 if (EMPTY) {
   emit({ v: 1, type: "item", item: { kind: "text", title: "main.sql", text: "SELECT id, name FROM t" } });
   showMenu();
-  assert.equal(formatMenu.hidden, false);
-  assert.equal(formatMenu.children[0].className, "format-group");
+  assert.equal(panel.hidden, false);
+  assert.equal(formatList.children[0].className, "format-group");
   assert.deepEqual(groupTitles(), ["格式化", "压缩", "本地"]);
   assert.deepEqual(menuButtons().map((button) => button.textContent), [
     "格式化 SQL", "格式化 SQL（选区）",
@@ -233,26 +243,26 @@ if (EMPTY) {
   ]);
   assert.equal(menuButtons().some((button) => button.textContent.includes("未安装")), false);
   assert.equal(menuButtons().some((button) => button.textContent.includes("导出")), false);
-  assert.deepEqual(optionLabels(highlightSelect), ["内置"]);
-  assert.equal(highlightSelect.hidden, false);
+  assert.ok(languageGrid.children.length >= 14);
+  assert.equal(languageItem("auto").className, "language-item is-active");
   clickAction("格式化 SQL");
   assert.equal(last().type, "invoke");
   assert.equal(last().pluginId, "com.mypaste.code-edit");
   assert.equal(last().commandId, "format.sql");
   assert.equal(last().text, "SELECT id, name FROM t");
-  checks.push("built-in formatting fills the menu with no capability package and invokes this package's runtime");
+  checks.push("built-in formatting fills the list with no capability package and invokes this package's runtime");
   console.log(JSON.stringify(checks));
   process.exit(0);
 }
 
 emit({ v: 1, type: "item", item: { kind: "text", title: "main.sql", text: "SELECT id, name FROM t" } });
 assert.equal(input.value, "SELECT id, name FROM t");
-assert.equal(formatButton.disabled, false);
+assert.equal(panelToggle.disabled, false);
 showMenu();
-assert.equal(formatMenu.hidden, false);
-assert.equal(formatButton.getAttribute("aria-expanded"), "true");
-assert.ok(formatMenu.style.top.endsWith("px"), "菜单使用视口坐标定位");
-assert.ok(formatMenu.style.left.endsWith("px"), "菜单使用视口坐标定位");
+assert.equal(panel.hidden, false);
+assert.equal(panelToggle.getAttribute("aria-expanded"), "true");
+assert.ok(panel.style.top.endsWith("px"), "面板使用视口坐标定位");
+assert.ok(panel.style.left.endsWith("px"), "面板使用视口坐标定位");
 assert.deepEqual(groupTitles(), ["格式化", "压缩", "其它", "本地"]);
 assert.deepEqual(menuButtons().map((button) => button.textContent), [
   "格式化 SQL", "格式化 SQL（选区）",
@@ -262,10 +272,11 @@ assert.deepEqual(menuButtons().map((button) => button.textContent), [
   "导出（外部：mypaste.export-x）", "导出（选区）（外部：mypaste.export-x）",
   "切换关键字大小写",
 ]);
-assert.deepEqual(optionLabels(highlightSelect), ["内置", "高亮 JSON", "高亮 SQL", "高亮 YAML"]);
-assert.equal(highlightSelect.hidden, false);
+// A highlight (token) command never becomes a format row, and a placed command
+// never becomes a row: highlighting is the page's own tokenizer now.
+assert.equal(menuButtons().some((button) => button.textContent.includes("高亮")), false);
 assert.equal(menuButtons().some((button) => button.textContent === "导出代码卡片"), false);
-checks.push("the registry fills grouped action pairs and the highlight picker, not placed commands");
+checks.push("the registry fills grouped action pairs and never a token or placed command");
 
 // The current language's built-in wins over every external capability of the
 // same name: exactly one 格式化 SQL document row, and it is not marked as
@@ -279,17 +290,15 @@ assert.equal(menuButton("格式化 SQL").disabled, false);
 assert.equal(menuButton("格式化 SQL（选区）").disabled, true);
 checks.push("an external format package never repeats the language the built-ins own");
 
-// Switching the language rebuilds the built-ins and re-runs the same dedupe.
-languageSelect.value = "json";
-languageSelect.dispatch("change");
+// Picking a language in the grid rebuilds the built-ins and re-runs the dedupe.
+chooseLanguage("json");
 showMenu();
 assert.equal(menuButton("格式化 JSON").disabled, false);
 assert.equal(menuButton("格式化 JSON（外部：mypaste.format-json）"), undefined);
 assert.ok(menuButtons().some((button) => button.textContent.includes("格式化 SQL（外部：com.mypaste.sql）")));
-languageSelect.value = "auto";
-languageSelect.dispatch("change");
+chooseLanguage("auto");
 hideMenu();
-checks.push("changing the language moves the built-in operation and keeps external sources distinct");
+checks.push("picking a language moves the built-in operation and keeps external sources distinct");
 
 // Keyword casing is a local action: no invoke, one replacement, strings kept.
 hideMenu();
@@ -361,13 +370,13 @@ assert.equal(menuButton("压缩 SQL（选区）").disabled, true);
 assert.equal(menuButton("压缩 SQL").disabled, false);
 checks.push("collapsing the selection disables selection actions without hiding them");
 
-// Opening the menu puts focus on the first enabled row; the arrow keys walk
+// Opening the panel puts focus on the first enabled row; the arrow keys walk
 // enabled rows only, in visual order, and wrap at either end. The built-in
 // row comes before the external ones.
 assert.equal(document.activeElement, menuButton("格式化 SQL"));
-formatMenu.dispatch("keydown", { key: "ArrowDown" });
+formatList.dispatch("keydown", { key: "ArrowDown" });
 assert.equal(document.activeElement, menuButton("格式化 JSON（外部：mypaste.format-json）"));
-formatMenu.dispatch("keydown", { key: "ArrowUp" });
+formatList.dispatch("keydown", { key: "ArrowUp" });
 assert.equal(document.activeElement, menuButton("格式化 SQL"));
 
 // A disabled row is never activatable, even by a synthetic click.
@@ -379,44 +388,16 @@ await tick();
 assert.equal(edits.length, editsBeforeDisabled);
 checks.push("keyboard focus walks enabled rows and a disabled row cannot run");
 
-// Esc belongs to the page: the first press closes the menu only, the second
+// Esc belongs to the page: the first press closes the panel only, the second
 // asks the host to close the surface.
 showMenu();
 const postedBeforeEscape = posted.length;
 document.dispatch("keydown", { key: "Escape" });
-assert.equal(formatMenu.hidden, true);
+assert.equal(panel.hidden, true);
 assert.equal(posted.length, postedBeforeEscape);
 document.dispatch("keydown", { key: "Escape" });
 assert.deepEqual(last(), { v: 1, type: "close" });
-checks.push("Escape closes the menu first and the surface second");
-
-// A highlight capability's tokens paint the overlay.
-input.value = "SELECT 1 FROM t";
-highlightSelect.value = "1";
-highlightSelect.dispatch("change");
-assert.equal(last().type, "invoke");
-assert.equal(last().commandId, "highlight");
-emit({
-  v: 1, type: "result", requestId: last().requestId, ok: true,
-  render: { tokens: [
-    { text: "SELECT", kind: "tag" },
-    { text: " 1 FROM t", kind: "" },
-  ] },
-});
-await tick();
-assert.match(overlay.innerHTML, /tok-tag">SELECT</);
-checks.push("a highlight capability paints its tokens");
-
-// A failed call falls back to the page's own tokenizer and says so.
-highlightSelect.value = "1";
-highlightSelect.dispatch("change");
-emit({ v: 1, type: "result", requestId: last().requestId, ok: false, message: "highlight failed" });
-await tick();
-assert.doesNotMatch(overlay.innerHTML, /tok-tag/);
-assert.match(overlay.innerHTML, /tok-keyword">SELECT</);
-assert.match(status.textContent, /已回退内置高亮/);
-assert.equal(status.dataset.tone, "error");
-checks.push("a failed highlight falls back to the built-in tokenizer");
+checks.push("Escape closes the panel first and the surface second");
 
 console.log(JSON.stringify(checks));
 """
@@ -467,18 +448,16 @@ class SurfacePageTest(unittest.TestCase):
             )
         checks = json.loads(self.result.stdout.strip().splitlines()[-1])
         self.assertEqual(checks, [
-            "the registry fills grouped action pairs and the highlight picker, not placed commands",
+            "the registry fills grouped action pairs and never a token or placed command",
             "an external format package never repeats the language the built-ins own",
-            "changing the language moves the built-in operation and keeps external sources distinct",
+            "picking a language moves the built-in operation and keeps external sources distinct",
             "the local keyword-case action rewrites keywords once and leaves the string alone",
             "a document action replaces the buffer once",
             "a selection action invokes on the slice and splices the result back",
             "a failed selection action leaves the buffer alone and shows the reason",
             "collapsing the selection disables selection actions without hiding them",
             "keyboard focus walks enabled rows and a disabled row cannot run",
-            "Escape closes the menu first and the surface second",
-            "a highlight capability paints its tokens",
-            "a failed highlight falls back to the built-in tokenizer",
+            "Escape closes the panel first and the surface second",
         ])
 
     def test_empty_capability_registry(self) -> None:
@@ -497,7 +476,7 @@ class SurfacePageTest(unittest.TestCase):
             )
         checks = json.loads(result.stdout.strip().splitlines()[-1])
         self.assertEqual(checks, [
-            "built-in formatting fills the menu with no capability package and invokes this package's runtime",
+            "built-in formatting fills the list with no capability package and invokes this package's runtime",
         ])
 
 

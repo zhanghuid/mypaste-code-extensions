@@ -1,19 +1,18 @@
 /**
  * 代码编辑表面：把宿主交付的这条文本放进一个带行号与语法高亮的编辑面，
- * 另存为新条目或复制到剪贴板。页面不联网、不读取其它条目；高亮默认为本包
- * 自带的 tokenizer（协议 v3：高亮是表面自己的实现，不是宿主服务）。
+ * 另存为新条目或复制到剪贴板。页面不联网、不读取其它条目；高亮是本包自带
+ * 的 tokenizer（协议 v3：高亮是表面自己的实现，不是宿主服务，也不依赖任何
+ * 能力包）。
  *
  * D-1069：宿主不再画编辑器命令栏，也不再交换缓冲区。复制、保存与关闭按钮由
- * 这个页面自己画。格式化与高亮都不依赖另行安装的能力包：
+ * 这个页面自己画；页面自己的图标工具栏上只有「功能区」面板开关、复制与保存，
+ * 语言网格与「格式化」菜单收进「功能区」面板，不是所有功能都常驻显示。
  *
- * - 「格式化」是一个按动作注册表画出的下拉面板。包内的内置操作按当前语言
- *   生成「全文」与「选区」两个动作（SQL 另有压缩），由页面切片、调用本包
- *   runtime 的命令、再拼回缓冲区，命令本身不需要知道选区。用户另装了格式化
- *   能力包时，同名操作不会重复出现；其余的作为附加项标注来源。纯文本没有
- *   内置格式化，菜单如实说明。失败时缓冲区不变，状态行给出理由与诊断位置。
- * - 「高亮」是只读的预览开关：选中后用返回的 token 渲染当前文本，失败或没有
- *   token 时回退本包自带的 tokenizer，并在状态行说明。默认始终是「内置」，
- *   没有高亮能力包也一样可用。
+ * 「格式化」是一个按动作注册表画出的面板分区。包内的内置操作按当前语言生成
+ * 「全文」与「选区」两个动作（SQL 另有压缩），由页面切片、调用本包 runtime 的
+ * 命令、再拼回缓冲区，命令本身不需要知道选区。用户另装了格式化能力包时，同名
+ * 操作不会重复出现；其余的作为附加项标注来源。纯文本没有内置格式化，分区如实
+ * 说明。失败时缓冲区不变，状态行给出理由与诊断位置。
  *
  * 动作面板只遍历注册表，不按语言或动作 id 分支。本地动作（关键字大小写）与
  * 能力动作共用同一条替换路径，因此一次动作就是一步撤销。页面不硬编码插件 ID，
@@ -46,8 +45,6 @@ import { tokenizeCode, type CodeLanguage } from "./tokenize";
 
 /** Above this many characters the page shows plain text, not tokens. */
 const HIGHLIGHT_LIMIT = 200_000;
-/** Wait this long after a keystroke before asking a capability to highlight. */
-const HIGHLIGHT_DELAY_MS = 220;
 const INDENT = "  ";
 const SAVE_TITLE_LIMIT = 120;
 /** The token kinds this document has a style for; anything else stays plain. */
@@ -65,11 +62,13 @@ function one<T extends Element>(selector: string): T {
 }
 
 const titleInput = one<HTMLInputElement>("#doc-title");
-const languageSelect = one<HTMLSelectElement>("#doc-language");
-const formatRoot = one<HTMLElement>("#doc-format-root");
-const formatButton = one<HTMLButtonElement>("#doc-format");
-const formatMenu = one<HTMLElement>("#doc-format-menu");
-const highlightSelect = one<HTMLSelectElement>("#doc-highlight");
+const languageBadge = one<HTMLElement>("#doc-language-badge");
+const languageGrid = one<HTMLElement>("#doc-language-grid");
+const panelRoot = one<HTMLElement>("#doc-panel-root");
+const panelToggle = one<HTMLButtonElement>("#doc-panel-toggle");
+const panel = one<HTMLElement>("#doc-panel");
+const formatList = one<HTMLElement>("#doc-format-list");
+const panelClose = one<HTMLButtonElement>("#doc-panel-close");
 const caret = one<HTMLElement>("#doc-caret");
 const dirtyMark = one<HTMLElement>("#doc-dirty");
 const gutter = one<HTMLElement>("#editor-gutter");
@@ -86,14 +85,8 @@ let actionCommands: SurfaceCommand[] = [];
 let actions: EditorAction[] = [];
 /** The language `actions` was built for; undefined until the first build. */
 let actionLanguage: CodeLanguage | null | undefined;
-let menuOpen = false;
+let panelOpen = false;
 let renderedActions: { action: EditorAction; button: HTMLButtonElement }[] = [];
-let highlightCommands: SurfaceCommand[] = [];
-let highlightCommand: SurfaceCommand | null = null;
-let highlightGeneration = 0;
-let highlightTimer: ReturnType<typeof setTimeout> | null = null;
-let capabilityTokens: SurfaceToken[] | null = null;
-let capabilityTokensFor = "";
 
 function escapeHTML(value: string): string {
   return value
@@ -126,13 +119,12 @@ function tokenHTML(tokens: readonly SurfaceToken[]): string {
 }
 
 /**
- * The page's own tokenizer is both the default highlight and the fallback: a
- * capability that fails, returns no tokens, or returns tokens that do not add
- * up to the buffer never paints something the user did not write.
+ * The page's own tokenizer paints the buffer. Highlighting is a surface
+ * concern (protocol v3 role "open"): it is not a host service and it does not
+ * call any capability package, so the overlay can never show bytes the user
+ * did not write.
  */
 function renderBuiltinHighlight(): void {
-  capabilityTokens = null;
-  capabilityTokensFor = "";
   const text = input.value;
   const language = resolvedLanguage();
   if (!language || text.length > HIGHLIGHT_LIMIT) {
@@ -140,70 +132,6 @@ function renderBuiltinHighlight(): void {
     return;
   }
   highlight.innerHTML = tokenHTML(tokenizeCode(text, language));
-}
-
-function scheduleHighlight(): void {
-  highlightGeneration += 1;
-  if (highlightTimer !== null) {
-    clearTimeout(highlightTimer);
-    highlightTimer = null;
-  }
-  // The built-in paint keeps the overlay aligned with the buffer while a
-  // capability runs; its tokens replace it when they arrive.
-  renderBuiltinHighlight();
-  const command = highlightCommand;
-  if (!command) return;
-  const text = input.value;
-  if (text === "" || text.length > HIGHLIGHT_LIMIT) return;
-  const generation = highlightGeneration;
-  highlightTimer = setTimeout(() => {
-    highlightTimer = null;
-    void runHighlight(generation);
-  }, HIGHLIGHT_DELAY_MS);
-}
-
-function diagnosticSentence(title: string, line: number, column: number, message: string): string {
-  return `「${title}」第 ${line} 行第 ${column} 列：${message}`;
-}
-
-async function runHighlight(generation: number): Promise<void> {
-  const command = highlightCommand;
-  if (!command || generation !== highlightGeneration) return;
-  const text = input.value;
-  if (text === "" || text.length > HIGHLIGHT_LIMIT) return;
-  let result;
-  try {
-    result = await bridge.invoke(command, text);
-  } catch (error) {
-    if (generation !== highlightGeneration) return;
-    const message = error instanceof Error ? error.message : "命令失败";
-    renderBuiltinHighlight();
-    setStatus(`「${command.title}」失败，已回退内置高亮：${message}`, true);
-    return;
-  }
-  if (generation !== highlightGeneration || input.value !== text) return;
-  if (!result.ok) {
-    const first = result.diagnostics[0];
-    const reason = first
-      ? diagnosticSentence(command.title, first.line, first.column, first.message)
-      : (result.message || "命令失败");
-    renderBuiltinHighlight();
-    setStatus(`已回退内置高亮：${reason}`, true);
-    return;
-  }
-  if (!result.tokens || result.tokens.length === 0) {
-    renderBuiltinHighlight();
-    setStatus(`「${command.title}」没有返回高亮，已回退内置高亮`);
-    return;
-  }
-  if (result.tokens.map((token) => token.text).join("") !== text) {
-    renderBuiltinHighlight();
-    setStatus(`「${command.title}」返回的高亮与当前文本不一致，已回退内置高亮`, true);
-    return;
-  }
-  capabilityTokens = result.tokens;
-  capabilityTokensFor = text;
-  highlight.innerHTML = tokenHTML(result.tokens);
 }
 
 function renderGutter(): void {
@@ -231,12 +159,13 @@ function syncScroll(): void {
 }
 
 function renderLanguage(): void {
-  // The select keeps its own value; the note shows what automatic detection
-  // decided, so the user can tell a guess from a choice.
-  languageSelect.value = choice;
-  languageSelect.title = choice === "auto"
-    ? `自动识别：${languageLabel(resolvedLanguage())}`
-    : languageLabel(resolvedLanguage());
+  // The badge shows what the editor actually renders: automatic detection is
+  // labelled, a manual pick is just its name. The grid keeps the chosen value.
+  const label = languageLabel(resolvedLanguage());
+  languageBadge.textContent = label;
+  languageBadge.title = choice === "auto"
+    ? `自动识别：${label}`
+    : label;
 }
 
 function render(): void {
@@ -244,7 +173,7 @@ function render(): void {
   // the buffer). The built-ins follow the language, so rebuild them when it
   // changes; enable states are cheap and stay in refreshActionState.
   if (resolvedLanguage() !== actionLanguage) rebuildActions();
-  scheduleHighlight();
+  renderBuiltinHighlight();
   renderGutter();
   renderCaret();
   renderDirty();
@@ -257,11 +186,9 @@ function updateButtons(): void {
   const disabled = busy || bridge.item === null;
   copyButton.disabled = disabled;
   saveButton.disabled = disabled;
-  // The format menu opens even without a capability package: its local action
-  // and its empty state still belong to the user.
-  formatButton.disabled = disabled;
-  // The highlight picker always has 内置, so it is only dead before the item.
-  highlightSelect.disabled = disabled;
+  // The panel opens even without a capability package: the language grid and
+  // the local actions' empty state still belong to the user.
+  panelToggle.disabled = disabled;
 }
 
 async function run(action: () => Promise<void>): Promise<void> {
@@ -361,21 +288,21 @@ function actionDisabled(action: EditorAction, context: EditorContext): boolean {
 }
 
 /**
- * Redraws the menu from the action registry. The renderer knows only labels,
- * groups and the enable test; it never asks which language is current or
- * which action it is drawing. Groups appear in their fixed order and every
+ * Redraws the format list from the action registry. The renderer knows only
+ * labels, groups and the enable test; it never asks which language is current
+ * or which action it is drawing. Groups appear in their fixed order and every
  * action stays in place, disabled when it does not apply.
  *
  * An empty capability area says so in one muted line. The page never invents
  * an action for a package that is not installed, and it never shows the
  * host's placed commands: those are card actions, not capabilities.
  */
-function renderFormatMenu(): void {
-  formatMenu.replaceChildren();
+function renderFormatList(): void {
+  formatList.replaceChildren();
   renderedActions = [];
   const context = actionContext();
   // The built-ins are the editor's own work: with no language there is
-  // nothing to format, and the menu says that plainly. It never tells the
+  // nothing to format, and the list says that plainly. It never tells the
   // user to install a capability package, because formatting no longer
   // depends on one.
   if (builtinActions(context.language).length === 0 && actionCommands.length === 0) {
@@ -384,7 +311,7 @@ function renderFormatMenu(): void {
     empty.textContent = context.language === null
       ? "纯文本没有内置格式化操作"
       : "当前语言没有内置格式化操作";
-    formatMenu.append(empty);
+    formatList.append(empty);
   }
   for (const [groupIndex, group] of groupActions(actions).entries()) {
     const section = document.createElement("div");
@@ -404,7 +331,7 @@ function renderFormatMenu(): void {
       button.textContent = action.label;
       button.disabled = actionDisabled(action, context);
       button.addEventListener("click", () => {
-        closeFormatMenu(false);
+        closePanel(false);
         const current = actionContext();
         if (!action.isEnabled(current)) return;
         void run(async () => {
@@ -414,9 +341,43 @@ function renderFormatMenu(): void {
       section.append(button);
       renderedActions.push({ action, button });
     }
-    formatMenu.append(section);
+    formatList.append(section);
   }
-  formatMenu.hidden = !menuOpen;
+}
+
+/**
+ * Draws the language grid. Every choice is a labelled button; the active one
+ * is marked, and picking one re-renders the badge and the format list so the
+ * built-in actions follow the new language.
+ */
+function renderLanguageGrid(): void {
+  languageGrid.replaceChildren();
+  for (const item of LANGUAGE_CHOICES) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "language-item";
+    button.setAttribute("role", "menuitem");
+    button.dataset.value = item.value;
+    button.textContent = item.label;
+    button.setAttribute("aria-pressed", String(choice === item.value));
+    if (choice === item.value) button.className = "language-item is-active";
+    button.addEventListener("click", () => {
+      choice = item.value;
+      renderLanguage();
+      renderLanguageGrid();
+      rebuildActions();
+      renderBuiltinHighlight();
+      renderFormatList();
+    });
+    languageGrid.append(button);
+  }
+}
+
+/** Repaints the whole panel and keeps its open/closed state. */
+function renderPanel(): void {
+  renderLanguageGrid();
+  renderFormatList();
+  panel.hidden = !panelOpen;
 }
 
 /** The enabled items ArrowUp/ArrowDown may land on, in visual order. */
@@ -429,12 +390,12 @@ function enabledMenuItems(): HTMLButtonElement[] {
 function focusFirstMenuItem(): void {
   const [first] = enabledMenuItems();
   if (first) first.focus();
-  else formatMenu.focus();
+  else formatList.focus();
 }
 
-/** Re-evaluates only the enable state, so an open menu does not lose focus. */
+/** Re-evaluates only the enable state, so an open panel does not lose focus. */
 function refreshActionState(): void {
-  if (!menuOpen) return;
+  if (!panelOpen) return;
   const context = actionContext();
   for (const { action, button } of renderedActions) {
     button.disabled = actionDisabled(action, context);
@@ -447,81 +408,51 @@ function refreshActionState(): void {
 }
 
 /**
- * Places the menu under its trigger in viewport coordinates. `position: fixed`
- * keeps it above the editor no matter which ancestor scrolls, and the width is
- * clamped so a narrow panel never pushes the menu off screen.
+ * Places the panel under its trigger in viewport coordinates. `position:
+ * fixed` keeps it above the editor no matter which ancestor scrolls, and the
+ * width is clamped so a narrow host never pushes the panel off screen.
  */
-function positionFormatMenu(): void {
+function positionPanel(): void {
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
   if (!viewportWidth || !viewportHeight) return;
   const margin = 8;
-  const rect = formatButton.getBoundingClientRect();
-  const width = Math.min(280, viewportWidth - margin * 2);
+  const rect = panelToggle.getBoundingClientRect();
+  const width = Math.min(320, viewportWidth - margin * 2);
   const left = Math.max(margin, Math.min(rect.right - width, viewportWidth - width - margin));
-  formatMenu.style.width = `${width}px`;
-  formatMenu.style.left = `${left}px`;
-  formatMenu.style.top = `${rect.bottom + 6}px`;
-  formatMenu.style.maxHeight = `${Math.max(160, viewportHeight - rect.bottom - margin * 2)}px`;
+  panel.style.width = `${width}px`;
+  panel.style.left = `${left}px`;
+  panel.style.top = `${rect.bottom + 6}px`;
+  panel.style.maxHeight = `${Math.max(200, viewportHeight - rect.bottom - margin * 2)}px`;
 }
 
-function openFormatMenu(): void {
-  menuOpen = true;
-  renderFormatMenu();
-  formatMenu.hidden = false;
-  formatButton.setAttribute("aria-expanded", "true");
-  positionFormatMenu();
+function openPanel(): void {
+  panelOpen = true;
+  renderPanel();
+  panel.hidden = false;
+  panelToggle.setAttribute("aria-expanded", "true");
+  positionPanel();
   focusFirstMenuItem();
 }
 
-function closeFormatMenu(focusButton = true): void {
-  menuOpen = false;
-  formatMenu.hidden = true;
-  formatButton.setAttribute("aria-expanded", "false");
-  if (focusButton) formatButton.focus();
+function closePanel(focusButton = true): void {
+  panelOpen = false;
+  panel.hidden = true;
+  panelToggle.setAttribute("aria-expanded", "false");
+  if (focusButton) panelToggle.focus();
 }
 
 /**
- * Fills the highlight picker from the registry answer. The first option is
- * always the page's own tokenizer, so the picker stays a complete control
- * ("内置" only) when no highlighter is installed.
+ * A command this page composes is a text capability: it declares text output
+ * and is offered as a buffer action. The current host fills an omitted output
+ * from `forms` before it answers the registry, so a capability can also arrive
+ * as `["text"]`; D-1081 records the conflation host-side. Until the wire
+ * carries declaredness, the protocol's fixed command ids (`format`,
+ * `compress`) are the observable difference. A `highlight` command stays out:
+ * it returns render tokens, not text (com.mypaste.sql), and highlighting is a
+ * page concern here. Placement is filtered before this test, so the host's own
+ * placements never become page actions.
  */
-function fillPicker(
-  select: HTMLSelectElement,
-  placeholder: string,
-  commands: SurfaceCommand[],
-): void {
-  select.replaceChildren();
-  const base = document.createElement("option");
-  base.value = "";
-  base.textContent = placeholder;
-  select.append(base);
-  commands.forEach((command, index) => {
-    const option = document.createElement("option");
-    option.value = String(index + 1);
-    option.textContent = command.title;
-    option.title = command.description ?? command.title;
-    select.append(option);
-  });
-  select.value = "";
-  select.hidden = false;
-}
-
-/**
- * The two capability shapes this page composes. A command that declares text
- * output is a buffer action; a highlighter declares no output and returns
- * render tokens. The current host fills an omitted output from `forms` before
- * it answers the registry, so both can arrive as `["text"]`; D-1081 records
- * the same conflation host-side. Until the wire carries declaredness, the
- * protocol's fixed command ids (`format`, `compress`, `highlight`,
- * PLUGINS.md §5.2) are the observable difference. Placement is filtered before
- * either test, so the host's own placements never become page actions.
- */
-function isHighlightCapability(command: SurfaceCommand): boolean {
-  if (command.outputDeclared !== undefined) return command.outputDeclared === false;
-  return command.commandId === "highlight";
-}
-
 function isTextCapability(command: SurfaceCommand): boolean {
   if (command.outputDeclared !== undefined) {
     return command.outputDeclared && (command.output?.includes("text") ?? false);
@@ -554,63 +485,47 @@ function rebuildActions(): void {
 }
 
 /**
- * Splits the registry's text commands into the action menu and the highlight
- * picker. A command with a placement is the host's to show, not a capability
- * this page composes, and this package's own internal commands are already
- * the built-ins, so the registry never turns them into external entries.
+ * Loads the registry's text capabilities into the action list. A command with
+ * a placement is the host's to show, not a capability this page composes, and
+ * this package's own internal commands are already the built-ins, so the
+ * registry never turns them into external entries.
  */
-async function loadCommandPickers(): Promise<void> {
+async function loadCommandActions(): Promise<void> {
   let commands: SurfaceCommand[] = [];
   try {
     commands = await bridge.list(["text"]);
   } catch {
     commands = [];
   }
-  const capabilities = commands.filter(
+  actionCommands = commands.filter(
     (command) => (command.placement?.length ?? 0) === 0 &&
       command.pluginId !== OWN_PLUGIN_ID,
-  );
-  actionCommands = capabilities.filter(isTextCapability);
-  highlightCommands = capabilities.filter(isHighlightCapability);
+  ).filter(isTextCapability);
   rebuildActions();
-  fillPicker(highlightSelect, "内置", highlightCommands);
-  renderFormatMenu();
+  renderPanel();
   updateButtons();
 }
 
-for (const item of LANGUAGE_CHOICES) {
-  const option = document.createElement("option");
-  option.value = item.value;
-  option.textContent = item.label;
-  languageSelect.append(option);
-}
-
-languageSelect.addEventListener("change", () => {
-  choice = languageSelect.value as CodeLanguage | "auto" | "text";
-  renderLanguage();
-  scheduleHighlight();
-  // The built-in operations follow the language, so the menu is rebuilt even
-  // while it is open; renderFormatMenu keeps the closed state intact.
-  rebuildActions();
-  renderFormatMenu();
+panelToggle.addEventListener("click", () => {
+  if (panelOpen) closePanel(false);
+  else openPanel();
 });
 
-formatButton.addEventListener("click", () => {
-  if (menuOpen) closeFormatMenu(false);
-  else openFormatMenu();
+panelClose.addEventListener("click", () => {
+  closePanel();
 });
 
 document.addEventListener("click", (event) => {
-  if (menuOpen && !formatRoot.contains(event.target as Node)) {
-    closeFormatMenu(false);
+  if (panelOpen && !panelRoot.contains(event.target as Node)) {
+    closePanel(false);
   }
 });
 
-// Arrow keys move a roving focus over the enabled items; Enter and Space are
-// the browser's own button activation. Tab leaves the menu, never walks into
-// the rows that follow the focused one.
-formatMenu.addEventListener("keydown", (event) => {
-  if (!menuOpen) return;
+// Arrow keys move a roving focus over the enabled format items; Enter and
+// Space are the browser's own button activation. Tab leaves the panel, never
+// walks into the rows that follow the focused one.
+formatList.addEventListener("keydown", (event) => {
+  if (!panelOpen) return;
   const items = enabledMenuItems();
   const current = items.indexOf(document.activeElement as HTMLButtonElement);
   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -632,44 +547,29 @@ formatMenu.addEventListener("keydown", (event) => {
   }
   if (event.key === "Tab") {
     event.preventDefault();
-    closeFormatMenu();
+    closePanel();
   }
 });
 
 // The host never sees a key pressed inside this frame, so Esc is the page's
-// own: with the menu open it only closes the menu, otherwise it closes the
+// own: with the panel open it only closes the panel, otherwise it closes the
 // surface through the container's close message.
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   event.preventDefault();
-  if (menuOpen) {
-    closeFormatMenu();
+  if (panelOpen) {
+    closePanel();
     return;
   }
   bridge.close();
 });
 
 window.addEventListener("resize", () => {
-  if (menuOpen) closeFormatMenu(false);
+  if (panelOpen) closePanel(false);
 });
 
 document.addEventListener("selectionchange", () => {
   refreshActionState();
-});
-
-highlightSelect.addEventListener("change", () => {
-  const index = Number(highlightSelect.value) - 1;
-  highlightCommand = index >= 0 ? (highlightCommands[index] ?? null) : null;
-  if (highlightTimer !== null) {
-    clearTimeout(highlightTimer);
-    highlightTimer = null;
-  }
-  highlightGeneration += 1;
-  if (!highlightCommand) {
-    renderBuiltinHighlight();
-    return;
-  }
-  void runHighlight(highlightGeneration);
 });
 
 input.addEventListener("input", () => {
@@ -710,4 +610,4 @@ bridge.onItem((item) => {
 });
 
 updateButtons();
-void loadCommandPickers();
+void loadCommandActions();
