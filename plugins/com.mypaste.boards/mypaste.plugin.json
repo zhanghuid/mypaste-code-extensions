@@ -3,7 +3,7 @@
   "kind": "command",
   "id": "com.mypaste.boards",
   "name": "看板",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "新建、编辑、删除看板与成员关系并导出看板；数据、导出对话框与写入都由宿主完成。",
   "capabilities": [
     "boards.control"
@@ -35,7 +35,8 @@
       ],
       "placement": [
         "trigger"
-      ]
+      ],
+      "role": "board-create"
     },
     {
       "id": "boards.update",
@@ -46,7 +47,8 @@
       ],
       "placement": [
         "trigger"
-      ]
+      ],
+      "role": "board-update"
     },
     {
       "id": "boards.delete",
@@ -57,7 +59,8 @@
       ],
       "placement": [
         "trigger"
-      ]
+      ],
+      "role": "board-delete"
     },
     {
       "id": "boards.member",
@@ -80,7 +83,8 @@
       ],
       "placement": [
         "trigger"
-      ]
+      ],
+      "role": "board-export"
     }
   ]
 }

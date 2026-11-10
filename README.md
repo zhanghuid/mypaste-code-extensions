@@ -128,6 +128,13 @@ one that does the job: `entity.read`, `entity.save`, `copy`, `clipboard.write`,
 `saved-searches.control`, `backup.sync`, `data.read`, `asset.read`,
 `settings.data`.
 
+A command the host drives declares a closed `role` on a `trigger` command:
+`board-membership`, `board-create`, `board-update`, `board-delete`,
+`board-export`, `saved-search-create`, `saved-search-update`,
+`saved-search-delete` or `backup-run`, with the capability that role requires.
+The host resolves these by role, never by command ID (myPaste D-1096), so a
+command may be renamed without breaking its bridge.
+
 `scripts/package.py` rejects a package whose commands omit or misuse these
 fields, or whose manifest still names v2 vocabulary (`surface: "editor"`,
 `appliesTo`, `global`, `menus`, `workbench`, `languages`), so an unreadable

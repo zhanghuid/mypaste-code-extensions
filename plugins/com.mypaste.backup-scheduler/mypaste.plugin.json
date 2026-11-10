@@ -3,7 +3,7 @@
   "kind": "command",
   "id": "com.mypaste.backup-scheduler",
   "name": "自动备份",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "触发一次自动备份并读取排程摘要；排程、轮换与归档写入都由宿主完成。",
   "capabilities": [
     "backup.schedule"
@@ -23,7 +23,8 @@
       ],
       "placement": [
         "trigger"
-      ]
+      ],
+      "role": "backup-run"
     },
     {
       "id": "backup.status",

@@ -3,7 +3,7 @@
   "kind": "command",
   "id": "com.mypaste.saved-searches",
   "name": "保存搜索",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "保存当前查询、修改或删除保存搜索；查询与看板范围都由宿主保存。",
   "capabilities": [
     "saved-searches.control"
@@ -35,7 +35,8 @@
       ],
       "placement": [
         "trigger"
-      ]
+      ],
+      "role": "saved-search-create"
     },
     {
       "id": "saved-searches.update",
@@ -46,7 +47,8 @@
       ],
       "placement": [
         "trigger"
-      ]
+      ],
+      "role": "saved-search-update"
     },
     {
       "id": "saved-searches.delete",
@@ -57,7 +59,8 @@
       ],
       "placement": [
         "trigger"
-      ]
+      ],
+      "role": "saved-search-delete"
     }
   ]
 }

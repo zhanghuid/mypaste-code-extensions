@@ -50,7 +50,13 @@ plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
   `backup.sync`, `data.read`, `asset.read`, `settings.data`); ask for the
   least one that does the job. A run-script package that needs one of the
   three control services must also declare the page action it opens
-  (`boards` or `saved-searches`) on exactly one palette command.
+  (`boards` or `saved-searches`) on exactly one palette command. Control
+  commands the host drives declare a closed `role` (`board-membership`,
+  `board-create`, `board-update`, `board-delete`, `board-export`,
+  `saved-search-create`, `saved-search-update`, `saved-search-delete`,
+  `backup-run`) on a `trigger` command, with the capability that role needs.
+  The host resolves these by role, never by command ID (myPaste D-1096), so a
+  command may be renamed without breaking its bridge.
 - Official packages (`plugins/com.mypaste.*`, listed in
   `scripts/official_packages.py`) are packaged only by
   `scripts/build-official.py`; `scripts/package.py` skips them and their

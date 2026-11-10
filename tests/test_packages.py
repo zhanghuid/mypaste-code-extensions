@@ -556,6 +556,44 @@ class PackageTests(unittest.TestCase):
             {f"{entry['fileName']}.sha256" for entry in index["packages"]},
         )
 
+    def test_control_packages_declare_their_host_roles(self) -> None:
+        # The host resolves each of these actions by role, never by command ID
+        # (myPaste D-1096). A package that drops a role loses its entry point,
+        # and a package that declares it on a non-trigger command is refused.
+        roles = {
+            "com.mypaste.boards": {
+                "boards.member": "board-membership",
+                "boards.create": "board-create",
+                "boards.update": "board-update",
+                "boards.delete": "board-delete",
+                "boards.export": "board-export",
+            },
+            "com.mypaste.saved-searches": {
+                "saved-searches.create": "saved-search-create",
+                "saved-searches.update": "saved-search-update",
+                "saved-searches.delete": "saved-search-delete",
+            },
+            "com.mypaste.backup-scheduler": {
+                "backup.trigger": "backup-run",
+            },
+        }
+        for plugin_id, expected in roles.items():
+            manifest = json.loads(
+                (PLUGINS / plugin_id / "mypaste.plugin.json").read_text(encoding="utf-8"))
+            declared = {
+                command["id"]: command["role"]
+                for command in manifest["commands"]
+                if command.get("role")
+            }
+            self.assertEqual(declared, expected, plugin_id)
+            self.assertEqual(
+                len(declared), len(set(declared.values())),
+                f"{plugin_id} declares a role twice",
+            )
+            for command in manifest["commands"]:
+                if command.get("role"):
+                    self.assertIn("trigger", command.get("placement", []), plugin_id)
+
     def test_surface_packages_ship_one_page_and_no_binary(self) -> None:
         build_packages()
         index = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
