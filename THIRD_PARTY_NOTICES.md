@@ -1,20 +1,24 @@
 # Third-party notices
 
 This repository vendors no third-party source in its own tree. The one
-third-party runtime an extension archive carries is Prettier, copied into
-`com.mypaste.code-edit` at package time by `scripts/vendor_prettier.py` from
-the version pinned in `package.json` and `bun.lock`.
+third-party runtime an extension archive carries is Prettier, copied at package
+time by `scripts/vendor_prettier.py` from the version pinned in `package.json`
+and `bun.lock` into two packages: `com.mypaste.code-edit` (the postcss and yaml
+parsers) and `com.mypaste.json` (the babel and estree parsers).
 
 ## Prettier
 
 - Version: 3.6.2 (pinned in `devDependencies.prettier`)
 - Project: https://github.com/prettier/prettier
 - License: MIT
-- Files copied: `standalone.mjs`, `plugins/postcss.mjs`, `plugins/yaml.mjs`,
-  `LICENSE`; the archive also carries a generated `VERSION` file naming the
-  version and project address.
-- Purpose: CSS and YAML formatting inside code-edit's private runtime, so those
-  two languages do not depend on a tool installed on the user's machine.
+- Files copied: `standalone.mjs`, `LICENSE`, and the parser plugins each
+  package names — `plugins/postcss.mjs`, `plugins/yaml.mjs` for code-edit;
+  `plugins/babel.mjs`, `plugins/estree.mjs` for json. Each archive also carries
+  a generated `VERSION` file naming the version and project address.
+- Purpose: CSS and YAML formatting inside code-edit's private runtime, and JSON
+  formatting inside the JSON package's runtime, so those languages do not
+  depend on the formatter being installed on the user's machine (Node is still
+  needed to run the vendored build for code-edit and json).
 
 The MIT license text travels with the files as `engines/prettier/LICENSE`; the
 same text is reproduced here.

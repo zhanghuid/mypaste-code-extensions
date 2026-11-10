@@ -159,12 +159,21 @@ def stage_package(plugin_id: str, spec: dict, staging: Path) -> dict:
         build_binary(spec, staging)
     if spec.get("prettier"):
         # A build dependency whose runtime subset ships beside the package's
-        # engines; the version is pinned by package.json and checked here.
-        destination = spec["prettier"]
-        if (not destination or destination.startswith("/")
+        # engines; the version is pinned by package.json and checked here. A
+        # string names the destination with the editor's default parsers; a
+        # mapping also names the parser plugins this package's engines import.
+        prettier = spec["prettier"]
+        if isinstance(prettier, dict):
+            destination = prettier.get("destination")
+            plugins = tuple(prettier.get("plugins") or vendor_prettier.DEFAULT_PLUGINS)
+        else:
+            destination = prettier
+            plugins = vendor_prettier.DEFAULT_PLUGINS
+        if (not isinstance(destination, str) or not destination
+                or destination.startswith("/")
                 or ".." in Path(destination).parts):
             fail(f"{plugin_id}: invalid prettier destination {destination}")
-        vendor_prettier.vendor(ROOT, staging / destination)
+        vendor_prettier.vendor(ROOT, staging / destination, plugins)
     if not spec.get("surface") and not spec.get("module"):
         fail(f"{plugin_id}: spec declares neither a surface nor a module")
     return manifest

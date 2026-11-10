@@ -24,13 +24,22 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# The standalone build imports nothing outside these four files at runtime.
-FILES = {
+# The standalone build imports nothing outside its core files plus the parser
+# plugins the package names. A package states the parsers it needs; the core
+# and the license always travel.
+CORE = {
     "standalone.mjs": "standalone.mjs",
-    "plugins/postcss.mjs": "plugins/postcss.mjs",
-    "plugins/yaml.mjs": "plugins/yaml.mjs",
     "LICENSE": "LICENSE",
 }
+PLUGINS = {
+    "postcss": "plugins/postcss.mjs",
+    "yaml": "plugins/yaml.mjs",
+    "babel": "plugins/babel.mjs",
+    "estree": "plugins/estree.mjs",
+}
+# The parsers com.mypaste.code-edit ships today; a spec that does not name its
+# plugins keeps that set.
+DEFAULT_PLUGINS = ("postcss", "yaml")
 
 PROJECT = "https://github.com/prettier/prettier"
 
@@ -48,8 +57,13 @@ def pinned_version(root: Path) -> str:
     return version
 
 
-def vendor(root: Path, destination: Path) -> str:
-    """Copy the pinned Prettier runtime into `destination`; return its version."""
+def vendor(root: Path, destination: Path,
+           plugins: tuple[str, ...] = DEFAULT_PLUGINS) -> str:
+    """Copy the pinned Prettier runtime into `destination`; return its version.
+
+    `plugins` names the parser plugins the package's engines import; an unknown
+    name fails instead of silently shipping a build without that parser.
+    """
     version = pinned_version(root)
     source = root / "node_modules" / "prettier"
     installed = source / "package.json"
@@ -59,7 +73,14 @@ def vendor(root: Path, destination: Path) -> str:
     if actual != version:
         fail(f"installed prettier is {actual!r}, package.json pins {version!r}; "
              "run `bun install`")
-    for relative, target in FILES.items():
+    files = dict(CORE)
+    for name in plugins:
+        relative = PLUGINS.get(name)
+        if relative is None:
+            fail(f"unknown prettier plugin {name!r}; "
+                 f"choose one of {', '.join(sorted(PLUGINS))}")
+        files[relative] = relative
+    for relative, target in sorted(files.items()):
         origin = source / relative
         if not origin.is_file():
             fail(f"prettier {version} is missing {relative}")
@@ -72,9 +93,9 @@ def vendor(root: Path, destination: Path) -> str:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        fail("usage: vendor_prettier.py <destination>")
-    version = vendor(ROOT, Path(sys.argv[1]))
+    if len(sys.argv) < 2:
+        fail("usage: vendor_prettier.py <destination> [plugin ...]")
+    version = vendor(ROOT, Path(sys.argv[1]), tuple(sys.argv[2:]) or DEFAULT_PLUGINS)
     print(f"prettier {version} -> {sys.argv[1]}")
 
 

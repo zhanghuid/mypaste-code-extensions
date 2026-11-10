@@ -38,8 +38,8 @@ This repository holds:
 - **Surface packages** (`plugins/com.mypaste.code-card`,
   `plugins/com.mypaste.code-edit`, `plugins/com.mypaste.diff-view`,
   `plugins/com.mypaste.image-edit`, `plugins/com.mypaste.json`,
-  `plugins/com.mypaste.timestamp`) — one HTML page, no process; see "Surface
-  packages" below.
+  `plugins/com.mypaste.timestamp`) — a page of their own; code-edit and json
+  also ship a runtime with internal commands; see "Surface packages" below.
 - **Official packages** (`plugins/com.mypaste.*`) — the binaries and surfaces
   above, built by `scripts/build-official.py`; see "Official packages" below.
   `scripts/official_packages.py` is the single owner of the list;
@@ -129,9 +129,11 @@ declaration fails the build instead of shipping.
 `com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view`,
 `com.mypaste.image-edit`, `com.mypaste.json` and `com.mypaste.timestamp` ship a
 page of their own. Code-edit additionally ships a runtime and internal commands
-for its built-in formatting (3.3.0); json carries the pinned Prettier build
-(standalone plus the babel and estree plugins) inside its page; the other four
-run no process:
+for its built-in formatting (3.3.0); json (2.0.0) ships a runtime and one
+internal command too, because the host refuses a surface entry over its fixed
+256 KiB text ceiling while Prettier's standalone build plus the babel and
+estree plugins is far larger: the engine ships beside the runtime, which calls
+it through Node. The other four run no process:
 
 ```json
 "surface": {
@@ -250,9 +252,9 @@ plugins/com.mypaste.code-edit/   the editor (its own tokenizer, language
 plugins/com.mypaste.diff-view/   the comparison page (its own diff engine and
                                  language table; reads a companion)
 plugins/com.mypaste.image-edit/  the image editor (canvas tools of its own)
-plugins/com.mypaste.json/        the JSON page (Prettier's json parser and the
-                                 page's own tokenizer are bundled into it;
-                                 copy-only, no runtime)
+plugins/com.mypaste.json/        the JSON page (its own tokenizer; cmd/ is its
+                                 runtime, engines/ the Prettier build and
+                                 wrapper it runs through Node; copy-only)
 plugins/com.mypaste.timestamp/   the timestamp page (its own parser and
                                  formatters; copy-only, no runtime)
 ```
@@ -305,7 +307,7 @@ spec declares a `targets` list, so the archive nests one binary per platform
 under `bin/<goos>/<goarch>/` (`.exe` on windows); the host resolves the declared
 entrypoint through that layout (D-1057 in the host repository).
 
-`com.mypaste.code-edit` is one of the two combined official packages: `kind` is `"ui"`,
+`com.mypaste.code-edit` is a combined official package: `kind` is `"ui"`,
 it ships its page and a compiled runtime, and it declares internal formatting
 commands with no `placement` and `output: ["text"]`. Protocol v3 exposes those
 commands only to the package's own surface; they never appear in the command
@@ -325,6 +327,16 @@ never through a shell, and the runtime reads nothing outside its own directory. 
 a Go module that both `com.mypaste.sql` and the code-edit runtime `replace` to
 the same source tree, so the two packages compile and ship the same analyzer,
 formatter and compressor rather than drifting apart.
+
+`com.mypaste.json` is a combined package too. Its page is a small document that
+asks its own runtime for the formatted text: the host refuses a surface entry
+over its fixed 256 KiB text ceiling (D-1075 in the host repository), while the
+pinned Prettier build — standalone plus the babel and estree parsers — is far
+larger. The runtime speaks the same newline-JSON protocol, hands the entry text
+to `engines/prettier.mjs`, and returns Prettier's output; the page highlights
+it and the host performs the copy. It is the one official package that needs
+Node at run time: without Node the page keeps the original text and says why,
+because a second JSON formatter would drift from Prettier's layout.
 
 Build the official packages locally:
 

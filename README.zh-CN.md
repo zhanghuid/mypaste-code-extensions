@@ -33,8 +33,8 @@
   Go runtime，由 `scripts/build-official.py` 构建。
 - **表面包**（`plugins/com.mypaste.code-card`、`plugins/com.mypaste.code-edit`、
   `plugins/com.mypaste.diff-view`、`plugins/com.mypaste.image-edit`、
-  `plugins/com.mypaste.json`、`plugins/com.mypaste.timestamp`）——一个 HTML
-  页面，不运行进程；见下文「表面包」。
+  `plugins/com.mypaste.json`、`plugins/com.mypaste.timestamp`）——各自一个页面；
+  code-edit 与 json 另带 runtime 与内部命令；见下文「表面包」。
 - **官方包**（`plugins/com.mypaste.*`）——上面的二进制与表面，由
   `scripts/build-official.py` 构建；见下文「官方包」。
   `scripts/official_packages.py` 是这份清单的唯一所有者；
@@ -115,8 +115,10 @@ token 数组，从不返回 HTML 或 CSS。两者都不能读历史、用文件�
 `com.mypaste.code-card`、`com.mypaste.code-edit`、`com.mypaste.diff-view`、
 `com.mypaste.image-edit`、`com.mypaste.json` 与 `com.mypaste.timestamp` 各自交付
 一个页面。code-edit 另外交付 runtime 与内部命令，用于自带格式化（3.3.0）；
-json 把固定版本的 Prettier（standalone 加 babel、estree 两个插件）打进页面；
-其余四个不运行进程：
+json（2.0.0）同样交付 runtime 与一个内部命令：宿主会拒绝超过固定 256 KiB
+文字上限的表面入口，而 Prettier 的 standalone 加 babel、estree 两个插件远大于
+这个上限，所以引擎随 runtime 一起交付，由它在 Node 里调用；其余四个不运行
+进程：
 
 ```json
 "surface": {
@@ -211,8 +213,9 @@ plugins/com.mypaste.code-edit/   编辑器（自己的分词器、语言表与�
 plugins/com.mypaste.diff-view/   对比页面（自己的 diff 引擎与语言表；
                                  读取 companion）
 plugins/com.mypaste.image-edit/  图片编辑器（自己的画布工具）
-plugins/com.mypaste.json/        JSON 页面（Prettier 的 json 解析器与页面自己
-                                 的 tokenizer 一起打进页面；只复制，无 runtime）
+plugins/com.mypaste.json/        JSON 页面（页面自己的分词器；cmd/ 是它的
+                                 runtime，engines/ 是随包的 Prettier 与经 Node
+                                 调用的包装脚本；只复制）
 plugins/com.mypaste.timestamp/   时间戳页面（自己的解析与格式化；只复制，
                                  无 runtime）
 ```
@@ -255,7 +258,7 @@ manifest 与构建出的 `ferry` 二进制，绝无源码树。它对话的中�
 `bin/<goos>/<goarch>/` 下嵌套每平台一个二进制（Windows 为 `.exe`）；宿主按
 这个布局解析声明的入口（宿主 D-1057）。
 
-`com.mypaste.code-edit` 是两个组合型官方包之一：`kind` 为 `"ui"`，同时交付
+`com.mypaste.code-edit` 是组合型官方包：`kind` 为 `"ui"`，同时交付
 页面与编译后的 runtime，并声明不带 `placement`、`output: ["text"]` 的内部
 格式化命令。协议 v3 只让本包自己的表面看到这些命令；它们不会出现在 Cmd+K
 命令面板或其他表面的注册表里。runtime 在 stdin/stdout 上使用与 v2 进程相同
@@ -273,6 +276,14 @@ JSON 用 `encoding/json`，SQL 用共享的 `sqlkit`，CSS 用按花括号层级
 `shared/sqlkit` 是一个 Go 模块，`com.mypaste.sql` 与 code-edit runtime 都
 `replace` 到同一份源码，因此两个包编译并交付同一套分析、格式化与压缩实现，
 不会各自漂移。
+
+`com.mypaste.json` 也是组合型官方包。它的页面是一份很小的文档，向自己的
+runtime 索取格式化结果：宿主会拒绝超过固定 256 KiB 文字上限的表面入口
+（宿主 D-1075），而固定版本的 Prettier（standalone 加 babel、estree 两个
+解析器）远大于该上限。runtime 使用同样的逐行 JSON 协议，把条目文本交给
+`engines/prettier.mjs`，再返回 Prettier 的输出；页面负责高亮，复制由宿主
+执行。它是唯一在运行时需要 Node 的官方包：没有 Node 时页面保留原文并
+说明原因，因为第二个 JSON 格式化器只会与 Prettier 的排版逐渐漂移。
 
 本地构建官方包：
 

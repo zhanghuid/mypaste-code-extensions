@@ -16,7 +16,9 @@ plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
     `scripts/build-official.py`;
   - **surface** — a manifest `surface: {entry, forms, role}` plus one page.
     `role` is `open` (the target of "open this entity") or `preview` (drawn
-    into the dock's card preview).
+    into the dock's card preview). A page may also ship a runtime and internal
+    commands (code-edit, json); protocol v3 lets only that package's own
+    surface reach them.
 - Highlighting packages are capabilities: they request only `entity.read`,
   declare one `highlight` command with `forms: ["text"]` and no `placement`,
   and return bounded token arrays, never HTML or CSS.
@@ -51,8 +53,11 @@ plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
 - Surface packages keep their sources in `plugins/<plugin-id>/src/`: the page
   template (`preview.html`, markup and styles, exactly one `<!--bundle-->`)
   and the TypeScript it loads. `plugins/<plugin-id>/preview.html` is generated
-  by `scripts/build-surfaces.mjs` (esbuild, one IIFE, 1 MiB ceiling) and is
-  what ships; edit the sources, never the generated file. A template may be a
+  by `scripts/build-surfaces.mjs` (esbuild, one IIFE) and is
+  what ships; edit the sources, never the generated file. The build's own
+  1 MiB ceiling is not the binding one: the host reads a surface entry under
+  its fixed 256 KiB text ceiling (D-1075), so a page that would exceed it keeps
+  its heavy engine beside the runtime instead. A template may be a
   complete document or a fragment the host wraps; the generated entry holds
   the bundled script either way, and it may only talk to the host through the
   fixed bridge in its own `src/bridge.ts`. It has no database, asset,

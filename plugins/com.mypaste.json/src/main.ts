@@ -1,17 +1,21 @@
 /**
  * The JSON page.
  *
- * The host delivers one text item. The page hands it to the Prettier build
- * bundled into this document and paints the canonical JSON layout, one token
- * at a time; an invalid document keeps the original text verbatim beside
- * Prettier's line and column. Copying is a host action: the page posts `copy`
- * and never touches the clipboard itself. Every value reaches the DOM through
- * `textContent`, never HTML.
+ * The host delivers one text item. The page asks its own package's runtime to
+ * format the text with the packaged Prettier build (the engine is far larger
+ * than a surface document may be, so it runs beside the runtime, not here),
+ * then paints the canonical JSON layout one token at a time; text the engine
+ * refuses keeps the original beside Prettier's line and column. Copying is a
+ * host action: the page posts `copy` and never touches the clipboard itself.
+ * Every value reaches the DOM through `textContent`, never HTML.
  */
 
 import { connectSurface } from "./bridge";
-import { formatJSON } from "./format";
 import { tokenize, type TokenKind } from "./highlight";
+
+/** This package's identity and the one internal command the page invokes. */
+const PLUGIN_ID = "com.mypaste.json";
+const FORMAT_COMMAND = "format.document";
 
 function one<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -32,7 +36,7 @@ const bridge = connectSurface();
 
 /** The formatted document the copy button hands to the host. */
 let formatted = "";
-/** The newest delivery wins; an older Prettier call may finish later. */
+/** The newest delivery wins; an older runtime call may finish later. */
 let generation = 0;
 
 const TOKEN_CLASS: Record<TokenKind, string> = {
@@ -94,18 +98,24 @@ async function render(text: string, title: string): Promise<void> {
     return;
   }
 
-  setStatus("正在用 Prettier 解析…");
-  const outcome = await formatJSON(text);
+  setStatus("正在用包内 Prettier 解析…");
+  const outcome = await bridge.invoke(PLUGIN_ID, FORMAT_COMMAND, text);
   if (current !== generation) return;
 
   if (!outcome.ok) {
-    setStatus(`解析失败：${outcome.reason}`);
+    setStatus(`无法格式化：${outcome.message ?? "运行时没有响应"}`);
+    originalText.textContent = text;
+    original.hidden = false;
+    return;
+  }
+  if (outcome.output === undefined || outcome.output === "") {
+    setStatus("无法格式化：运行时没有返回内容。");
     originalText.textContent = text;
     original.hidden = false;
     return;
   }
 
-  formatted = outcome.text;
+  formatted = outcome.output;
   paint(formatted);
   meta.textContent = `${lineCount(formatted)} 行 · ${formatBytes(new TextEncoder().encode(formatted).length)}`;
   setStatus("");

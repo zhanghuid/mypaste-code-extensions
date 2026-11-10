@@ -672,6 +672,53 @@ class PackageTests(unittest.TestCase):
             for item in bundle.infolist():
                 self.assertLessEqual(item.file_size, 16 * 1024 * 1024, item.filename)
 
+    def test_json_package_ships_its_page_runtime_and_prettier(self) -> None:
+        # The page cannot carry the engine: the host refuses a surface entry
+        # over its fixed 256 KiB text ceiling (D-1075). Prettier therefore
+        # ships beside the runtime, and only this package's surface can reach
+        # the one internal command.
+        package = PLUGINS / "com.mypaste.json"
+        manifest = json.loads(
+            (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["kind"], "ui")
+        self.assertEqual(manifest["runtime"], {
+            "protocolVersion": 2, "mode": "command", "entrypoint": "json",
+        })
+        self.assertEqual(manifest["surface"]["role"], "open")
+        self.assertEqual(
+            [command["id"] for command in manifest["commands"]
+             if command.get("placement")], [])
+        internal = [command for command in manifest["commands"]
+                    if not command.get("placement")]
+        self.assertEqual([command["id"] for command in internal],
+                         ["format.document"])
+        for command in internal:
+            self.assertEqual(command["forms"], ["text"])
+            self.assertEqual(command["output"], ["text"])
+            self.assertEqual(command["capabilities"], ["entity.read"])
+
+        archive = DIST / f"{package.name}-{manifest['version']}.mypaste-plugin"
+        version = vendor_prettier.pinned_version(ROOT)
+        with zipfile.ZipFile(archive) as bundle:
+            names = set(bundle.namelist())
+            self.assertIn("mypaste.plugin.json", names)
+            self.assertIn("json", names)
+            self.assertIn("engines/prettier.mjs", names)
+            for name in ("standalone.mjs", "plugins/babel.mjs",
+                         "plugins/estree.mjs", "LICENSE", "VERSION"):
+                self.assertIn(f"engines/prettier/{name}", names)
+            self.assertEqual(
+                bundle.read("engines/prettier/VERSION").decode("utf-8"),
+                f"prettier {version}\nhttps://github.com/prettier/prettier\n",
+            )
+            # The pinned build's other parsers stay out of this archive.
+            self.assertNotIn("engines/prettier/plugins/postcss.mjs", names)
+            self.assertNotIn("engines/prettier/plugins/yaml.mjs", names)
+            page = bundle.read("preview.html")
+        # The page is the document the host serves into the frame; it must fit
+        # the host's ceiling or the panel never opens.
+        self.assertLessEqual(len(page), 256 * 1024)
+
     def extracted_code_edit(self) -> tuple[Path, tempfile.TemporaryDirectory]:
         # The archive's own binary, unpacked next to its page and engines.
         package = PLUGINS / "com.mypaste.code-edit"

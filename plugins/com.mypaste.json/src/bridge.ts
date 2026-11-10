@@ -2,8 +2,10 @@
  * The host's surface bridge, as seen from inside the JSON document.
  * The document runs in a sandboxed frame with an opaque origin and holds no
  * host binding: it can only read the invoked item, receive the application's
- * resolved theme, and ask the host to perform a copy (the host owns the
- * clipboard write). Every request carries exactly the fields it needs.
+ * resolved theme, ask the host to run one of this package's internal commands
+ * (the runtime formats with the packaged Prettier), and ask the host to
+ * perform a copy (the host owns the clipboard write). Every request carries
+ * exactly the fields it needs.
  */
 
 export type SurfaceTextItem = { kind: "text"; title: string; text: string };
@@ -12,6 +14,8 @@ export interface BridgeResult {
   ok: boolean;
   id?: number;
   message?: string;
+  /** invoke: the internal command's own text. */
+  output?: string;
 }
 
 interface ResultMessage extends BridgeResult {
@@ -26,6 +30,11 @@ export interface SurfaceBridge {
   readonly delivery: SurfaceDelivery | null;
   /** Registers the one receiver for the delivery; it fires at most once. */
   onItem(listener: (delivery: SurfaceDelivery) => void): void;
+  /**
+   * Runs one of this package's own internal commands. The host refuses a
+   * command that belongs to another package's interface.
+   */
+  invoke(pluginId: string, commandId: string, text: string): Promise<BridgeResult>;
   copy(text: string): Promise<BridgeResult>;
 }
 
@@ -145,6 +154,7 @@ export function connectSurface(): SurfaceBridge {
       ok: data.ok === true,
       id: typeof data.id === "number" ? data.id : undefined,
       message: typeof data.message === "string" ? data.message : undefined,
+      output: typeof data.output === "string" ? data.output : undefined,
     });
   });
 
@@ -157,6 +167,9 @@ export function connectSurface(): SurfaceBridge {
     onItem(listener) {
       if (delivery !== null) listener(delivery);
       else listeners.push(listener);
+    },
+    invoke(pluginId, commandId, text) {
+      return request({ type: "invoke", pluginId, commandId, text });
     },
     copy(text) {
       return request({ type: "copy", text });
