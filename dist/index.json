@@ -148,11 +148,11 @@
     {
       "id": "com.mypaste.sync",
       "name": "同步",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "kind": "ui",
       "description": "把历史与资产加密后上传到自己的 S3 存储，也可以从远端恢复。归档、加密、S3 签名、凭据与自动上传计划都在扩展自己的进程里完成；数据只经宿主的只读视图读取，连接与恢复仍由宿主确认。凭据只存放在扩展的私有存储中，不进入页面、日志或宿主设置。",
-      "fileName": "com.mypaste.sync-1.0.1.mypaste-plugin",
-      "sha256": "0fb95ab42842244af1bfab673175d1fc4d9f6638ccd3bbb40edf159cd0cd6850",
+      "fileName": "com.mypaste.sync-1.0.2.mypaste-plugin",
+      "sha256": "7763999c3720c707e3cabfb910252c26986a6fe07b9df3d206617c721d7dd2b2",
       "runtimeProtocol": 2,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -170,22 +170,22 @@
     {
       "id": "com.mypaste.data-settings",
       "name": "数据设置",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "kind": "ui",
       "description": "备份与恢复、历史导入导出、设置文件与诊断；界面由随包扩展提供，文件选择、校验与写入仍由宿主完成。",
-      "fileName": "com.mypaste.data-settings-1.0.1.mypaste-plugin",
-      "sha256": "b01529ca74a98f8c68c15f202b5cd393045154e53044ac3c4b6a2667ec064756",
+      "fileName": "com.mypaste.data-settings-1.0.2.mypaste-plugin",
+      "sha256": "9f15a63fb0ac2cef8972ea497600b58ab01e1703e3ff768005fd56bb8c50f4bf",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
       "id": "com.mypaste.timestamp",
       "name": "时间戳",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "kind": "ui",
       "description": "把当前文本条目解析成多种日期与时间格式：本地时间、UTC、ISO 8601、RFC 2822、Unix 秒/毫秒、星期、ISO 周与多个时区，可逐项复制。内容无法识别时说明原因并回显原文。全部在本机计算，不联网。",
-      "fileName": "com.mypaste.timestamp-1.0.1.mypaste-plugin",
-      "sha256": "20bf21afc237044b67ae29003dc72330eef2870817e8819b49d9ef6def811ee7",
+      "fileName": "com.mypaste.timestamp-1.0.2.mypaste-plugin",
+      "sha256": "836cd94c9e09f3638bc1dfb66c6b4d95603cc8b26e35194ed869490a43e7f374",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -225,11 +225,11 @@
     {
       "id": "com.mypaste.calculator",
       "name": "计算稿纸",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "kind": "ui",
       "description": "把一条文本当作稿纸逐行实时计算：四则运算、乘方、括号、百分号与角度，常用函数和常量，「名字 = 算式」定义变量，ans 引用上一行结果，# 开头是备注；点结果即复制，可复制全部结果或把整张稿纸保存为新条目。全部在本机计算，不联网，也不读取其它条目。",
-      "fileName": "com.mypaste.calculator-1.0.1.mypaste-plugin",
-      "sha256": "6b15e26e16c5d2f01cdee38b7a2ecb758ef6ca9e899cd871f4d384bec2788bad",
+      "fileName": "com.mypaste.calculator-1.0.2.mypaste-plugin",
+      "sha256": "824f59041894b32dfab71b1205a2f87efd8132276306b7558db4a585415a70b6",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
@@ -247,11 +247,11 @@
     {
       "id": "com.mypaste.link-inspector",
       "name": "链接类型",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "kind": "ui",
       "description": "打开一条链接时自动调用「链接类型识别」能力，展示推断出的 MIME、类别、置信度与判断依据，并直接用合适的渲染器显示图片、音视频、JSON 与文本；渲染前先读服务器响应头的实际类型，路径没有扩展名时也不会被当成网页；抓不到内容时说明原因。可复制 MIME、链接或完整结果；没有安装识别能力时说明原因。",
-      "fileName": "com.mypaste.link-inspector-1.0.1.mypaste-plugin",
-      "sha256": "a9e2a06732ed92f56c919808d753d54936d49732ea2f806ba378ca73d0b917fe",
+      "fileName": "com.mypaste.link-inspector-1.0.2.mypaste-plugin",
+      "sha256": "2efa18c4fd0ff58c5f1e79cbe3c6d7733e752e875fdc50d7934be61b05079845",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },

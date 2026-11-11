@@ -30,6 +30,8 @@ export interface SurfaceBridge {
   onItem(listener: (delivery: SurfaceDelivery) => void): void;
   copy(text: string): Promise<BridgeResult>;
   save(text: string, title: string): Promise<BridgeResult>;
+  /** Asks the host to close the surface; the page owns Esc inside the frame (D-1097). */
+  close(): void;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -174,6 +176,9 @@ export function connectSurface(): SurfaceBridge {
     async save(text, title) {
       const result = await request({ type: "save", text, title });
       return { ok: result.ok, id: result.id, message: result.message };
+    },
+    close() {
+      post({ v: 1, type: "close" });
     },
   };
 }

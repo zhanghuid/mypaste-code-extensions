@@ -354,4 +354,12 @@ bridge.onItem(({ item }) => {
   seed(item.text);
 });
 
+// The host never sees a key pressed inside this frame, so Esc is the page's
+// own: it closes the surface through the bridge (D-1097).
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  bridge.close();
+});
+
 renderRows();

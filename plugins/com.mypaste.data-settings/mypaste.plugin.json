@@ -3,7 +3,7 @@
   "kind": "ui",
   "id": "com.mypaste.data-settings",
   "name": "数据设置",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "备份与恢复、历史导入导出、设置文件与诊断；界面由随包扩展提供，文件选择、校验与写入仍由宿主完成。",
   "capabilities": [
     "settings.data"

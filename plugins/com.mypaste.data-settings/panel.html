@@ -471,6 +471,14 @@
       : "尚未导入 0.x 历史记录。";
   }
 
+  // 宿主看不到 frame 内部的按键，Esc 由页面自己接：经菜单通道请宿主关闭
+  // 设置窗口（D-1107）。close 是即发即忘的，没有请求号。
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    parent.postMessage({ v: 1, type: "close" }, "*");
+  });
+
   parent.postMessage({ v: 1, type: "ready" }, "*");
   call("data.state").then(applyState).catch(function (error) {
     message(error instanceof Error ? error.message : "无法读取数据操作", "danger");

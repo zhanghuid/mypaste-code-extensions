@@ -3,7 +3,7 @@
   "kind": "ui",
   "id": "com.mypaste.link-inspector",
   "name": "链接类型",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "打开一条链接时自动调用「链接类型识别」能力，展示推断出的 MIME、类别、置信度与判断依据，并直接用合适的渲染器显示图片、音视频、JSON 与文本；渲染前先读服务器响应头的实际类型，路径没有扩展名时也不会被当成网页；抓不到内容时说明原因。可复制 MIME、链接或完整结果；没有安装识别能力时说明原因。",
   "capabilities": [
     "entity.read",
