@@ -80,6 +80,9 @@ function rawPiecesOf(tokens: readonly SqlToken[]): RawPiece[] {
       case "string":
       case "comment":
       case "number":
+      // A quoted name keeps its own spelling: the spaces inside `"my field"`
+      // are part of the name, not layout.
+      case "property":
         pieces.push({ text: token.text, kind: token.kind });
         break;
       default: {

@@ -177,7 +177,11 @@ export function tokenizeSql(text: string, dialect: DialectInfo): SqlToken[] {
       continue;
     }
 
-    if (char === "`" && dialect.backtickIdentifier) {
+    // A backtick quotes a name in every dialect this page understands. A
+    // dialect that does not use backticks would otherwise split the run into
+    // a symbol and a word, and the formatter would put spaces inside the
+    // name — the name would change.
+    if (char === "`") {
       const scanned = scanQuoted(text, index, "`", true, false);
       index = scanned.end;
       push(start, index, "property", !scanned.closed);

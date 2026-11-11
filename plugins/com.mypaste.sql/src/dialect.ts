@@ -34,8 +34,6 @@ export interface DialectInfo {
   readonly bracketIdentifier: "[" | null;
   /** Whether double quotes carry an identifier (true) or a string (false). */
   readonly doubleQuotedIdentifier: boolean;
-  /** Whether backticks carry an identifier. */
-  readonly backtickIdentifier: boolean;
   /** Whether `#` starts a line comment. */
   readonly hashComment: boolean;
   /** Whether a backslash escapes the next character inside a string. */
@@ -93,7 +91,6 @@ function make(
     literals: baseLiterals,
     bracketIdentifier: options.bracketIdentifier ?? null,
     doubleQuotedIdentifier: options.doubleQuotedIdentifier ?? true,
-    backtickIdentifier: options.backtickIdentifier ?? false,
     hashComment: options.hashComment ?? false,
     backslashEscapes: options.backslashEscapes ?? false,
     escapeStringPrefix: options.escapeStringPrefix ?? false,
@@ -134,7 +131,6 @@ export const DIALECTS: readonly DialectInfo[] = [
     {
       types:
         "TINYTEXT MEDIUMTEXT LONGTEXT TINYBLOB MEDIUMBLOB LONGBLOB",
-      backtickIdentifier: true,
       doubleQuotedIdentifier: false,
       hashComment: true,
       backslashEscapes: true,
@@ -148,7 +144,7 @@ export const DIALECTS: readonly DialectInfo[] = [
      EXCLUSIVE FAIL GLOB INDEXED INSTEAD ISNULL NOTNULL PLAN PRAGMA QUERY
      RAISE RECURSIVE RELEASE SAVEPOINT TEMP TEMPORARY VACUUM VIRTUAL WITHOUT
      RENAME REPLACE STRICT`,
-    { bracketIdentifier: "[", backtickIdentifier: true, doubleQuotedIdentifier: true },
+    { bracketIdentifier: "[", doubleQuotedIdentifier: true },
   ),
   make(
     "tsql",
@@ -193,7 +189,6 @@ export const DIALECTS: readonly DialectInfo[] = [
      UNNEST UNIQUE WINDOW QUALIFY PIVOT UNPIVOT ZONE`,
     {
       types: "BIGNUMERIC BYTES NUMERIC JSON GEOGRAPHY STRUCT",
-      backtickIdentifier: true,
       doubleQuotedIdentifier: false,
     },
   ),

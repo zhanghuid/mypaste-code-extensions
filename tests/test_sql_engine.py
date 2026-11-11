@@ -13,6 +13,8 @@ expectation is about what the page itself computes:
   position, and a formatter or compressor refuses to run on one;
 - formatting re-lays the token stream at the chosen case and indent width,
   keeps `::`/`->`/`#>>` tight, and is idempotent;
+- a quoted name keeps its own spelling: the formatter never puts a space
+  inside the quotes that hold it;
 - compressing drops comments except optimizer hints, never rewrites a string,
   and re-inserts a space only where two units would otherwise merge.
 """
@@ -210,7 +212,31 @@ assert.equal(
   format("with a as (select 1 as x, 2 as y, 3 as z, 4 as w, 5 as v, 6 as u, 7 as t2, 8 as s), b as (select 2 as y) select * from a join b on a.x = b.y"),
   "with a as (select 1 as x, 2 as y, 3 as z, 4 as w, 5 as v, 6 as u, 7 as t2, 8 as s),\n" +
   "  b as (select 2 as y)\nselect *\nfrom a\njoin b on a.x = b.y");
+// A quoted name keeps its own spelling: the quotes hold the name, so the
+// formatter may not put a space inside them. Backticks quote a name in every
+// dialect, not only in the ones that spell identifiers that way.
+assert.deepEqual(pairs("SELECT `a b` FROM t", "ansi"), [
+  ["SELECT", "keyword"], ["`a b`", "property"], ["FROM", "keyword"], ["t", "property"],
+]);
+assert.equal(format("select `original_id` as `original_id` from `t`"),
+  "select `original_id` as `original_id`\nfrom `t`");
+assert.equal(format("select `my field` from `my table`"),
+  "select `my field`\nfrom `my table`");
+assert.equal(format('select "my field" from "my table"'),
+  'select "my field"\nfrom "my table"');
+assert.equal(format("select [my field] from [my table]", "preserve", "2", "tsql"),
+  "select [my field]\nfrom [my table]");
+assert.equal(format("select `a`, `b` from `t`"),
+  "select `a`, `b`\nfrom `t`");
+// No dialect invents a space inside a quoted name, and a second pass changes
+// nothing.
+for (const dialect of DIALECT_IDS) {
+  const once = format("select `a b`, `c` from `d e`", "preserve", "2", dialect);
+  assert.ok(once.includes("`a b`") && once.includes("`d e`"), dialect + ": " + once);
+  assert.equal(format(once, "preserve", "2", dialect), once);
+}
 checks.push("beautifying keeps fitting clauses whole and breaks wide ones at their joints");
+checks.push("a quoted name keeps its own spelling, in every dialect");
 
 // Compressing keeps strings and hints, drops other comments, and only adds a
 // space where two units would merge.
@@ -274,7 +300,7 @@ class SqlEngineTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout.strip().splitlines()[-1])
         self.assertTrue(report["ok"])
-        self.assertEqual(len(report["checks"]), 6, report["checks"])
+        self.assertEqual(len(report["checks"]), 7, report["checks"])
 
 
 if __name__ == "__main__":
