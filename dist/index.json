@@ -223,6 +223,17 @@
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },
     {
+      "id": "com.mypaste.calculator",
+      "name": "计算稿纸",
+      "version": "1.0.0",
+      "kind": "ui",
+      "description": "把一条文本当作稿纸逐行实时计算：四则运算、乘方、括号、百分号与角度，常用函数和常量，「名字 = 算式」定义变量，ans 引用上一行结果，# 开头是备注；点结果即复制，可复制全部结果或把整张稿纸保存为新条目。全部在本机计算，不联网，也不读取其它条目。",
+      "fileName": "com.mypaste.calculator-1.0.0.mypaste-plugin",
+      "sha256": "83865668df5fc4f9b9f15eaf2ce84016f608264d553ecaaf853d534ccaa3074c",
+      "runtimeProtocol": 0,
+      "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
+    },
+    {
       "id": "com.mypaste.ferry",
       "name": "跨设备同步",
       "version": "3.0.2",

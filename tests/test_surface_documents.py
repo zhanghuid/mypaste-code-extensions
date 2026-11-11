@@ -136,6 +136,14 @@ class SurfaceDocumentTests(unittest.TestCase):
                 self.assertNotIn(
                     "<!--bundle-->", document,
                     f"{package.name} 的 preview.html 是未注入脚本的模板")
+                # The placeholder is replaced with the bundle itself, not with a
+                # script element: the template owns the `<script>` tags around
+                # it. A template that forgot them ships the JavaScript as body
+                # text and the page never runs.
+                self.assertIn(
+                    "<script", document,
+                    f"{package.name} 的 preview.html 没有脚本元素，"
+                    "模板里的 <!--bundle--> 需要包在 <script> 里")
                 elements = elements_in(document)
                 missing = [
                     selector for selector in selectors

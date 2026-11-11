@@ -41,14 +41,15 @@ This repository holds:
   — a manifest and a shell entrypoint that forwards one closed host call; the
   host owns the data, dialogs and every write. Built by
   `scripts/build-official.py` (`"script": True`) and shipped verbatim.
-- **Surface packages** (`plugins/com.mypaste.code-card`,
-  `plugins/com.mypaste.code-edit`, `plugins/com.mypaste.diff-view`,
-  `plugins/com.mypaste.image-edit`, `plugins/com.mypaste.json`,
-  `plugins/com.mypaste.sql`, `plugins/com.mypaste.timestamp`,
-  `plugins/com.mypaste.link-inspector`) — a page of their own; code-edit also
-  ships a runtime with internal commands, json and sql bundle their engines
-  into the page, link-inspector calls the link detector through the registry
-  and renders what it finds; see "Surface packages" below.
+- **Surface packages** (`plugins/com.mypaste.calculator`,
+  `plugins/com.mypaste.code-card`, `plugins/com.mypaste.code-edit`,
+  `plugins/com.mypaste.diff-view`, `plugins/com.mypaste.image-edit`,
+  `plugins/com.mypaste.json`, `plugins/com.mypaste.sql`,
+  `plugins/com.mypaste.timestamp`, `plugins/com.mypaste.link-inspector`) — a
+  page of their own; code-edit also ships a runtime with internal commands,
+  calculator, json and sql bundle their engines into the page, link-inspector
+  calls the link detector through the registry and renders what it finds; see
+  "Surface packages" below.
 - **Official packages** (`plugins/com.mypaste.*`) — the binaries and surfaces
   above, built by `scripts/build-official.py`; see "Official packages" below.
   `scripts/official_packages.py` is the single owner of the list;
@@ -147,17 +148,21 @@ declaration fails the build instead of shipping.
 
 ## Surface packages
 
-`com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view`,
-`com.mypaste.image-edit`, `com.mypaste.json`, `com.mypaste.timestamp` and
-`com.mypaste.link-inspector` ship a page of their own. Code-edit additionally
-ships a runtime and internal commands for its built-in formatting (3.3.0). Json
+`com.mypaste.calculator`, `com.mypaste.code-card`, `com.mypaste.code-edit`,
+`com.mypaste.diff-view`, `com.mypaste.image-edit`, `com.mypaste.json`,
+`com.mypaste.timestamp` and `com.mypaste.link-inspector` ship a page of their
+own. Code-edit additionally ships a runtime and internal commands for its
+built-in formatting (3.3.0). Json
 (3.3.1) is surface-only: Prettier's standalone build plus the babel and estree
 plugins are bundled into the page, so it formats, converts and filters in the
 document with no Node and no runtime. Its workbench is two columns: the entry as
 it arrived sits read-only on the left, and every result (beautify on open,
 minify, escape, XML, TypeScript, a filter result, a paste conversion) lands in
 the right pane, so the original is never rewritten and never covered by its own
-result. Link-inspector is surface-only too: it invokes `com.mypaste.link-mime`
+result. Calculator (1.0.0) is surface-only too: the entry seeds a scratch sheet,
+every row is evaluated in order in the document (see "Calculator" below), and
+copying or saving the sheet still goes through the host.
+Link-inspector is surface-only too: it invokes `com.mypaste.link-mime`
 through the registry and then renders the link with the element its MIME calls
 for (see "Link type" below).
 The host reads a surface document up to 1 MiB (D-1091 in the host repository),
@@ -175,8 +180,8 @@ which every built page fits. The others run no process:
 `forms` names the entities the surface adapts, and `role` is one of:
 
 - `open` — the target of "open this entity" (a double-click on a card when this
-  surface is the chosen default). Code-card (6.3.0), code-edit, diff-view,
-  image-edit, json, timestamp and link-inspector declare it.
+  surface is the chosen default). Code-card (6.3.0), calculator, code-edit,
+  diff-view, image-edit, json, timestamp and link-inspector declare it.
 - `preview` — drawn into the dock's card preview. No package declares it today:
   code-card drew it until 6.0.0 and now opens as a page of its own.
 
@@ -186,6 +191,45 @@ closes through the bridge's `close` request. Omitting it keeps the host card
 (`"host"`). Code-card (6.3.0), code-edit (3.7.2), diff-view (3.2.2), json
 (3.3.1) and link-inspector (1.0.1) declare `"page"`; image-edit and timestamp
 keep the host card.
+
+### Calculator
+
+`com.mypaste.calculator` (1.0.0) opens a text entry as a calculation scratch
+sheet. It is surface-only: `src/evaluate.ts` is the whole engine, bundled into
+`preview.html` beside `src/main.ts`, so no process, no network and no other
+entry are involved.
+
+Every line is evaluated against one scope, in order:
+
+- a blank line, or a line starting with `#` or `//`, is a note; an inline `#`
+  or `//` starts a comment;
+- `name = expression` defines a variable, and later rows may use it (`单价 = 12.5`,
+  `单价 * 3`); names may be Chinese and are case-sensitive; built-in names
+  cannot be assigned;
+- `ans` is the previous row's value, so a sheet reads like a running total;
+- a failing row keeps its message on its own row: it defines no name and does
+  not stop the rows below it.
+
+The syntax is `+ - * / ^` (`**` and `× ÷ −` work too), parentheses, implicit
+multiplication (`2(3+4)`, `2pi`), `%` and `°`. A trailing `%` is one hundredth;
+on the right of `+` or `-` it is that share of the left side, the way a pocket
+calculator reads it (`200 + 10%` is 220). A trailing `°` converts degrees to
+radians (`sin(90°)` is 1). Functions: `abs sqrt cbrt sign floor ceil trunc round
+min max hypot pow mod log ln log2 exp sin cos tan asin acos atan atan2`;
+constants: `pi` (`π`), `e`, `tau`.
+
+Results are shown grouped (`1,234,567`) and copied plain (`1234567`), and a
+value outside `1e-6`–`1e15` switches to exponential form. Enter adds a row,
+↑/↓ move between rows, Backspace on an empty row removes it, ⌘B adds a note row,
+⌘⏎ carries the current result into the next row, ⌘C copies the focused row's
+result (when nothing is selected), ⌘S saves and ⌘R clears. Clicking a result
+copies it.
+
+Copying and saving go through the bridge — the host owns the clipboard and the
+database — and the page asks to save the whole sheet as one new text entry titled
+计算稿纸. The sheet itself lives in the open document, like a real piece of
+scratch paper: the sandboxed page has no storage of its own, so it is not
+restored when the card is closed (save first to keep it).
 
 ### Link type
 
@@ -303,13 +347,6 @@ indents by two spaces and Escape closes the pane rather than the surface. What
 is typed belongs to this invocation — it is never written back to the entry, so
 closing leaves the history as it was.
 
-The host serves the page to a sandboxed frame and mediates reading this
-invocation's item, saving text or an image as a new history entry, copying text
-or an image, and closing. Nothing else reaches it — no host binding, no asset
-path, no other item. A surface that compares against a neighbour declares the
-`companion.read` capability and asks for it; the host chooses the adjacent
-item and never gives the page a way to browse history.
-
 6.3.0 makes the card itself the editor. A click puts the caret where it landed —
 the layout records where each drawn line begins in the source, so a click on a
 wrapped line still finds the right character — and the card becomes the same
@@ -317,6 +354,13 @@ card with a transparent textarea over its own token-coloured text, so nothing
 shifts and no second pane opens; Tab indents two spaces, Escape or a click
 beside the card puts the canvas back. The toolbar's pencil enters the same
 place, and the width still follows what is typed.
+
+The host serves the page to a sandboxed frame and mediates reading this
+invocation's item, saving text or an image as a new history entry, copying text
+or an image, and closing. Nothing else reaches it — no host binding, no asset
+path, no other item. A surface that compares against a neighbour declares the
+`companion.read` capability and asks for it; the host chooses the adjacent
+item and never gives the page a way to browse history.
 
 v3 removed the host workbench: there is no buffer exchange, no host-drawn
 editor toolbar and no host-drawn document action row (host D-1065, D-1068).
@@ -412,6 +456,9 @@ dot. Code areas that fill the card stay square inside the host's rounded frame.
 Sources:
 
 ```
+plugins/com.mypaste.calculator/  the scratch sheet (its own expression engine;
+                                 one row per line, variables, notes; copy and
+                                 save go through the host; no runtime)
 plugins/com.mypaste.code-card/
   mypaste.plugin.json
   src/main.ts          entry, controls, status line

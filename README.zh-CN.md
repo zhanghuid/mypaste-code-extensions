@@ -33,13 +33,14 @@
 - **设置页包**（`plugins/com.mypaste.sync`、`plugins/com.mypaste.data-settings`）
   ——手写 `panel.html`，sync 另加编译后的 Go runtime，由
   `scripts/build-official.py` 构建。
-- **表面包**（`plugins/com.mypaste.code-card`、`plugins/com.mypaste.code-edit`、
+- **表面包**（`plugins/com.mypaste.calculator`、
+  `plugins/com.mypaste.code-card`、`plugins/com.mypaste.code-edit`、
   `plugins/com.mypaste.diff-view`、`plugins/com.mypaste.image-edit`、
   `plugins/com.mypaste.json`、`plugins/com.mypaste.sql`、
   `plugins/com.mypaste.timestamp`、`plugins/com.mypaste.link-inspector`）——
-  各自一个页面；code-edit 另带 runtime 与内部命令；json 与 sql 把引擎打进
-  页面；link-inspector 经注册表调用链接识别能力并直接渲染链接；见下文
-  「表面包」。
+  各自一个页面；code-edit 另带 runtime 与内部命令；calculator、json 与 sql
+  把引擎打进页面；link-inspector 经注册表调用链接识别能力并直接渲染链接；
+  见下文「表面包」。
 - **官方包**（`plugins/com.mypaste.*`）——上面的二进制与表面，由
   `scripts/build-official.py` 构建；见下文「官方包」。
   `scripts/official_packages.py` 是这份清单的唯一所有者；
@@ -121,14 +122,17 @@
 
 ## 表面包
 
-`com.mypaste.code-card`、`com.mypaste.code-edit`、`com.mypaste.diff-view`、
-`com.mypaste.image-edit`、`com.mypaste.json`、`com.mypaste.timestamp` 与
+`com.mypaste.calculator`、`com.mypaste.code-card`、`com.mypaste.code-edit`、
+`com.mypaste.diff-view`、`com.mypaste.image-edit`、`com.mypaste.json`、
+`com.mypaste.timestamp` 与
 `com.mypaste.link-inspector` 各自交付一个页面。code-edit 另外交付 runtime 与
 内部命令，用于自带格式化（3.3.0）；json（3.3.1）是纯表面包：Prettier 的
 standalone 构建加 babel、estree 两个插件打进页面本身，格式化、转换与过滤都在
 文档内完成，不需要 Node，也没有 runtime。工作区是两列：左侧只读显示条目原文，
 右侧接收全部结果（打开时的美化、压缩、转义、XML、TypeScript、过滤结果与粘贴
-转换），原文既不会被改写，也不会被自己的结果盖住。link-inspector 同样是纯表面
+转换），原文既不会被改写，也不会被自己的结果盖住。calculator（1.0.0）同样是
+纯表面包：被打开的文本成为一张稿纸，每一行都在文档里按顺序求值（见下文
+「计算稿纸」），复制与保存仍经宿主。link-inspector 同样是纯表面
 包：它经注册表调用 `com.mypaste.link-mime`，再按 MIME 选渲染器把链接显示出来
 （见下文「链接类型」）。宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），
 构建出的页面都在此之内。其余包不运行进程：
@@ -145,8 +149,8 @@ standalone 构建加 babel、estree 两个插件打进页面本身，格式化�
 `forms` 声明表面适配的实体，`role` 是以下之一：
 
 - `open`——「打开这个实体」的目标（卡片被双击、且它是默认表面时）。
-  code-card（6.3.0）、code-edit、diff-view、image-edit、json、timestamp 与
-  link-inspector 声明它。
+  code-card（6.3.0）、calculator、code-edit、diff-view、image-edit、json、
+  timestamp 与 link-inspector 声明它。
 - `preview`——画进剪切坞的卡片预览。目前没有包声明它：code-card 一直声明它，
   6.0.0 起改为以自己的整页打开。
 
@@ -226,6 +230,36 @@ title}` 与 `{v: 1, type: "copy", requestId, text}`）；宿主对文本再校�
 编辑模式。页面遵循宿主的视觉规则（宿主 D-1099）：圆角只来自同一套阶梯——控件
 6px、卡片与弹出层 10px、面板与对话框 14px，指示条与滚动条是胶囊；只有圆就是
 形状本意的地方（如状态点）才用 50%。
+
+### 计算稿纸
+
+`com.mypaste.calculator`（1.0.0）把一条文本条目当作计算稿纸打开。它是纯表面包：
+`src/evaluate.ts` 就是全部引擎，与 `src/main.ts` 一起打进 `preview.html`，没有
+进程、没有网络，也不读其它条目。
+
+每一行都在同一个作用域里按顺序求值：
+
+- 空行、以 `#` 或 `//` 开头的行是备注；行内出现的 `#` 或 `//` 之后是注释；
+- `名字 = 算式` 定义变量，后面的行可以直接使用（`单价 = 12.5`、`单价 * 3`）；
+  名字可以是中文，区分大小写；内置名字不能赋值；
+- `ans` 是上一行的结果，稿纸因此像一张流水账；
+- 出错只影响自己那一行：它不定义任何名字，也不阻断下面的行。
+
+语法是 `+ - * / ^`（`**`、`× ÷ −` 同样可用）、括号、隐式乘法（`2(3+4)`、
+`2pi`）、`%` 与 `°`。行尾的 `%` 是百分之一；在 `+` 或 `-` 右边时，它是左侧数值
+的百分比，与袖珍计算器一致（`200 + 10%` 得 220）。行尾的 `°` 把角度换成弧度
+（`sin(90°)` 得 1）。函数：`abs sqrt cbrt sign floor ceil trunc round min max
+hypot pow mod log ln log2 exp sin cos tan asin acos atan atan2`；常量：`pi`
+（`π`）、`e`、`tau`。
+
+结果按千分位显示（`1,234,567`），复制时是纯数字（`1234567`）；超出 `1e-6`–`1e15`
+的值改用科学计数法。回车新增一行，↑/↓ 在行间移动，空行上按退格删除该行，⌘B
+新增备注行，⌘⏎ 把当前结果带入下一行，⌘C 复制当前行的结果（有选中文本时除外），
+⌘S 保存，⌘R 清空。点击结果即复制。
+
+复制与保存都经桥接交给宿主：宿主拥有剪贴板与数据库，页面请求把整张稿纸存成
+一条名为「计算稿纸」的新文本条目。稿纸本身活在打开的文档里，就像一张真的草稿
+纸：沙箱页面没有自己的存储，卡片关闭后不会恢复（要留就保存）。
 
 ### 链接类型
 
@@ -310,16 +344,18 @@ JavaScript、TypeScript、Go、Rust、PHP、SQL 以及空白有语义的语言�
 缩进两个空格，Esc 只收起编辑区、不关闭面板。改动只属于这一次打开——不写回
 条目，关掉之后历史保持原样。
 
-源码：
-
-```
-plugins/com.mypaste.code-card/
 6.3.0 把编辑放进卡片本身。点一下卡片，光标就落在点到的字符上——布局记下每
 一行画出的文字在源码里的起点，折过行也照样对得准——卡片当场换成同一张卡片：
 调色后的正文后面压着一个透明文本框，位置和字号都不动，也不再展开第二块区域；
 Tab 缩进两个空格，Esc 或点卡片外面回到画布。工具栏的铅笔进入的是同一处，宽度
 依旧跟着输入走。
 
+源码：
+
+```
+plugins/com.mypaste.calculator/ 计算稿纸（自带表达式引擎；一行一算式、变量与
+                                 备注；复制与保存交给宿主；没有 runtime）
+plugins/com.mypaste.code-card/
   mypaste.plugin.json
   src/main.ts          入口、控件、状态行
   src/bridge.ts        宿主桥（页面一侧的视角）
