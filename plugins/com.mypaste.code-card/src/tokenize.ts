@@ -95,6 +95,29 @@ const KEYWORDS: Record<CodeLanguage, ReadonlySet<string>> = {
   yaml: new Set(["false", "null", "true"]),
 };
 
+/**
+ * The languages this card offers, in the order the rail lists them. The table
+ * above is the only owner: a language added there appears in the picker, and
+ * nothing else keeps a second list that could drift.
+ */
+export const CODE_LANGUAGES = Object.keys(KEYWORDS) as CodeLanguage[];
+
+/** The words the card prints for its languages; the picker and label share it. */
+export const LANGUAGE_LABELS: Record<CodeLanguage, string> = {
+  css: "CSS",
+  go: "Go",
+  html: "HTML",
+  javascript: "JavaScript",
+  json: "JSON",
+  php: "PHP",
+  python: "Python",
+  rust: "Rust",
+  shell: "Shell",
+  sql: "SQL",
+  typescript: "TypeScript",
+  yaml: "YAML",
+};
+
 /** isCodeLanguage reads the keyword table rather than a second list. */
 export function isCodeLanguage(value: string): value is CodeLanguage {
   return Object.hasOwn(KEYWORDS, value);

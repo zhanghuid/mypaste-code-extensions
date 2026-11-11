@@ -115,11 +115,11 @@
     {
       "id": "com.mypaste.code-card",
       "name": "代码卡片",
-      "version": "3.0.1",
+      "version": "4.0.0",
       "kind": "ui",
-      "description": "把代码或纯文本条目渲染成一张可分享的卡片图片：自带语法高亮、三种配色、行号与窗口样式，可另存为新的图片条目或直接复制到剪贴板。卡片完全在本机绘制，不联网、不读取其它条目。",
-      "fileName": "com.mypaste.code-card-3.0.1.mypaste-plugin",
-      "sha256": "24c784ff5a2223a8b64ba58dff128d7df747161e95ce91f06a5e896a13a3bd2b",
+      "description": "把代码或纯文本条目渲染成一张可分享的卡片图片：默认跟随宿主主题，提供八套配色、macOS / Windows / 无窗口三种框、行号、字号与留白、投影和透明背景，语言可显式指定，导出 1× 或 2×。卡片完全在本机绘制，不联网、不读取其它条目。",
+      "fileName": "com.mypaste.code-card-4.0.0.mypaste-plugin",
+      "sha256": "d3efd096dad7a170eb3af9760bc05ee90fb875c543beac4aeba3994e9d52c518",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },

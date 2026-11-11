@@ -1,34 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
 <style>
   :root {
-    --card-bg: #f3ece1;
-    --card-surface: #fbf7f0;
-    --card-ink: #2f261e;
-    --card-muted: #8b7c6a;
-    --card-line: rgba(70, 48, 26, 0.14);
-    --card-accent: #a65d2e;
-    --card-accent-ink: #fff8ef;
-    --card-stage: #ece3d5;
-    --card-focus: rgba(166, 93, 46, 0.35);
+    color-scheme: light;
+    /*
+     * The host's resolved tokens arrive as --mp-* (D-1043); every value below
+     * prefers them and keeps this document's own palette as the fallback for
+     * an older host or a local preview. The scheme itself comes from the
+     * host's theme message (D-1042), not from prefers-color-scheme: the frame
+     * follows the system, while the reader may have chosen otherwise.
+     */
+    --card-bg: var(--mp-surface-solid, #f3ece1);
+    --card-surface: var(--mp-surface-raised, #fbf7f0);
+    --card-ink: var(--mp-ink, #2f261e);
+    --card-muted: var(--mp-ink-soft, #8b7c6a);
+    --card-line: var(--mp-line, rgba(70, 48, 26, 0.14));
+    --card-accent: var(--mp-accent, #a65d2e);
+    --card-accent-ink: var(--mp-accent-ink, #fff8ef);
+    --card-stage: var(--mp-surface-solid, #ece3d5);
+    --card-danger: var(--mp-danger, #b4553f);
+    --card-focus: color-mix(in srgb, var(--mp-accent, #a65d2e) 35%, transparent);
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --card-bg: #171412;
-      --card-surface: #201c18;
-      --card-ink: #f0e6d9;
-      --card-muted: #9a8c7b;
-      --card-line: rgba(255, 236, 214, 0.12);
-      --card-accent: #e2955f;
-      --card-accent-ink: #241a12;
-      --card-stage: #12100e;
-      --card-focus: rgba(226, 149, 95, 0.35);
-    }
+  :root[data-scheme="dark"] {
+    color-scheme: dark;
+    --card-bg: var(--mp-surface-solid, #171412);
+    --card-surface: var(--mp-surface-raised, #201c18);
+    --card-ink: var(--mp-ink, #f0e6d9);
+    --card-muted: var(--mp-ink-soft, #9a8c7b);
+    --card-line: var(--mp-line, rgba(255, 236, 214, 0.12));
+    --card-accent: var(--mp-accent, #e2955f);
+    --card-accent-ink: var(--mp-accent-ink, #241a12);
+    --card-stage: var(--mp-surface-solid, #12100e);
+    --card-danger: var(--mp-danger, #e89a83);
+    --card-focus: color-mix(in srgb, var(--mp-accent, #e2955f) 35%, transparent);
   }
-  html, body { height: 100%; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
   body { background: var(--card-bg); color: var(--card-ink); }
 
   .card-surface {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 268px;
+    grid-template-columns: minmax(0, 1fr) 296px;
     height: 100%;
     min-height: 0;
   }
@@ -39,32 +55,42 @@
     justify-content: center;
     min-width: 0;
     min-height: 0;
-    padding: 28px;
+    padding: 24px;
     overflow: auto;
-    background:
-      radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.5), transparent 62%),
-      var(--card-stage);
-  }
-  @media (prefers-color-scheme: dark) {
-    .card-stage { background: var(--card-stage); }
+    background: var(--card-stage);
   }
   #card-preview {
     display: block;
     max-width: 100%;
     max-height: 100%;
-    box-shadow: 0 18px 48px rgba(58, 38, 18, 0.22);
-    background: #fff;
+  }
+  /* A transparent export has no background of its own; the checkerboard is
+     the page's way of saying so, and it is never part of the image. */
+  #card-preview[data-transparent="true"] {
+    background-image: repeating-conic-gradient(
+      from 0deg,
+      rgba(127, 127, 127, 0.16) 0% 25%,
+      transparent 0% 50%
+    );
+    background-size: 16px 16px;
   }
 
   .card-rail {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
     min-height: 0;
-    padding: 22px 20px;
-    overflow: auto;
+    padding: 18px 18px 16px;
+    overflow: hidden;
     border-left: 1px solid var(--card-line);
     background: var(--card-surface);
+  }
+  .rail-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+    overflow: auto;
   }
 
   .rail-head h1 {
@@ -80,19 +106,38 @@
     line-height: 1.5;
   }
 
+  .group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 13px;
+    border-top: 1px solid var(--card-line);
+  }
+  .group h2 {
+    margin: 0;
+    color: var(--card-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+  }
+
   .field { display: flex; flex-direction: column; gap: 6px; }
   .field > span {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
     color: var(--card-muted);
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.04em;
   }
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
 
   .field input[type="text"],
   .field select {
     width: 100%;
-    box-sizing: border-box;
     padding: 7px 9px;
     border: 1px solid var(--card-line);
     background: var(--card-bg);
@@ -110,21 +155,37 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 13px;
+    font-size: 12.5px;
   }
   .toggle input { accent-color: var(--card-accent); }
 
   .field output {
-    float: right;
+    color: var(--card-ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+  .field input[type="range"] { width: 100%; accent-color: var(--card-accent); }
+
+  .readout {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 2px 0 0;
+    color: var(--card-muted);
+    font-size: 11px;
+  }
+  .readout output {
     color: var(--card-ink);
     font-variant-numeric: tabular-nums;
   }
-  .field input[type="range"] { width: 100%; accent-color: var(--card-accent); }
 
   .actions {
     display: grid;
     gap: 8px;
     margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid var(--card-line);
   }
   .actions button {
     padding: 9px 12px;
@@ -142,7 +203,12 @@
     background: var(--card-accent);
     color: var(--card-accent-ink);
   }
-  .actions button.ghost { border-color: transparent; background: transparent; color: var(--card-muted); font-weight: 500; }
+  .actions button.ghost {
+    border-color: transparent;
+    background: transparent;
+    color: var(--card-muted);
+    font-weight: 500;
+  }
   .actions button:focus-visible { outline: 2px solid var(--card-focus); outline-offset: 2px; }
 
   .status {
@@ -152,10 +218,7 @@
     font-size: 12px;
     line-height: 1.5;
   }
-  .status[data-tone="error"] { color: #b4553f; }
-  @media (prefers-color-scheme: dark) {
-    .status[data-tone="error"] { color: #e89a83; }
-  }
+  .status[data-tone="error"] { color: var(--card-danger); }
 
   /*
    * Corner system (host D-1099): one ladder, so every box answers with the
@@ -178,42 +241,75 @@
     border-radius: var(--radius-xs);
   }
 </style>
-
+</head>
+<body>
 <div class="card-surface" id="card-surface">
   <section class="card-stage">
     <canvas id="card-preview" aria-label="代码卡片预览"></canvas>
   </section>
   <aside class="card-rail">
-    <div class="rail-head">
-      <h1>代码卡片</h1>
-      <p>卡片在本地绘制。保存会在历史里新建一个图片条目。</p>
+    <div class="rail-scroll">
+      <div class="rail-head">
+        <h1>代码卡片</h1>
+        <p>本地绘制，保存为新图片条目。</p>
+      </div>
+
+      <section class="group">
+        <h2>内容</h2>
+        <label class="field">
+          <span>标题</span>
+          <input id="card-title" type="text" maxlength="120" autocomplete="off" spellcheck="false" placeholder="留空时显示语言">
+        </label>
+        <label class="field">
+          <span>语言</span>
+          <select id="card-language"></select>
+        </label>
+      </section>
+
+      <section class="group">
+        <h2>外观</h2>
+        <label class="field">
+          <span>配色</span>
+          <select id="card-theme"></select>
+        </label>
+        <div class="pair">
+          <label class="field">
+            <span>窗口</span>
+            <select id="card-window">
+              <option value="mac">macOS</option>
+              <option value="windows">Windows</option>
+              <option value="none">无窗口</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>导出</span>
+            <select id="card-scale">
+              <option value="2">2×</option>
+              <option value="1">1×</option>
+            </select>
+          </label>
+        </div>
+        <label class="toggle"><input id="card-lines" type="checkbox" checked><span>显示行号</span></label>
+        <div class="toggles">
+          <label class="toggle"><input id="card-shadow" type="checkbox" checked><span>投影</span></label>
+          <label class="toggle"><input id="card-transparent" type="checkbox"><span>透明背景</span></label>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>版式</h2>
+        <label class="field">
+          <span>字号 <output id="card-font-value" for="card-font">13 px</output></span>
+          <input id="card-font" type="range" min="11" max="18" step="1" value="13">
+        </label>
+        <label class="field">
+          <span>留白 <output id="card-padding-value" for="card-padding">30 px</output></span>
+          <input id="card-padding" type="range" min="16" max="56" step="2" value="30">
+        </label>
+        <p class="readout"><span>导出尺寸</span><output id="card-size" aria-live="polite"></output></p>
+      </section>
     </div>
-    <label class="field">
-      <span>标题</span>
-      <input id="card-title" type="text" maxlength="120" autocomplete="off" spellcheck="false">
-    </label>
-    <div class="pair">
-      <label class="field">
-        <span>配色</span>
-        <select id="card-theme">
-          <option value="terracotta">陶土</option>
-          <option value="midnight">午夜</option>
-          <option value="paper">纸白</option>
-        </select>
-      </label>
-      <label class="field">
-        <span>样式</span>
-        <select id="card-window">
-          <option value="window">窗口</option>
-          <option value="flat">平铺</option>
-        </select>
-      </label>
-    </div>
-    <label class="toggle"><input id="card-lines" type="checkbox" checked><span>显示行号</span></label>
-    <label class="field">
-      <span>字号 <output id="card-scale-value" for="card-scale">100%</output></span>
-      <input id="card-scale" type="range" min="0.8" max="1.4" step="0.1" value="1">
-    </label>
+
     <div class="actions">
       <button type="button" class="primary" data-action="save" disabled>保存为新条目</button>
       <button type="button" data-action="copy" disabled>复制图片</button>
@@ -225,3 +321,5 @@
 <script>
 <!--bundle-->
 </script>
+</body>
+</html>

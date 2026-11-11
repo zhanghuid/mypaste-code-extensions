@@ -179,6 +179,23 @@ closes through the bridge's `close` request. Omitting it keeps the host card
 (`"host"`). Code-edit (3.7.2), diff-view (3.2.2) and json (3.3.1) declare
 `"page"`; image-edit and timestamp keep the host card.
 
+### Code card
+
+Code-card draws the entry on a canvas and exports one PNG; nothing is fetched
+and the page holds no host binding. 4.0.0 reworks the card around the host's
+resolved theme: the workbench chrome paints from the host tokens, and the
+default palette ("跟随宿主") reads the host's own code surface and syntax
+tokens, so the exported image matches the editor the reader is looking at.
+Seven stored palettes (three light, four dark) remain for a deliberate look.
+The rail also selects a macOS, Windows or headless window, line numbers,
+11–18 px type, 16–56 px padding, a drop shadow and a transparent background;
+an explicit language overrides detection; the export is 1× or 2×. The document
+is one page and one bundled script: no runtime, no network, no font download.
+Not taken from Carbon: SVG export (the card is measured and drawn once on a
+canvas), image or gradient backgrounds (a file input would add a second data
+path), downloaded fonts and a hundred-language pack (each language here is a
+small keyword table the page owns).
+
 The host serves the page to a sandboxed frame and mediates reading this
 invocation's item, saving text or an image as a new history entry, copying text
 or an image, and closing. Nothing else reaches it — no host binding, no asset
