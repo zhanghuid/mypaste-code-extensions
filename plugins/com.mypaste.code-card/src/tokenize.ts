@@ -20,6 +20,7 @@ export type CodeLanguage =
 
 export interface CodeToken {
   text: string;
+  /** A palette token name, or "" for unhighlighted text. */
   kind: string;
 }
 

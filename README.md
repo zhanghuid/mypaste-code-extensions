@@ -182,19 +182,27 @@ closes through the bridge's `close` request. Omitting it keeps the host card
 ### Code card
 
 Code-card draws the entry on a canvas and exports one PNG; nothing is fetched
-and the page holds no host binding. 4.0.0 reworks the card around the host's
-resolved theme: the workbench chrome paints from the host tokens, and the
-default palette ("跟随宿主") reads the host's own code surface and syntax
-tokens, so the exported image matches the editor the reader is looking at.
-Seven stored palettes (three light, four dark) remain for a deliberate look.
-The rail also selects a macOS, Windows or headless window, line numbers,
-11–18 px type, 16–56 px padding, a drop shadow and a transparent background;
-an explicit language overrides detection; the export is 1× or 2×. The document
-is one page and one bundled script: no runtime, no network, no font download.
-Not taken from Carbon: SVG export (the card is measured and drawn once on a
-canvas), image or gradient backgrounds (a file input would add a second data
-path), downloaded fonts and a hundred-language pack (each language here is a
-small keyword table the page owns).
+and the page holds no host binding. 5.0.0 rebuilds the workbench as Carbon's
+editor (carbon.now.sh): a 40 px toolbar with the theme and language dropdowns,
+the background swatch, settings and copy, and an export split button at the far
+right; a centred stage that carries the card inside its export padding; and a
+316 px settings popout — a preset strip (the host's ground, transparent and
+Carbon's eight colours, plus a hex field) over a 窗口 / 编辑器 rail. The card
+keeps Carbon's metrics: a 48 px window band, 16 / 18 / 18 px inner padding, a
+133 % line box and a 20 px / 68 px shadow, with the corners taken from the
+host's ladder. 4.0.0's host-following palette is still the default: "跟随宿主"
+reads the host's own code surface and syntax tokens, so the exported image
+matches the editor the reader is looking at, and seven stored palettes (three
+light, four dark) remain for a deliberate look. The rail selects a macOS,
+Windows or headless window, line numbers, 11–20 px type, 100–200 % line height,
+16–128 px padding per axis, shadow offset and blur, auto or fixed width and a
+transparent or hex background; an explicit language overrides detection; the
+export is 1× or 2×. The document is one page and one bundled script: no
+runtime, no network, no font download. Not taken from Carbon: SVG export (the
+card is measured and drawn once on a canvas), image or gradient backgrounds (a
+file input would add a second data path), downloaded fonts and a
+hundred-language pack (each language here is a small keyword table the page
+owns).
 
 The host serves the page to a sandboxed frame and mediates reading this
 invocation's item, saving text or an image as a new history entry, copying text

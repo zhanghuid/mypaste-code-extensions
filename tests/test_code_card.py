@@ -85,27 +85,31 @@ assert.ok(longText.length <= card.CARD_SOURCE_LIMIT + 5);
 assert.ok(longText.endsWith("\n..."));
 checks.push("the source limit truncates once and marks the cut");
 
-// Each window style has its own chrome height; the shadow decides the outer
-// margin, so an option changes the export without touching the tokenizer.
+// The window band is Carbon's constant 48 px; the style only decides what is
+// drawn in it. The shadow is painted inside the padding, so it changes pixels,
+// not geometry.
 const mac = card.codeCardLayout(source, base);
 const windows = card.codeCardLayout(source, { ...base, windowStyle: "windows" });
 const none = card.codeCardLayout(source, { ...base, windowStyle: "none" });
-assert.equal(mac.titleHeight, 46);
-assert.equal(windows.titleHeight, 40);
-assert.equal(none.titleHeight, 0);
-assert.equal(none.headerExtra, 22);
-assert.equal(mac.margin, 54);
+assert.equal(mac.barHeight, card.CARD_BAR_HEIGHT);
+assert.equal(windows.barHeight, card.CARD_BAR_HEIGHT);
+assert.equal(none.barHeight, card.CARD_BAR_HEIGHT);
+assert.equal(mac.width, windows.width);
+assert.equal(mac.height, none.height);
 const unshadowed = card.codeCardLayout(source, { ...base, shadow: false });
-assert.equal(unshadowed.margin, 32);
-assert.ok(unshadowed.width < mac.width);
-assert.ok(unshadowed.height < mac.height);
-checks.push("window chrome and shadow change geometry, not content");
+assert.equal(unshadowed.width, mac.width);
+assert.equal(unshadowed.height, mac.height);
+checks.push("the window band is constant and the shadow never moves the geometry");
 
-// Line numbers reserve a gutter; font size and padding grow the window; the
-// longest content still cannot push past the card ceiling.
+// Line numbers reserve a gutter; font size, line height and padding grow the
+// window; auto width follows the code, a fixed width does not, and the longest
+// content still cannot push past the ceiling.
 const noLines = card.codeCardLayout(source, { ...base, lineNumbers: false });
 assert.equal(noLines.gutterWidth, 0);
-assert.ok(mac.gutterWidth > 0);
+const withLines = card.codeCardLayout(source, { ...base, lineNumbers: true });
+assert.ok(withLines.gutterWidth > 0);
+assert.ok(withLines.width > noLines.width);
+assert.equal(withLines.contentLeft, card.CARD_PAD_LEFT + withLines.gutterWidth);
 const multiline = card.cardSource(
   Array.from({ length: 12 }, (_, index) => `const v${index} = ${index};`).join("\n"),
   "many", "javascript",
@@ -113,16 +117,32 @@ const multiline = card.cardSource(
 const bigFont = card.codeCardLayout(multiline, { ...base, fontSize: 18 });
 const smallFont = card.codeCardLayout(multiline, { ...base, fontSize: 11 });
 assert.ok(bigFont.height > smallFont.height);
-assert.ok(bigFont.width >= smallFont.width);
-const roomy = card.codeCardLayout(source, { ...base, padding: 56 });
-const tight = card.codeCardLayout(source, { ...base, padding: 16 });
+assert.ok(bigFont.cardWidth >= smallFont.cardWidth);
+const loose = card.codeCardLayout(multiline, { ...base, lineHeight: 200 });
+const compact = card.codeCardLayout(multiline, { ...base, lineHeight: 100 });
+assert.ok(loose.height > compact.height);
+assert.equal(
+  loose.cardHeight - card.CARD_BAR_HEIGHT - card.CARD_PAD_BOTTOM,
+  loose.lines.length * loose.lineHeight,
+);
+const roomy = card.codeCardLayout(source, { ...base, paddingX: 96, paddingY: 96 });
+const tight = card.codeCardLayout(source, { ...base, paddingX: 16, paddingY: 16 });
 assert.ok(roomy.height > tight.height);
-assert.ok(roomy.width >= tight.width);
+assert.ok(roomy.width > tight.width);
+assert.equal(roomy.cardWidth, tight.cardWidth);
+const fixed = card.codeCardLayout(source, { ...base, autoWidth: false });
+assert.equal(fixed.cardWidth, card.FIXED_CARD_WIDTH);
 const wide = card.cardSource("x".repeat(5000), "wide", "javascript");
-const wideLayout = card.codeCardLayout(wide, base);
-assert.ok(wideLayout.cardWidth <= 1600);
-assert.ok(wideLayout.width > 1600);
-checks.push("gutter, font size and padding grow the layout within the width ceiling");
+assert.ok(card.codeCardLayout(wide, base).cardWidth <= card.MAX_CARD_WIDTH);
+checks.push("gutter, font size, line height and padding grow the layout within the ceiling");
+
+// The canvas behind the window is the palette's ground, a chosen hex, or
+// nothing at all for a transparent export.
+const ground = card.resolvePalette("nord", null);
+assert.equal(card.resolveBackground({ ...base, background: "host" }, ground), ground.background);
+assert.equal(card.resolveBackground({ ...base, background: "#4a90e2" }, ground), "#4a90e2");
+assert.equal(card.resolveBackground({ ...base, background: "transparent" }, ground), null);
+checks.push("the background resolves to the palette, a hex, or transparent");
 
 // The host palette reads the host's own code tokens; missing values fall back
 // by scheme, and a stored theme stays independent of the host.
@@ -141,7 +161,7 @@ assert.equal(lightHost.surface, "#101010");
 assert.equal(lightHost.ink, "#fefefe");
 assert.equal(lightHost.tokens.keyword, "#ff0000");
 assert.equal(lightHost.background, "#fafafa");
-assert.equal(lightHost.border, "rgba(0, 0, 0, 0.2)");
+assert.equal(lightHost.gutter, "#888888");
 assert.equal(lightHost.tokens.string, card.resolvePalette("host", { scheme: "light", tokens: {} }).tokens.string);
 const darkHost = card.resolvePalette("host", { scheme: "dark", tokens: {} });
 assert.notEqual(darkHost.surface, lightHost.surface);
@@ -154,7 +174,7 @@ checks.push("the host palette follows the host tokens and stored palettes do not
 const kinds = ["keyword", "string", "comment", "number", "function", "property", "literal", "tag", "type"];
 for (const [id, palette] of Object.entries(card.CODE_CARD_PALETTES)) {
   for (const kind of kinds) assert.ok(palette.tokens[kind], `${id} has ${kind}`);
-  for (const field of ["surface", "titleBar", "background", "border", "shadow", "ink", "muted", "gutter", "accent"]) {
+  for (const field of ["surface", "background", "shadow", "ink", "muted", "gutter", "accent"]) {
     assert.ok(palette[field], `${id} has ${field}`);
   }
 }
@@ -257,8 +277,9 @@ class CodeCardTest(unittest.TestCase):
             "auto detection and an explicit language both reach the card source",
             "a tab becomes four spaces in the drawn line",
             "the source limit truncates once and marks the cut",
-            "window chrome and shadow change geometry, not content",
-            "gutter, font size and padding grow the layout within the width ceiling",
+            "the window band is constant and the shadow never moves the geometry",
+            "gutter, font size, line height and padding grow the layout within the ceiling",
+            "the background resolves to the palette, a hex, or transparent",
             "the host palette follows the host tokens and stored palettes do not",
             "every stored palette is complete",
             "the theme channel applies known tokens and ignores malformed ones",

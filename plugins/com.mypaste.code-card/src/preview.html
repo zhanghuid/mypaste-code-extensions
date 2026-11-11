@@ -5,321 +5,618 @@
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:,">
 <style>
+  /*
+   * Carbon's editor chrome (carbon.now.sh), rebuilt inside a workbench surface:
+   * one 40 px toolbar with the theme and language pickers, the background
+   * swatch, settings, copy and the split export; a padded canvas with the card;
+   * the 316 px settings popout with the preset strip and the Window / Editor
+   * rail. Colours come from the host's tokens (D-1042/D-1043) and corners from
+   * the host's ladder (D-1099), so the same layout paints in either appearance.
+   */
   :root {
     color-scheme: light;
-    /*
-     * The host's resolved tokens arrive as --mp-* (D-1043); every value below
-     * prefers them and keeps this document's own palette as the fallback for
-     * an older host or a local preview. The scheme itself comes from the
-     * host's theme message (D-1042), not from prefers-color-scheme: the frame
-     * follows the system, while the reader may have chosen otherwise.
-     */
-    --card-bg: var(--mp-surface-solid, #f3ece1);
-    --card-surface: var(--mp-surface-raised, #fbf7f0);
-    --card-ink: var(--mp-ink, #2f261e);
-    --card-muted: var(--mp-ink-soft, #8b7c6a);
-    --card-line: var(--mp-line, rgba(70, 48, 26, 0.14));
-    --card-accent: var(--mp-accent, #a65d2e);
-    --card-accent-ink: var(--mp-accent-ink, #fff8ef);
-    --card-stage: var(--mp-surface-solid, #ece3d5);
-    --card-danger: var(--mp-danger, #b4553f);
-    --card-focus: color-mix(in srgb, var(--mp-accent, #a65d2e) 35%, transparent);
+    --ui-bg: var(--mp-surface-solid, #f3ece1);
+    --ui-raised: var(--mp-surface-raised, #fbf7f0);
+    --ui-ink: var(--mp-ink, #241e19);
+    --ui-muted: var(--mp-ink-soft, #7d7264);
+    --ui-line: var(--mp-line, rgba(70, 48, 26, 0.14));
+    --ui-accent: var(--mp-accent, #a65d2e);
+    --ui-accent-ink: var(--mp-accent-ink, #fff8ef);
+    --ui-danger: var(--mp-danger, #b4553f);
+    --ui-shadow: 0 18px 48px rgba(58, 38, 18, 0.24);
+    --ui-font: var(--mp-font-body, -apple-system, "PingFang SC", "Segoe UI", sans-serif);
+    --stage-bg: var(--mp-surface-solid, #ece3d5);
   }
   :root[data-scheme="dark"] {
     color-scheme: dark;
-    --card-bg: var(--mp-surface-solid, #171412);
-    --card-surface: var(--mp-surface-raised, #201c18);
-    --card-ink: var(--mp-ink, #f0e6d9);
-    --card-muted: var(--mp-ink-soft, #9a8c7b);
-    --card-line: var(--mp-line, rgba(255, 236, 214, 0.12));
-    --card-accent: var(--mp-accent, #e2955f);
-    --card-accent-ink: var(--mp-accent-ink, #241a12);
-    --card-stage: var(--mp-surface-solid, #12100e);
-    --card-danger: var(--mp-danger, #e89a83);
-    --card-focus: color-mix(in srgb, var(--mp-accent, #e2955f) 35%, transparent);
+    --ui-bg: var(--mp-surface-solid, #171412);
+    --ui-raised: var(--mp-surface-raised, #201c18);
+    --ui-ink: var(--mp-ink, #f0e6d9);
+    --ui-muted: var(--mp-ink-soft, #9a8c7b);
+    --ui-line: var(--mp-line, rgba(255, 236, 214, 0.12));
+    --ui-accent: var(--mp-accent, #e2955f);
+    --ui-accent-ink: var(--mp-accent-ink, #241a12);
+    --ui-danger: var(--mp-danger, #e89a83);
+    --ui-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+    --stage-bg: var(--mp-surface-solid, #12100e);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
-  body { background: var(--card-bg); color: var(--card-ink); }
-
-  .card-surface {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 296px;
-    height: 100%;
-    min-height: 0;
-  }
-
-  .card-stage {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 0;
-    min-height: 0;
-    padding: 24px;
-    overflow: auto;
-    background: var(--card-stage);
-  }
-  #card-preview {
-    display: block;
-    max-width: 100%;
-    max-height: 100%;
-  }
-  /* A transparent export has no background of its own; the checkerboard is
-     the page's way of saying so, and it is never part of the image. */
-  #card-preview[data-transparent="true"] {
-    background-image: repeating-conic-gradient(
-      from 0deg,
-      rgba(127, 127, 127, 0.16) 0% 25%,
-      transparent 0% 50%
-    );
-    background-size: 16px 16px;
-  }
-
-  .card-rail {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-height: 0;
-    padding: 18px 18px 16px;
+  body {
+    background: var(--ui-bg);
+    color: var(--ui-ink);
+    font: 13px/1.4 var(--ui-font);
     overflow: hidden;
-    border-left: 1px solid var(--card-line);
-    background: var(--card-surface);
+    -webkit-font-smoothing: antialiased;
   }
-  .rail-scroll {
+  button, select, input { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 0; background: none; padding: 0; }
+  :focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
+
+  .app {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    min-height: 0;
-    overflow: auto;
+    gap: 16px;
+    height: 100%;
+    padding: 16px;
   }
 
-  .rail-head h1 {
-    margin: 0 0 4px;
-    font-size: 15px;
-    font-weight: 650;
-    letter-spacing: 0.01em;
-  }
-  .rail-head p {
-    margin: 0;
-    color: var(--card-muted);
-    font-size: 12px;
-    line-height: 1.5;
-  }
-
-  .group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding-top: 13px;
-    border-top: 1px solid var(--card-line);
-  }
-  .group h2 {
-    margin: 0;
-    color: var(--card-muted);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-  }
-
-  .field { display: flex; flex-direction: column; gap: 6px; }
-  .field > span {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-    color: var(--card-muted);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-  }
-  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-
-  .field input[type="text"],
-  .field select {
-    width: 100%;
-    padding: 7px 9px;
-    border: 1px solid var(--card-line);
-    background: var(--card-bg);
-    color: var(--card-ink);
-    font: inherit;
-  }
-  .field input[type="text"]:focus-visible,
-  .field select:focus-visible {
-    outline: 2px solid var(--card-focus);
-    outline-offset: 1px;
-    border-color: var(--card-accent);
-  }
-
-  .toggle {
+  /* Carbon's toolbar: 40 px controls, 16 px between groups. */
+  .toolbar { display: flex; align-items: center; gap: 16px; height: 40px; flex: none; }
+  .control {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 12.5px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    background: var(--ui-bg);
+    box-shadow: inset 0 0 0 1px var(--ui-line);
+    overflow: hidden;
   }
-  .toggle input { accent-color: var(--card-accent); }
-
-  .field output {
-    color: var(--card-ink);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0;
-  }
-  .field input[type="range"] { width: 100%; accent-color: var(--card-accent); }
-
-  .readout {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-    margin: 2px 0 0;
-    color: var(--card-muted);
-    font-size: 11px;
-  }
-  .readout output {
-    color: var(--card-ink);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .actions {
+  .control .glyph {
     display: grid;
-    gap: 8px;
-    margin-top: auto;
-    padding-top: 12px;
-    border-top: 1px solid var(--card-line);
+    place-items: center;
+    width: 39px;
+    align-self: stretch;
+    color: var(--ui-muted);
+    border-right: 1px solid var(--ui-line);
+    flex: none;
   }
-  .actions button {
-    padding: 9px 12px;
-    border: 1px solid var(--card-line);
-    background: var(--card-bg);
-    color: var(--card-ink);
-    font: inherit;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .actions button:hover:not(:disabled) { border-color: var(--card-accent); }
-  .actions button:disabled { opacity: 0.45; cursor: default; }
-  .actions button.primary {
-    border-color: transparent;
-    background: var(--card-accent);
-    color: var(--card-accent-ink);
-  }
-  .actions button.ghost {
-    border-color: transparent;
+  .control select {
+    appearance: none;
+    -webkit-appearance: none;
+    height: 38px;
+    border: 0;
     background: transparent;
-    color: var(--card-muted);
-    font-weight: 500;
+    color: var(--ui-ink);
+    padding: 0 28px 0 10px;
+    font-size: 13px;
+    max-width: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888888' stroke-width='1.2'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
   }
-  .actions button:focus-visible { outline: 2px solid var(--card-focus); outline-offset: 2px; }
+  .control.theme { width: 216px; }
+  .control.language { width: 168px; }
+  .control.theme select { width: 176px; }
+  .control.language select { width: 128px; }
+
+  .actions { display: flex; align-items: center; gap: 8px; }
+  .icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    background: var(--ui-bg);
+    box-shadow: inset 0 0 0 1px var(--ui-line);
+    color: var(--ui-ink);
+  }
+  .icon:hover, .control:hover { background: var(--ui-raised); }
+  .swatch {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    box-shadow: inset 0 0 0 1px var(--ui-line), inset 0 0 0 3px var(--ui-bg);
+    background-color: var(--stage-bg);
+  }
+  .swatch.is-transparent {
+    background-image: conic-gradient(#c9c9c9 25%, #fff 0 50%, #c9c9c9 0 75%, #fff 0);
+    background-size: 10px 10px;
+  }
+  .export {
+    display: flex;
+    height: 40px;
+    margin-left: auto;
+    border-radius: var(--radius-sm);
+    box-shadow: inset 0 0 0 1px var(--ui-accent);
+    color: var(--ui-accent);
+    overflow: hidden;
+  }
+  .export-main { padding: 0 18px; font-weight: 500; }
+  .export-main:hover, .export-caret:hover { background: color-mix(in srgb, var(--ui-accent) 10%, transparent); }
+  .export-caret {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    border-left: 1px solid var(--ui-accent);
+  }
+  .export[disabled] { opacity: 0.45; pointer-events: none; }
+
+  /* The canvas: Carbon's padded stage, 56 px by default. */
+  .stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    overflow: auto;
+    border-radius: var(--radius-md);
+    background: var(--stage-bg);
+  }
+  .stage.is-transparent {
+    background-image: conic-gradient(#d6d6d6 25%, #f5f5f5 0 50%, #d6d6d6 0 75%, #f5f5f5 0);
+    background-size: 18px 18px;
+  }
+  .stage canvas { margin: auto; display: block; flex: none; }
+  .stage-empty {
+    margin: auto;
+    color: var(--ui-muted);
+    font-size: 13px;
+  }
 
   .status {
-    min-height: 18px;
-    margin: 0;
-    color: var(--card-muted);
+    position: absolute;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    padding: 6px 14px;
+    border-radius: var(--radius-pill);
+    background: var(--ui-raised);
+    color: var(--ui-ink);
+    box-shadow: inset 0 0 0 1px var(--ui-line), var(--ui-shadow);
     font-size: 12px;
-    line-height: 1.5;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
   }
-  .status[data-tone="error"] { color: var(--card-danger); }
+  .status.is-visible { opacity: 1; }
 
-  /*
-   * Corner system (host D-1099): one ladder, so every box answers with the
-   * same family. A mark is 4px, a control 6px, a card or popover 10px, a
-   * floating dialog 14px, and an indicator or scrollbar is a capsule.
-   */
-  :root {
-    --radius-xs: 4px;
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 14px;
-    --radius-pill: 999px;
+  /* Carbon's 316 px settings popout, anchored under the gear. */
+  .popout {
+    position: absolute;
+    top: 64px;
+    left: 16px;
+    width: 316px;
+    background: var(--ui-bg);
+    border-radius: var(--radius-md);
+    box-shadow: inset 0 0 0 1px var(--ui-line), var(--ui-shadow);
+    z-index: 30;
   }
-  button,
-  .field input[type="text"],
-  .field select {
+  .popout-body {
+    max-height: calc(100vh - 96px);
+    overflow: auto;
+    border-radius: inherit;
+  }
+  .popout::before {
+    content: "";
+    position: absolute;
+    top: -5px;
+    left: var(--caret-x, 15px);
+    width: 10px;
+    height: 10px;
+    background: var(--ui-bg);
+    box-shadow: inset 1px 1px 0 var(--ui-line);
+    transform: rotate(45deg);
+  }
+  .presets { border-bottom: 1px solid var(--ui-line); }
+  .presets-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 32px;
+    padding: 0 10px;
+    color: var(--ui-muted);
+    font-size: 12px;
+  }
+  .presets-head button { color: var(--ui-muted); }
+  .presets-head button:hover { color: var(--ui-ink); }
+  .presets-row {
+    display: flex;
+    gap: 8px;
+    padding: 0 10px 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .presets-row::-webkit-scrollbar { display: none; }
+  .preset {
+    position: relative;
+    flex: none;
+    width: 96px;
+    height: 96px;
     border-radius: var(--radius-sm);
+    box-shadow: inset 0 0 0 1px var(--ui-line);
+    display: grid;
+    place-items: center;
+    background-color: transparent;
   }
-  input[type="checkbox"] {
+  .preset.is-transparent {
+    background-image: conic-gradient(#c9c9c9 25%, #fff 0 50%, #c9c9c9 0 75%, #fff 0);
+    background-size: 12px 12px;
+  }
+  .preset[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ui-accent); }
+
+  .settings { display: flex; min-height: 0; }
+  .rail {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+    width: 96px;
+    background: var(--ui-raised);
+    border-right: 1px solid var(--ui-line);
+  }
+  .rail button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    height: 34px;
+    padding: 0 10px;
+    text-align: left;
+    font-size: 12px;
+    color: var(--ui-muted);
+  }
+  .rail button svg { flex: none; opacity: 0.7; }
+  .rail button[aria-selected="true"] { background: var(--ui-bg); color: var(--ui-ink); }
+  .pane { flex: 1; min-width: 0; }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 34px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--ui-line);
+    font-size: 12px;
+  }
+  .pair { display: flex; border-bottom: 1px solid var(--ui-line); }
+  .cell {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    row-gap: 4px;
+    padding: 6px 8px 8px;
+    font-size: 11px;
+    color: var(--ui-muted);
+  }
+  .cell + .cell { border-left: 1px solid var(--ui-line); }
+  .cell output { color: var(--ui-ink); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .cell input[type="range"] {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 12px;
+    accent-color: var(--ui-accent);
+  }
+  .cell[data-disabled="true"], .row[data-disabled="true"] { opacity: 0.45; }
+  .tick { color: var(--ui-accent-ink); }
+  .row .tick { color: var(--ui-accent); }
+  .switch {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    border-radius: 50%;
+    border: 1px solid var(--ui-line);
+    background: transparent;
+    display: grid;
+    place-items: center;
+  }
+  .switch:checked { background: var(--ui-accent); border-color: var(--ui-accent); }
+  .switch-wrap {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+  }
+  .switch-wrap .tick {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    color: var(--ui-accent-ink);
+  }
+  .switch:checked + .tick { opacity: 1; }
+  .windows { display: flex; gap: 8px; padding: 10px; border-bottom: 1px solid var(--ui-line); }
+  .windows button {
+    display: grid;
+    place-items: center;
+    flex: 1;
+    height: 56px;
+    border-radius: var(--radius-sm);
+    background: var(--ui-raised);
+    box-shadow: inset 0 0 0 1px var(--ui-line);
+    color: var(--ui-muted);
+  }
+  .windows button[aria-pressed="true"] {
+    box-shadow: inset 0 0 0 2px var(--ui-accent);
+    color: var(--ui-ink);
+  }
+
+  /* Menus share the popout's material and the control's corner. */
+  .menu {
+    position: absolute;
+    top: 64px;
+    right: 16px;
+    width: 200px;
+    padding: 4px;
+    background: var(--ui-bg);
+    border-radius: var(--radius-md);
+    box-shadow: inset 0 0 0 1px var(--ui-line), var(--ui-shadow);
+    z-index: 40;
+  }
+  .menu button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 34px;
+    padding: 0 10px;
     border-radius: var(--radius-xs);
+    font-size: 12px;
+    text-align: left;
   }
+  .menu button:hover { background: var(--ui-raised); }
+  .menu button .tick { opacity: 0; color: var(--ui-accent); }
+  .menu button[aria-checked="true"] .tick { opacity: 1; }
+  .menu-sep { height: 1px; margin: 4px 6px; background: var(--ui-line); }
+  .bg-menu { width: 236px; right: auto; padding: 6px; }
+  .bg-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .bg-menu .bg-choice {
+    width: 100%;
+    height: 34px;
+    border-radius: var(--radius-xs);
+    box-shadow: inset 0 0 0 1px var(--ui-line);
+  }
+  .bg-menu .bg-choice[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ui-accent); }
+  .bg-menu .bg-choice.is-transparent {
+    background-image: conic-gradient(#c9c9c9 25%, #fff 0 50%, #c9c9c9 0 75%, #fff 0);
+    background-size: 8px 8px;
+  }
+  .hex {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    padding: 0 8px;
+    height: 30px;
+    border-radius: var(--radius-sm);
+    box-shadow: inset 0 0 0 1px var(--ui-line);
+    color: var(--ui-muted);
+    font-size: 12px;
+  }
+  .hex input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ui-ink);
+    font: 12px var(--ui-font);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .hex input:focus { outline: none; }
+
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<div class="card-surface" id="card-surface">
-  <section class="card-stage">
-    <canvas id="card-preview" aria-label="代码卡片预览"></canvas>
-  </section>
-  <aside class="card-rail">
-    <div class="rail-scroll">
-      <div class="rail-head">
-        <h1>代码卡片</h1>
-        <p>本地绘制，保存为新图片条目。</p>
-      </div>
-
-      <section class="group">
-        <h2>内容</h2>
-        <label class="field">
-          <span>标题</span>
-          <input id="card-title" type="text" maxlength="120" autocomplete="off" spellcheck="false" placeholder="留空时显示语言">
-        </label>
-        <label class="field">
-          <span>语言</span>
-          <select id="card-language"></select>
-        </label>
-      </section>
-
-      <section class="group">
-        <h2>外观</h2>
-        <label class="field">
-          <span>配色</span>
-          <select id="card-theme"></select>
-        </label>
-        <div class="pair">
-          <label class="field">
-            <span>窗口</span>
-            <select id="card-window">
-              <option value="mac">macOS</option>
-              <option value="windows">Windows</option>
-              <option value="none">无窗口</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>导出</span>
-            <select id="card-scale">
-              <option value="2">2×</option>
-              <option value="1">1×</option>
-            </select>
-          </label>
-        </div>
-        <label class="toggle"><input id="card-lines" type="checkbox" checked><span>显示行号</span></label>
-        <div class="toggles">
-          <label class="toggle"><input id="card-shadow" type="checkbox" checked><span>投影</span></label>
-          <label class="toggle"><input id="card-transparent" type="checkbox"><span>透明背景</span></label>
-        </div>
-      </section>
-
-      <section class="group">
-        <h2>版式</h2>
-        <label class="field">
-          <span>字号 <output id="card-font-value" for="card-font">13 px</output></span>
-          <input id="card-font" type="range" min="11" max="18" step="1" value="13">
-        </label>
-        <label class="field">
-          <span>留白 <output id="card-padding-value" for="card-padding">30 px</output></span>
-          <input id="card-padding" type="range" min="16" max="56" step="2" value="30">
-        </label>
-        <p class="readout"><span>导出尺寸</span><output id="card-size" aria-live="polite"></output></p>
-      </section>
+<div class="app" id="app">
+  <div class="toolbar">
+    <div class="control theme">
+      <span class="glyph" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+          <path d="M10 2.6a7.4 7.4 0 1 0 0 14.8c1.15 0 1.75-.78 1.75-1.66 0-.94-.68-1.44-.68-2.24 0-.86.66-1.44 1.54-1.44h1.48A2.75 2.75 0 0 0 17.4 9.3c0-3.7-3.3-6.7-7.4-6.7Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+          <circle cx="6.6" cy="8.2" r="1.1" fill="currentColor"/>
+          <circle cx="9.7" cy="5.7" r="1.1" fill="currentColor"/>
+          <circle cx="13" cy="7.3" r="1.1" fill="currentColor"/>
+        </svg>
+      </span>
+      <select id="card-theme" aria-label="主题"></select>
     </div>
-
+    <div class="control language">
+      <span class="glyph" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="7.2" stroke="currentColor" stroke-width="1.3"/>
+          <ellipse cx="10" cy="10" rx="3.2" ry="7.2" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M2.9 10h14.2" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+      </span>
+      <select id="card-language" aria-label="语言"></select>
+    </div>
     <div class="actions">
-      <button type="button" class="primary" data-action="save" disabled>保存为新条目</button>
-      <button type="button" data-action="copy" disabled>复制图片</button>
-      <button type="button" class="ghost" data-action="close">关闭</button>
+      <button class="swatch" id="background-button" aria-label="背景" aria-haspopup="true" aria-expanded="false">
+        <svg width="24" height="16" viewBox="0 0 24 16" fill="none" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="21" height="13" rx="3" fill="#ffffff" fill-opacity="0.92"/>
+          <circle cx="5.6" cy="5.4" r="1" fill="#ff5f56"/>
+          <circle cx="8.9" cy="5.4" r="1" fill="#ffbd2e"/>
+          <circle cx="12.2" cy="5.4" r="1" fill="#27c93f"/>
+        </svg>
+      </button>
+      <button class="icon" id="settings-button" aria-label="设置" aria-haspopup="true" aria-expanded="false">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="2.6" stroke="currentColor" stroke-width="1.3"/>
+          <circle cx="10" cy="10" r="6.4" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2.4 2.4"/>
+        </svg>
+      </button>
+      <button class="icon" data-action="copy" aria-label="复制图片">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+          <rect x="7" y="7" width="9.2" height="10.2" rx="1.8" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M13 4.6H6.2a2 2 0 0 0-2 2v7.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
-    <p id="card-status" class="status" role="status" hidden></p>
-  </aside>
+    <div class="export" id="export">
+      <button class="export-main" data-action="save">导出</button>
+      <button class="export-caret" id="export-menu-button" aria-label="导出选项" aria-haspopup="true" aria-expanded="false">
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
+          <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="card-preview" aria-label="代码卡片预览"></canvas>
+    <p class="stage-empty" id="stage-empty" hidden>这条条目没有可绘制的文本。</p>
+  </div>
+
+  <div class="status" id="card-status" role="status" aria-live="polite"></div>
+
+  <div class="popout" id="settings-popout" hidden>
+    <div class="popout-body">
+      <div class="presets">
+        <div class="presets-head">
+          <span>预设</span>
+          <button id="reset-options" type="button">恢复默认</button>
+        </div>
+        <div class="presets-row" id="background-presets"></div>
+      </div>
+      <div class="settings">
+        <div class="rail" role="tablist" aria-label="设置分类">
+          <button type="button" role="tab" data-pane="window" aria-selected="true">
+            <span>窗口</span>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button type="button" role="tab" data-pane="editor" aria-selected="false">
+            <span>编辑器</span>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="pane" data-pane-body="window">
+          <div class="windows" id="window-styles">
+            <button type="button" data-window-style="mac" aria-pressed="true" aria-label="macOS 窗口">
+              <svg width="46" height="24" viewBox="0 0 46 24" fill="none">
+                <rect x="1" y="1" width="44" height="22" rx="4" stroke="currentColor" stroke-width="1.2"/>
+                <circle cx="9" cy="8" r="2" fill="#ff5f56"/>
+                <circle cx="17" cy="8" r="2" fill="#ffbd2e"/>
+                <circle cx="25" cy="8" r="2" fill="#27c93f"/>
+              </svg>
+            </button>
+            <button type="button" data-window-style="windows" aria-pressed="false" aria-label="Windows 窗口">
+              <svg width="46" height="24" viewBox="0 0 46 24" fill="none">
+                <rect x="1" y="1" width="44" height="22" rx="4" stroke="currentColor" stroke-width="1.2"/>
+                <path d="M30 7h4M36 5.5v5M27.5 9.5h1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                <path d="M7 8h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <button type="button" data-window-style="none" aria-pressed="false" aria-label="无窗口">
+              <svg width="46" height="24" viewBox="0 0 46 24" fill="none">
+                <rect x="1" y="1" width="44" height="22" rx="4" stroke="currentColor" stroke-width="1.2"/>
+              </svg>
+            </button>
+          </div>
+          <div class="pair">
+            <label class="cell">
+              <span>留白（上下）</span>
+              <output id="padding-y-value">56</output>
+              <input id="padding-y" type="range" min="16" max="128" step="4" value="56" aria-label="上下留白">
+            </label>
+            <label class="cell">
+              <span>留白（左右）</span>
+              <output id="padding-x-value">56</output>
+              <input id="padding-x" type="range" min="16" max="128" step="4" value="56" aria-label="左右留白">
+            </label>
+          </div>
+          <div class="row">
+            <span>投影</span>
+            <span class="switch-wrap">
+              <input class="switch" id="card-shadow" type="checkbox" aria-label="投影">
+              <svg class="tick" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M2.2 6.3 4.8 8.8 9.8 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </div>
+          <div class="pair" id="shadow-controls">
+            <label class="cell">
+              <span>投影偏移</span>
+              <output id="shadow-offset-value">20</output>
+              <input id="shadow-offset" type="range" min="0" max="100" step="1" value="20" aria-label="投影偏移">
+            </label>
+            <label class="cell">
+              <span>投影模糊</span>
+              <output id="shadow-blur-value">68</output>
+              <input id="shadow-blur" type="range" min="0" max="100" step="1" value="68" aria-label="投影模糊">
+            </label>
+          </div>
+          <div class="row">
+            <span>自动宽度</span>
+            <span class="switch-wrap">
+              <input class="switch" id="auto-width" type="checkbox" aria-label="自动宽度">
+              <svg class="tick" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M2.2 6.3 4.8 8.8 9.8 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </div>
+        </div>
+        <div class="pane" data-pane-body="editor" hidden>
+          <div class="pair">
+            <label class="cell">
+              <span>字号</span>
+              <output id="font-size-value">14</output>
+              <input id="font-size" type="range" min="11" max="20" step="1" value="14" aria-label="字号">
+            </label>
+            <label class="cell">
+              <span>行高</span>
+              <output id="line-height-value">133%</output>
+              <input id="line-height" type="range" min="100" max="200" step="1" value="133" aria-label="行高">
+            </label>
+          </div>
+          <div class="row">
+            <span>行号</span>
+            <span class="switch-wrap">
+              <input class="switch" id="line-numbers" type="checkbox" aria-label="行号">
+              <svg class="tick" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M2.2 6.3 4.8 8.8 9.8 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="menu" id="export-menu" hidden>
+    <button type="button" data-action="save">保存为新条目</button>
+    <button type="button" data-action="copy">复制图片</button>
+    <div class="menu-sep"></div>
+    <button type="button" data-scale="1" aria-checked="false">
+      <span>1×</span>
+      <svg class="tick" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M2.2 6.3 4.8 8.8 9.8 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button type="button" data-scale="2" aria-checked="true">
+      <span>2×</span>
+      <svg class="tick" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M2.2 6.3 4.8 8.8 9.8 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="menu bg-menu" id="background-menu" hidden>
+    <div class="bg-row" id="background-options"></div>
+    <label class="hex">
+      <span>#</span>
+      <input id="background-hex" maxlength="6" spellcheck="false" autocomplete="off" aria-label="背景色十六进制">
+    </label>
+  </div>
 </div>
-<script>
-<!--bundle-->
-</script>
+<script><!--bundle--></script>
 </body>
 </html>

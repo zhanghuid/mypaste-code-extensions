@@ -3,11 +3,15 @@
  * local — the card is drawn from the item's text and turned into one PNG data
  * URL; no font, image or script is fetched.
  *
- * A card has three layers, from the outside in: the background (the theme's
- * own tone, or transparent), the window (surface, title bar, border, optional
- * shadow) and the code. Only the code is measured by the tokenizer; the rest
- * is geometry, so the rail can change any appearance option without
- * re-reading the item.
+ * Geometry follows Carbon (carbon.now.sh): a 48 px window band above the code,
+ * 16 px left / 18 px right / 18 px bottom padding, a 133 % line box, a 20 px /
+ * 68 px shadow and a 56 px canvas padding. The rail exposes the same knobs
+ * Carbon does — window style, vertical and horizontal padding, shadow offset
+ * and blur, auto width, font size, line height and line numbers.
+ *
+ * The corners come from the host's ladder (D-1099), not from Carbon's 3–5 px
+ * literals: the card is a card (--radius-md) and every control lives in the
+ * page's stylesheet.
  *
  * The "host" palette is not stored here: it is resolved from the tokens the
  * host sends with its theme (D-1042/D-1043), so an exported card matches the
@@ -40,13 +44,23 @@ export interface CodeCardOptions {
   language: CodeLanguage | "auto";
   windowStyle: CodeWindowStyle;
   lineNumbers: boolean;
-  /** Monospace size in CSS pixels, 11–18. */
+  /** Monospace size in CSS pixels, 11–20. */
   fontSize: number;
-  /** Space between the window edge and the code, 16–56. */
-  padding: number;
+  /** Line box as a percentage of the font size, 100–200. */
+  lineHeight: number;
+  /** Canvas padding left and right, 16–128. */
+  paddingX: number;
+  /** Canvas padding above and below, 16–128. */
+  paddingY: number;
   shadow: boolean;
-  /** Leave the area outside the window transparent instead of themed. */
-  transparent: boolean;
+  /** Shadow offset below the window, 0–100. */
+  shadowOffset: number;
+  /** Shadow blur radius, 0–100. */
+  shadowBlur: number;
+  /** Window surface: "host" follows the host, a hex value is fixed. */
+  background: string;
+  /** Keep the window on the code's own width instead of a fixed 680 px. */
+  autoWidth: boolean;
   /** Export pixel density. */
   scale: CodeCardScale;
 }
@@ -54,11 +68,8 @@ export interface CodeCardOptions {
 export interface CodeCardPalette {
   /** The window surface the code sits on. */
   surface: string;
-  /** The title bar, drawn over the surface. */
-  titleBar: string;
   /** The area around the window. */
   background: string;
-  border: string;
   shadow: string;
   ink: string;
   muted: string;
@@ -77,11 +88,16 @@ export const DEFAULT_CODE_CARD_OPTIONS: CodeCardOptions = {
   theme: "host",
   language: "auto",
   windowStyle: "mac",
-  lineNumbers: true,
-  fontSize: 13,
-  padding: 30,
+  lineNumbers: false,
+  fontSize: 14,
+  lineHeight: 133,
+  paddingX: 56,
+  paddingY: 56,
   shadow: true,
-  transparent: false,
+  shadowOffset: 20,
+  shadowBlur: 68,
+  background: "host",
+  autoWidth: true,
   scale: 2,
 };
 
@@ -108,9 +124,7 @@ type StoredTheme = Exclude<CodeCardTheme, "host">;
 export const CODE_CARD_PALETTES: Record<StoredTheme, CodeCardPalette> = {
   terracotta: {
     surface: "#fbf5ec",
-    titleBar: "#f2e7d8",
     background: "#ece3d5",
-    border: "rgba(60, 42, 26, 0.12)",
     shadow: "rgba(58, 38, 18, 0.28)",
     ink: "#33281f",
     muted: "#9a8b79",
@@ -130,9 +144,7 @@ export const CODE_CARD_PALETTES: Record<StoredTheme, CodeCardPalette> = {
   },
   paper: {
     surface: "#fdfcf9",
-    titleBar: "#f4f1ea",
     background: "#efede6",
-    border: "rgba(40, 34, 26, 0.12)",
     shadow: "rgba(40, 34, 26, 0.22)",
     ink: "#26221d",
     muted: "#93897c",
@@ -152,9 +164,7 @@ export const CODE_CARD_PALETTES: Record<StoredTheme, CodeCardPalette> = {
   },
   ocean: {
     surface: "#f7fafb",
-    titleBar: "#e8f0f3",
     background: "#dde8ec",
-    border: "rgba(31, 44, 51, 0.12)",
     shadow: "rgba(24, 50, 62, 0.24)",
     ink: "#1f2c33",
     muted: "#7d8f98",
@@ -174,9 +184,7 @@ export const CODE_CARD_PALETTES: Record<StoredTheme, CodeCardPalette> = {
   },
   midnight: {
     surface: "#1b1815",
-    titleBar: "#231f1b",
     background: "#12100e",
-    border: "rgba(255, 255, 255, 0.09)",
     shadow: "rgba(0, 0, 0, 0.55)",
     ink: "#efe5d8",
     muted: "#8b8073",
@@ -196,9 +204,7 @@ export const CODE_CARD_PALETTES: Record<StoredTheme, CodeCardPalette> = {
   },
   graphite: {
     surface: "#1f1f22",
-    titleBar: "#27272b",
     background: "#161618",
-    border: "rgba(255, 255, 255, 0.09)",
     shadow: "rgba(0, 0, 0, 0.55)",
     ink: "#ecebe8",
     muted: "#9a9a9e",
@@ -218,9 +224,7 @@ export const CODE_CARD_PALETTES: Record<StoredTheme, CodeCardPalette> = {
   },
   nord: {
     surface: "#2e3440",
-    titleBar: "#343b48",
     background: "#242933",
-    border: "rgba(236, 239, 244, 0.10)",
     shadow: "rgba(0, 0, 0, 0.50)",
     ink: "#eceff4",
     muted: "#9099a8",
@@ -240,9 +244,7 @@ export const CODE_CARD_PALETTES: Record<StoredTheme, CodeCardPalette> = {
   },
   violet: {
     surface: "#211d2b",
-    titleBar: "#2a2537",
     background: "#181420",
-    border: "rgba(236, 230, 242, 0.10)",
     shadow: "rgba(0, 0, 0, 0.55)",
     ink: "#ece6f2",
     muted: "#9a90aa",
@@ -265,9 +267,7 @@ export const CODE_CARD_PALETTES: Record<StoredTheme, CodeCardPalette> = {
 /** The host palette before a theme message arrives: the page's light fallback. */
 const HOST_LIGHT: CodeCardPalette = {
   surface: "#f7f1e6",
-  titleBar: "#efe7d9",
   background: "#f3ece1",
-  border: "rgba(73, 61, 47, 0.14)",
   shadow: "rgba(58, 38, 18, 0.28)",
   ink: "#241e19",
   muted: "#7d7264",
@@ -289,9 +289,7 @@ const HOST_LIGHT: CodeCardPalette = {
 /** The host palette in dark appearance, matching the host's code surface. */
 const HOST_DARK: CodeCardPalette = {
   surface: "#241e19",
-  titleBar: "#2c2620",
   background: "#1b1916",
-  border: "rgba(230, 216, 197, 0.12)",
   shadow: "rgba(0, 0, 0, 0.55)",
   ink: "#f5ecdf",
   muted: "#9b8d7e",
@@ -329,9 +327,7 @@ export function resolvePalette(
   };
   return {
     surface: token("code-surface") || fallback.surface,
-    titleBar: token("surface-raised") || fallback.titleBar,
     background: token("surface-solid") || token("surface-raised") || fallback.background,
-    border: token("line") || fallback.border,
     shadow: fallback.shadow,
     ink: token("code-ink") || token("ink") || fallback.ink,
     muted: token("code-comment") || token("ink-soft") || fallback.muted,
@@ -340,7 +336,7 @@ export function resolvePalette(
     tokens: {
       keyword: token("code-keyword") || fallback.tokens.keyword || fallback.ink,
       string: token("code-string") || fallback.tokens.string || fallback.ink,
-      comment: token("code-comment") || fallback.tokens.comment || fallback.ink,
+      comment: token("code-comment") || fallback.tokens.comment || fallback.muted,
       number: token("code-number") || fallback.tokens.number || fallback.ink,
       function: token("code-function") || fallback.tokens.function || fallback.ink,
       property: token("code-property") || fallback.tokens.property || fallback.ink,
@@ -351,137 +347,189 @@ export function resolvePalette(
   };
 }
 
-export interface CodeCardSource {
-  title: string;
-  tokens: CodeToken[];
-  language: CodeLanguage;
-  label: string;
+/**
+ * resolveBackground answers the colour behind the window: the palette's own
+ * ground, the chosen hex, or null for a transparent export.
+ */
+export function resolveBackground(
+  options: CodeCardOptions,
+  palette: CodeCardPalette,
+): string | null {
+  const chosen = options.background.trim();
+  if (chosen === "transparent") return null;
+  if (chosen === "" || chosen === "host") return palette.background;
+  return chosen;
 }
 
+export interface CodeCardSource {
+  /** The entry title, kept for the exported file name only. */
+  title: string;
+  language: CodeLanguage;
+  label: string;
+  tokens: CodeToken[];
+}
+
+/** Longest source drawn on a card; the rest is cut once with a marker. */
+export const CARD_SOURCE_LIMIT = 6_000;
+
 /**
- * Splits tokens into display lines without losing token boundaries. Very long
- * single lines wrap at maxChars so an export cannot become arbitrarily wide.
+ * cardSource turns an entry into what the card draws. Detection only decides
+ * when the rail says "auto"; an explicit language is also the label, so the
+ * picker and the drawing cannot disagree.
  */
-export function splitTokenLines(
-  tokens: CodeToken[],
-  maxChars: number,
-): CodeToken[][] {
-  const limit = Math.max(16, Math.floor(maxChars));
+export function cardSource(
+  text: string,
+  fallbackTitle: string,
+  language: CodeLanguage | "auto" = "auto",
+): CodeCardSource | null {
+  const body = text.trim();
+  if (!body) return null;
+  const chosen: CodeLanguage =
+    language === "auto" ? detectCodeLanguage(body) ?? "javascript" : language;
+  const tokens = tokenizeCode(body, chosen);
+  const title = fallbackTitle.trim() || body.split("\n", 1)[0]?.trim().slice(0, 60) || "代码";
+  return {
+    title,
+    language: chosen,
+    label: chosen === "javascript" && !hasKnownSyntax(tokens) ? "文本" : LANGUAGE_LABELS[chosen],
+    tokens: truncateTokens(tokens, CARD_SOURCE_LIMIT),
+  };
+}
+
+/** The detector falls back to JavaScript; an untouched scan is plain text. */
+function hasKnownSyntax(tokens: CodeToken[]): boolean {
+  return tokens.some((token) => token.kind !== "");
+}
+
+function truncateTokens(tokens: CodeToken[], limit: number): CodeToken[] {
+  const out: CodeToken[] = [];
+  let used = 0;
+  for (const token of tokens) {
+    if (used + token.text.length <= limit) {
+      out.push(token);
+      used += token.text.length;
+      continue;
+    }
+    const room = limit - used;
+    if (room > 0) out.push({ ...token, text: token.text.slice(0, room) });
+    out.push({ kind: "", text: "\n..." });
+    return out;
+  }
+  return out;
+}
+
+/** Splits tokens into drawn lines; a tab is drawn as four spaces, like Carbon. */
+export function splitTokenLines(tokens: CodeToken[], maxChars: number): CodeToken[][] {
   const lines: CodeToken[][] = [[]];
   let column = 0;
+  let buffer = "";
+  const flush = () => {
+    if (buffer) lines[lines.length - 1]?.push({ text: buffer, kind: "" });
+    buffer = "";
+  };
   for (const token of tokens) {
-    let buffer = "";
-    for (const character of token.text) {
+    const text = token.text.replace(/\t/g, "    ");
+    for (const character of text) {
       if (character === "\n") {
-        if (buffer) lines[lines.length - 1]?.push({ text: buffer, kind: token.kind });
-        buffer = "";
+        flush();
         lines.push([]);
         column = 0;
         continue;
       }
-      // Canvas draws a tab as an arbitrary-width space, while the layout
-      // advances by one character. Four spaces make the indent visible and
-      // keep the two measurements the same.
-      if (character === "\t") {
-        buffer += "    ";
-        column += 4;
-        continue;
-      }
-      if (column >= limit) {
-        if (buffer) lines[lines.length - 1]?.push({ text: buffer, kind: token.kind });
-        buffer = "";
+      if (column >= maxChars) {
+        flush();
         lines.push([]);
         column = 0;
       }
       buffer += character;
       column += 1;
     }
-    if (buffer) lines[lines.length - 1]?.push({ text: buffer, kind: token.kind });
+    flush();
   }
   return lines;
 }
 
 export interface CodeCardLayout {
-  /** Export size in CSS pixels, background margin included. */
+  /** Export size in CSS pixels, canvas padding included. */
   width: number;
   height: number;
   /** The window inside the export. */
   cardWidth: number;
   cardHeight: number;
-  margin: number;
+  paddingX: number;
+  paddingY: number;
   lines: CodeToken[][];
   charWidth: number;
   lineHeight: number;
-  padding: number;
-  titleHeight: number;
-  /** Extra space a headless window gives its language label. */
-  headerExtra: number;
+  /** Height of the window band above the code (Carbon's 48 px). */
+  barHeight: number;
   gutterWidth: number;
+  /** Where the first code column starts, measured from the window's left edge. */
+  contentLeft: number;
   fontSize: number;
 }
 
-const FONT_STACK = '"SF Mono", "Menlo", "PingFang SC", monospace';
-const MAX_CARD_WIDTH = 1_600;
-const MIN_CARD_WIDTH = 420;
-const CARD_RADIUS = 14;
-const SHADOW_MARGIN = 54;
-const FLAT_MARGIN = 32;
-const MIN_FONT_SIZE = 11;
-const MAX_FONT_SIZE = 18;
-const MIN_PADDING = 16;
-const MAX_PADDING = 56;
+export const CARD_BAR_HEIGHT = 48;
+export const CARD_PAD_LEFT = 16;
+export const CARD_PAD_RIGHT = 18;
+export const CARD_PAD_BOTTOM = 18;
+export const CARD_RADIUS = 10;
+export const FIXED_CARD_WIDTH = 680;
+export const MAX_CARD_WIDTH = 1_600;
+export const MIN_CARD_WIDTH = 220;
+export const MIN_FONT_SIZE = 11;
+export const MAX_FONT_SIZE = 20;
+export const MIN_LINE_HEIGHT = 100;
+export const MAX_LINE_HEIGHT = 200;
+export const MIN_PADDING = 16;
+export const MAX_PADDING = 128;
+
+const FONT_STACK = '"Hack", "SF Mono", "Menlo", "PingFang SC", monospace';
 
 export function codeCardLayout(
   source: CodeCardSource,
   options: CodeCardOptions,
 ): CodeCardLayout {
   const fontSize = clamp(Math.round(options.fontSize), MIN_FONT_SIZE, MAX_FONT_SIZE);
-  const padding = clamp(Math.round(options.padding), MIN_PADDING, MAX_PADDING);
+  const lineHeightPercent = clamp(
+    Math.round(options.lineHeight),
+    MIN_LINE_HEIGHT,
+    MAX_LINE_HEIGHT,
+  );
+  const paddingX = clamp(Math.round(options.paddingX), MIN_PADDING, MAX_PADDING);
+  const paddingY = clamp(Math.round(options.paddingY), MIN_PADDING, MAX_PADDING);
   const charWidth = fontSize * 0.602;
-  const lineHeight = Math.round(fontSize * 1.62);
-  const titleHeight =
-    options.windowStyle === "mac" ? 46 : options.windowStyle === "windows" ? 40 : 0;
-  const headerExtra = options.windowStyle === "none" ? 22 : 0;
+  const lineHeight = Math.max(fontSize + 2, Math.round(fontSize * (lineHeightPercent / 100)));
+  const digits = Math.max(2, String(Math.max(1, source.tokens.length)).length);
+  const gutterWidth = options.lineNumbers ? Math.ceil(digits * charWidth) + 16 : 0;
   const maxChars = Math.max(
     24,
-    Math.floor((MAX_CARD_WIDTH - padding * 2 - 20) / charWidth),
+    Math.floor((MAX_CARD_WIDTH - CARD_PAD_LEFT - CARD_PAD_RIGHT - gutterWidth) / charWidth),
   );
   const lines = splitTokenLines(source.tokens, maxChars);
   const longest = lines.reduce(
-    (width, line) =>
-      Math.max(width, line.reduce((sum, token) => sum + [...token.text].length, 0)),
+    (width, line) => Math.max(width, line.reduce((sum, token) => sum + token.text.length, 0)),
     0,
   );
-  // The gutter reserves two spaces plus the digits a line count needs, so a
-  // 4,000-line card does not push its numbers over the code.
-  const gutterWidth = options.lineNumbers
-    ? Math.ceil(charWidth * (String(lines.length).length + 2))
-    : 0;
-  const cardWidth = Math.min(
-    MAX_CARD_WIDTH,
-    Math.max(
-      MIN_CARD_WIDTH,
-      Math.ceil(padding * 2 + gutterWidth + longest * charWidth + 20),
-    ),
-  );
-  const cardHeight = Math.max(
-    168,
-    titleHeight + headerExtra + padding * 2 + Math.max(1, lines.length) * lineHeight,
-  );
-  const margin = options.shadow ? SHADOW_MARGIN : FLAT_MARGIN;
+  const measured =
+    CARD_PAD_LEFT + gutterWidth + longest * charWidth + CARD_PAD_RIGHT;
+  const cardWidth = options.autoWidth
+    ? clamp(Math.ceil(measured), MIN_CARD_WIDTH, MAX_CARD_WIDTH)
+    : FIXED_CARD_WIDTH;
+  const cardHeight = CARD_BAR_HEIGHT + lines.length * lineHeight + CARD_PAD_BOTTOM;
   return {
-    width: cardWidth + margin * 2,
-    height: cardHeight + margin * 2,
+    width: cardWidth + paddingX * 2,
+    height: cardHeight + paddingY * 2,
     cardWidth,
     cardHeight,
-    margin,
+    paddingX,
+    paddingY,
     lines,
     charWidth,
     lineHeight,
-    padding,
-    titleHeight,
-    headerExtra,
+    barHeight: CARD_BAR_HEIGHT,
     gutterWidth,
+    contentLeft: CARD_PAD_LEFT + gutterWidth,
     fontSize,
   };
 }
@@ -495,6 +543,7 @@ export function drawCodeCard(
 ): CodeCardLayout {
   const layout = codeCardLayout(source, options);
   const palette = resolvePalette(options.theme, host);
+  const background = resolveBackground(options, palette);
   const ratio = options.scale;
   canvas.width = Math.round(layout.width * ratio);
   canvas.height = Math.round(layout.height * ratio);
@@ -503,146 +552,108 @@ export function drawCodeCard(
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, layout.width, layout.height);
 
-  if (!options.transparent) {
-    context.fillStyle = palette.background;
+  if (background) {
+    context.fillStyle = background;
     context.fillRect(0, 0, layout.width, layout.height);
   }
 
-  const x = layout.margin;
-  const y = layout.margin;
+  const x = layout.paddingX;
+  const y = layout.paddingY;
   const width = layout.cardWidth;
   const height = layout.cardHeight;
 
+  context.save();
   if (options.shadow) {
-    context.save();
     context.shadowColor = palette.shadow;
-    context.shadowBlur = 36;
-    context.shadowOffsetY = 18;
-    roundedRect(context, x, y, width, height, CARD_RADIUS);
-    context.fillStyle = palette.surface;
-    context.fill();
-    context.restore();
-  } else {
-    roundedRect(context, x, y, width, height, CARD_RADIUS);
-    context.fillStyle = palette.surface;
-    context.fill();
+    context.shadowBlur = clamp(options.shadowBlur, 0, 100);
+    context.shadowOffsetY = clamp(options.shadowOffset, 0, 100);
   }
+  roundedRect(context, x, y, width, height, CARD_RADIUS);
+  context.fillStyle = palette.surface;
+  context.fill();
+  context.restore();
 
   context.save();
   roundedRect(context, x, y, width, height, CARD_RADIUS);
   context.clip();
 
-  if (layout.titleHeight > 0) {
-    context.fillStyle = palette.titleBar;
-    context.fillRect(x, y, width, layout.titleHeight);
-    context.fillStyle = palette.muted;
-    context.font = `500 ${Math.max(10, layout.fontSize - 2)}px ${FONT_STACK}`;
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    if (options.windowStyle === "mac") {
-      drawMacControls(context, x + 26, y + layout.titleHeight / 2);
-    } else {
-      drawWindowsControls(
-        context,
-        x + width - 26,
-        y + layout.titleHeight / 2,
-        palette.muted,
-      );
-    }
-    context.fillText(
-      truncateText(
-        context,
-        source.title.trim() || source.label,
-        width - (options.windowStyle === "mac" ? 190 : 150),
-      ),
-      x + width / 2,
-      y + layout.titleHeight / 2,
+  if (options.windowStyle === "mac") {
+    drawMacControls(context, x + CARD_PAD_LEFT, y + layout.barHeight / 2);
+  } else if (options.windowStyle === "windows") {
+    drawWindowsControls(
+      context,
+      x + width - CARD_PAD_RIGHT,
+      y + layout.barHeight / 2,
+      palette.muted,
     );
-    context.textAlign = "left";
-  } else {
-    context.fillStyle = palette.accent;
-    context.font = `700 ${Math.max(9, layout.fontSize - 3)}px ${FONT_STACK}`;
-    context.textBaseline = "middle";
-    context.fillText(source.label.toUpperCase(), x + layout.padding, y + 20);
   }
 
   context.font = `${layout.fontSize}px ${FONT_STACK}`;
   context.textBaseline = "middle";
-  let lineY =
-    y + layout.titleHeight + layout.headerExtra + layout.padding + layout.lineHeight / 2;
+  const top = y + layout.barHeight;
   layout.lines.forEach((line, index) => {
-    let lineX = x + layout.padding;
+    const lineY = top + layout.lineHeight / 2 + index * layout.lineHeight;
     if (options.lineNumbers) {
       context.fillStyle = palette.gutter;
       context.textAlign = "right";
       context.fillText(
         String(index + 1),
-        x + layout.padding + layout.gutterWidth - 10,
+        x + CARD_PAD_LEFT + layout.gutterWidth - 14,
         lineY,
       );
       context.textAlign = "left";
-      lineX += layout.gutterWidth;
     }
+    let lineX = x + layout.contentLeft;
     for (const token of line) {
-      context.fillStyle = token.kind
-        ? palette.tokens[token.kind] ?? palette.ink
-        : palette.ink;
+      context.fillStyle = palette.tokens[token.kind] ?? palette.ink;
       context.fillText(token.text, lineX, lineY);
-      lineX += [...token.text].length * layout.charWidth;
+      lineX += token.text.length * layout.charWidth;
     }
-    lineY += layout.lineHeight;
   });
 
   context.restore();
-
-  roundedRect(context, x + 0.5, y + 0.5, width - 1, height - 1, CARD_RADIUS);
-  context.strokeStyle = palette.border;
-  context.lineWidth = 1;
-  context.stroke();
   return layout;
 }
 
-/** The three traffic lights, one circle each. */
+/** Carbon's traffic lights: 12 px circles, 8 px apart, 16 px in. */
 function drawMacControls(
   context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
+  left: number,
+  centerY: number,
 ): void {
-  const dots = ["#de6a5c", "#dfae55", "#7aa365"];
-  dots.forEach((color, index) => {
+  const colors = ["#ff5f56", "#ffbd2e", "#27c93f"];
+  colors.forEach((color, index) => {
     context.beginPath();
+    context.arc(left + 6 + index * 20, centerY, 6, 0, Math.PI * 2);
     context.fillStyle = color;
-    context.arc(x + index * 17, y, 4.6, 0, Math.PI * 2);
     context.fill();
   });
 }
 
-/** Minimise, maximise, close: three strokes at the title bar's right edge. */
+/** Windows draws its three controls at the right edge, as Carbon does. */
 function drawWindowsControls(
   context: CanvasRenderingContext2D,
   right: number,
-  y: number,
+  centerY: number,
   color: string,
 ): void {
-  context.save();
   context.strokeStyle = color;
-  context.lineWidth = 1.3;
-  context.lineCap = "butt";
-  const closeX = right;
-  const maxX = right - 22;
-  const minX = right - 44;
+  context.lineWidth = 1.2;
+  context.lineCap = "round";
+  const closeX = right - 6;
   context.beginPath();
-  context.moveTo(closeX - 4, y - 4);
-  context.lineTo(closeX + 4, y + 4);
-  context.moveTo(closeX + 4, y - 4);
-  context.lineTo(closeX - 4, y + 4);
+  context.moveTo(closeX - 4, centerY - 4);
+  context.lineTo(closeX + 4, centerY + 4);
+  context.moveTo(closeX + 4, centerY - 4);
+  context.lineTo(closeX - 4, centerY + 4);
   context.stroke();
-  context.strokeRect(maxX - 4, y - 4, 8, 8);
+  const maximizeX = closeX - 20;
+  context.strokeRect(maximizeX - 4, centerY - 4, 8, 8);
+  const minimizeX = maximizeX - 20;
   context.beginPath();
-  context.moveTo(minX - 4, y);
-  context.lineTo(minX + 4, y);
+  context.moveTo(minimizeX - 4, centerY);
+  context.lineTo(minimizeX + 4, centerY);
   context.stroke();
-  context.restore();
 }
 
 function roundedRect(
@@ -663,56 +674,6 @@ function roundedRect(
   context.closePath();
 }
 
-function truncateText(
-  context: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-): string {
-  if (context.measureText(text).width <= maxWidth) return text;
-  const characters = [...text];
-  while (characters.length > 1) {
-    characters.pop();
-    const candidate = `${characters.join("")}…`;
-    if (context.measureText(candidate).width <= maxWidth) return candidate;
-  }
-  return "…";
-}
-
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
-}
-
-/** The most source characters one card ever reads; the rest is elided. */
-export const CARD_SOURCE_LIMIT = 6_000;
-
-/**
- * cardSource turns the item's text into a drawn card. Detection reads the text
- * itself, so a JSON object pasted as plain text still gets JSON tokens; text
- * with no recognizable shape is drawn plain rather than refused. An explicit
- * language skips detection, because the reader can see the language when the
- * detector cannot.
- */
-export function cardSource(
-  text: string,
-  fallbackTitle: string,
-  language: CodeLanguage | "auto" = "auto",
-): CodeCardSource | null {
-  const candidate = text.trim();
-  if (!candidate) return null;
-  const bounded =
-    candidate.length > CARD_SOURCE_LIMIT
-      ? `${candidate.slice(0, CARD_SOURCE_LIMIT)}\n...`
-      : candidate;
-  const detected =
-    language === "auto" ? detectCodeLanguage(candidate) : language;
-  // Text the detector cannot place is tokenized as JavaScript and labelled as
-  // plain text: the card still renders, and the label does not claim a
-  // language the card did not recognize.
-  const effective = detected ?? "javascript";
-  return {
-    title: fallbackTitle.trim() || "未命名",
-    tokens: tokenizeCode(bounded, effective),
-    language: effective,
-    label: detected ? LANGUAGE_LABELS[detected] : "文本",
-  };
 }
