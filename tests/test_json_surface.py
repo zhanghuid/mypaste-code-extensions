@@ -11,8 +11,11 @@ and what it asks the host for:
 - pasted URL parameters, XML and YAML are recognized and converted to JSON in
   the right pane; unrecognized or broken input lands there verbatim with an
   explanation, and the original stays as it arrived;
-- minify, escape, XML and TypeScript actions derive their document without
+- minify, fold, XML and TypeScript actions derive their document without
   touching the original pane, and copying any of them is a host request;
+- folding collapses nested objects and arrays for reading while copying still
+  sends the complete result, and the control stays disabled when there is
+  nothing to fold;
 - the escape toggle decides whether `\uXXXX` and `\/` read as characters, and
   every writer of the right pane follows that choice;
 - the filter bar evaluates a small JavaScript subset against the entry,
@@ -79,7 +82,7 @@ class ElementStub {
 }
 
 const IDS = ["summary", "status", "editor", "meta", "copy-json", "doc-close",
-             "format", "minify", "escape", "to-xml", "to-ts", "output",
+             "format", "minify", "fold", "to-xml", "to-ts", "output",
              "output-title", "output-meta", "output-text", "copy-output",
              "filter", "filter-run", "preserve-escapes", "editor-gutter"];
 const PAGE = path.join(process.argv[2], "page.mjs");
@@ -277,7 +280,7 @@ const FORMATTED =
   assert.deepEqual(page.copyRequests(), []);
 }
 
-// Beautify, minify, escape, XML and TypeScript all write the right pane; the
+// Beautify, minify, fold, XML and TypeScript all write the right pane; the
 // original pane keeps the delivered text through every one of them. Copying a
 // result is still a host request.
 {
@@ -298,18 +301,16 @@ const FORMATTED =
   assert.equal(page.text("output-title"), "美化");
   assert.equal(page.text("output-text"), FORMATTED);
 
-  page.element("escape").click();
-  assert.equal(page.element("output").dataset.state, "filled");
-  assert.equal(page.element("copy-output").disabled, false);
-  assert.equal(page.text("output-title"), "转义结果");
-  assert.equal(page.text("output-text"), JSON.stringify(SOURCE));
-  assert.equal(page.element("editor").value, SOURCE, "derived, not rewritten");
+  // This document fits on one line, so there is nothing to fold and the
+  // control does not pretend otherwise.
+  assert.equal(page.element("fold").disabled, true, "one line has nothing to fold");
 
   page.element("to-xml").click();
   assert.equal(page.text("output-title"), "XML");
   assert.match(page.text("output-text"), /^<root>/);
   assert.match(page.text("output-text"), /<name>MyPaste<\/name>/);
   assert.equal(page.element("editor").value, SOURCE, "derived, not rewritten");
+  assert.equal(page.element("fold").disabled, true, "XML is not JSON to fold");
 
   page.element("to-ts").click();
   assert.equal(page.text("output-title"), "TypeScript");
@@ -363,6 +364,45 @@ const FORMATTED =
   page.element("filter-run").click();
   assert.match(page.text("status"), /^过滤失败：/);
   assert.equal(page.element("editor").value, original, "filter never mutates");
+}
+
+// Folding reads the result as an outline: nested containers become one line,
+// the root keeps its shape, and the copy request still carries the whole
+// document rather than the folded view.
+{
+  const page = await open();
+  const document = JSON.stringify({
+    users: [
+      { name: "Ada", age: 36 },
+      { name: "Bob", age: 12 },
+      { name: "Cyd", age: 24 },
+    ],
+    note: "x".repeat(90),
+  });
+  page.deliver({ kind: "text", title: "折叠", text: document });
+  await until(() => page.text("output-title") === "美化", "in-page formatting");
+  const full = page.text("output-text");
+  assert.ok(full.includes('"users": ['), "the array spans several lines");
+  assert.equal(page.element("fold").disabled, false);
+
+  page.element("fold").click();
+  assert.equal(page.element("fold").attrs["aria-pressed"], "true");
+  assert.equal(page.element("fold").attrs["aria-label"], "展开全部");
+  const folded = page.text("output-text");
+  assert.ok(folded.includes('"users": [ … ]'), folded);
+  assert.ok(!folded.includes("Ada"), "folded rows are hidden");
+  assert.equal(page.text("status"), "已折叠 1 处嵌套结构；复制仍是完整 JSON。");
+
+  page.element("copy-output").click();
+  await until(() => page.copyRequests().length === 1, "copy folded result");
+  assert.equal(page.copyRequests()[0].text, full,
+    "copy sends the complete result, not the folded view");
+
+  page.element("fold").click();
+  assert.equal(page.element("fold").attrs["aria-pressed"], "false");
+  assert.equal(page.element("fold").attrs["aria-label"], "折叠全部");
+  assert.equal(page.text("output-text"), full);
+  assert.equal(page.text("status"), "已展开全部结构。");
 }
 
 // Paste recognition: URL parameters, XML and YAML become JSON on the right,
@@ -470,7 +510,7 @@ class JSONSurfacePageTest(unittest.TestCase):
         manifest = json.loads(
             (PACKAGE / "mypaste.plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["manifestVersion"], 3)
-        self.assertEqual(manifest["version"], "3.3.1")
+        self.assertEqual(manifest["version"], "3.4.0")
         self.assertEqual(manifest["capabilities"], ["entity.read"])
         self.assertNotIn("runtime", manifest)
         self.assertNotIn("commands", manifest)

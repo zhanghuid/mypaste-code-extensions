@@ -4,7 +4,7 @@
  * Prettier is bundled into this document, so the page formats, minifies and
  * converts without a runtime, Node or the network. The left pane is the entry
  * as it arrived and never changes; every action writes its result to the right
- * pane (beautify on open, minify, escape, XML, TypeScript, filter, paste
+ * pane (beautify on open, minify, fold, XML, TypeScript, filter, paste
  * conversion), and the escape toggle re-derives that result. Copying is a host
  * action: the page posts `copy` and never touches the clipboard itself. Every
  * value reaches the DOM through `textContent` or `textarea.value`, never HTML.
@@ -14,6 +14,7 @@ import { connectSurface } from "./bridge";
 import { convertPaste, type PasteKind } from "./convert";
 import { decodeEscapes, escapeNonAscii } from "./escape";
 import { evaluateExpression } from "./evaluate";
+import { foldJson, type FoldedDocument } from "./fold";
 import { describeJsonError, formatJson } from "./format";
 import { parseJson, type JsonValue } from "./json";
 import { jsonToTypeScript } from "./typescript";
@@ -35,7 +36,7 @@ const editorGutter = one<HTMLElement>("#editor-gutter");
 const preserveToggle = one<HTMLButtonElement>("#preserve-escapes");
 const formatButton = one<HTMLButtonElement>("#format");
 const minifyButton = one<HTMLButtonElement>("#minify");
-const escapeButton = one<HTMLButtonElement>("#escape");
+const foldButton = one<HTMLButtonElement>("#fold");
 const xmlButton = one<HTMLButtonElement>("#to-xml");
 const tsButton = one<HTMLButtonElement>("#to-ts");
 const output = one<HTMLElement>("#output");
@@ -50,6 +51,10 @@ const bridge = connectSurface();
 
 /** The text the result panel currently owns. */
 let derived = "";
+/** The folded view of `derived`, or `null` when it has nothing to fold. */
+let foldable: FoldedDocument | null = null;
+/** Whether the result pane is showing the folded view. */
+let folded = false;
 /** The newest delivery or paste wins; an older async job may finish later. */
 let generation = 0;
 /** Whether the document keeps the wire spelling of escapes (see `escape.ts`). */
@@ -141,6 +146,9 @@ function setEditor(text: string): void {
 
 function hideOutput(): void {
   derived = "";
+  foldable = null;
+  folded = false;
+  updateFoldControl();
   output.dataset.state = "empty";
   outputTitle.textContent = "结果";
   outputMeta.textContent = "";
@@ -148,8 +156,20 @@ function hideOutput(): void {
   copyOutput.disabled = true;
 }
 
+/** Keeps the fold control honest about the result it would act on. */
+function updateFoldControl(): void {
+  foldButton.disabled = foldable === null;
+  foldButton.setAttribute("aria-pressed", String(folded));
+  const label = folded ? "展开全部" : "折叠全部";
+  foldButton.title = label;
+  foldButton.setAttribute("aria-label", label);
+}
+
 function showOutput(title: string, text: string): void {
   derived = text;
+  foldable = foldJson(text);
+  folded = false;
+  updateFoldControl();
   output.dataset.state = "filled";
   outputTitle.textContent = title;
   outputMeta.textContent = describe(text);
@@ -228,10 +248,14 @@ function applyMinify(): void {
   setStatus("已压缩为单行，写在右侧；左侧原文未改动。");
 }
 
-function applyEscape(): void {
-  view = applyEscape;
-  showOutput("转义结果", JSON.stringify(editor.value));
-  setStatus("已把原文转义为字符串字面量，写在右侧；左侧原文未改动。");
+function applyFold(): void {
+  if (foldable === null) return;
+  folded = !folded;
+  outputText.textContent = folded ? foldable.text : derived;
+  updateFoldControl();
+  setStatus(folded
+    ? `已折叠 ${foldable.count} 处嵌套结构；复制仍是完整 JSON。`
+    : "已展开全部结构。");
 }
 
 function applyXml(): void {
@@ -349,8 +373,8 @@ formatButton.addEventListener("click", () => {
 minifyButton.addEventListener("click", () => {
   applyMinify();
 });
-escapeButton.addEventListener("click", () => {
-  applyEscape();
+foldButton.addEventListener("click", () => {
+  applyFold();
 });
 xmlButton.addEventListener("click", () => {
   applyXml();
