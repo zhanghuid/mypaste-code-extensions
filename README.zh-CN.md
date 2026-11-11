@@ -117,8 +117,11 @@
 `com.mypaste.code-card`、`com.mypaste.code-edit`、`com.mypaste.diff-view`、
 `com.mypaste.image-edit`、`com.mypaste.json` 与 `com.mypaste.timestamp` 各自交付
 一个页面。code-edit 另外交付 runtime 与内部命令，用于自带格式化（3.3.0）；
-json（3.2.1）是纯表面包：Prettier 的 standalone 构建加 babel、estree 两个插件
+json（3.3.1）是纯表面包：Prettier 的 standalone 构建加 babel、estree 两个插件
 打进页面本身，格式化、转换与过滤都在文档内完成，不需要 Node，也没有 runtime。
+工作区是两列：左侧只读显示条目原文，右侧接收全部结果（打开时的美化、压缩、
+转义、XML、TypeScript、过滤结果与粘贴转换），原文既不会被改写，也不会被自己的
+结果盖住。
 宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），构建出的页面在此之内。其余
 四个不运行进程：
 
@@ -139,7 +142,7 @@ json（3.2.1）是纯表面包：Prettier 的 standalone 构建加 babel、estre
 
 `chrome` 可选，且只有 `open` 表面能声明 `"page"`：卡片外框整块归页面，宿主
 隐藏自己的页眉与页脚，页面经桥的 `close` 请求关闭。省略时保留宿主卡片
-（`"host"`）。code-edit（3.7.1）、diff-view（3.2.1）与 json（3.2.1）声明
+（`"host"`）。code-edit（3.7.1）、diff-view（3.2.1）与 json（3.3.1）声明
 `"page"`；image-edit 与 timestamp 保留宿主卡片。
 
 宿主把页面放进沙箱 frame，并中介这些操作：读取本次调用的条目、把文本或图片
@@ -151,8 +154,11 @@ v3 移除了宿主工作台：没有缓冲区交换、没有宿主画的编辑�
 的文档动作行（宿主 D-1065、D-1068）。每个页面自己画控件。例如 code-edit 的
 页面按 GitHub 网页编辑器画整条 chrome：可编辑标题的标签页，一条工具栏（「语言」
 与「格式化」两个下拉 + 复制与保存图标），行号槽与代码面，底部状态栏。高亮对比
-与 JSON 编辑器沿用同一条 chrome，只在工具栏里放各自的动作：对照页是语言徽标
-加复制、保存，JSON 页是「格式化」下拉、过滤框与复制。「格式化」
+与 JSON 编辑器沿用同一条 chrome。对照页的工具栏是语言徽标加复制、保存；
+JSON 页把同一行铺成一排图标——美化、压缩、转义为字符串、XML、TypeScript 与
+复制——行尾是「保留转义」开关，决定右侧结果把 `\uXXXX` 与 `\/` 显示为字符还是
+按转义写法重新生成；
+表达式过滤框放在「原始」面板的标题行里。「格式化」
 下拉把注册表变成一张扁平菜单，「语言」下拉决定分词器与内置操作。「格式化」
 始终带有编辑器自带的、针对识别语言的内置操作——Go、
 JavaScript、TypeScript、Python、Rust、PHP、HTML、CSS、JSON、YAML、SQL 与
@@ -297,12 +303,17 @@ JSON 用 `encoding/json`，SQL 用共享的 `sqlkit`，CSS 用按花括号层级
 `replace` 到同一份源码，因此两个包编译并交付同一套分析、格式化与压缩实现，
 不会各自漂移。
 
-`com.mypaste.json` 是纯表面包（3.2.1）：归档里只有 manifest 与一份
-`preview.html`，不运行任何进程。页面是可编辑的 JSON 编辑器；Prettier 的
+`com.mypaste.json` 是纯表面包（3.3.1）：归档里只有 manifest 与一份
+`preview.html`，不运行任何进程。页面左侧只读显示条目原文，所有结果都写在右侧；
+Prettier 的
 standalone 构建连同 babel、estree 两个插件打进页面，美化不离开文档，也不需要
-Node。宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），构建出的页面在此
-之内。粘贴 URL 参数、XML 或 YAML 时由页面转换成 JSON；压缩、转义、JSON→XML
-与 JSON→TypeScript 写入独立的结果面板；工具栏的过滤框对当前 JSON 求值一个很小的
+Node。Prettier 会保留源文的转义写法，所以页面自己整理：`\uXXXX` 与 `\/`
+还原为字符，工具栏的「保留转义」开关则让右侧按转义写法重新生成。宿主读取表面
+文档的上限是
+1 MiB（宿主仓库 D-1091），构建出的页面在此
+之内。粘贴 URL 参数、XML 或 YAML、压缩、转义、JSON→XML 与 JSON→TypeScript
+都写入这个结果面板；「原始」面板标题行里的过滤框对条目原文
+求值一个很小的
 JavaScript 子集（成员访问、下标、数组方法、比较，以及以点开头的简写）。页面
 没有数据库或文件访问，也不发起网络请求；复制是 `copy` 桥消息，由宿主执行。
 

@@ -38,11 +38,11 @@
     {
       "id": "com.mypaste.json",
       "name": "JSON 编辑器",
-      "version": "3.3.0",
+      "version": "3.3.1",
       "kind": "ui",
-      "description": "在页面内用 Prettier 排版 JSON，结果可编辑：文档头、操作与状态栏和代码编辑一致，格式化动作收在一个下拉里；粘贴 URL 参数、XML 或 YAML 自动转成 JSON。可压缩、转义、转 XML、转 TypeScript，文档头可按 JavaScript 表达式过滤。Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。",
-      "fileName": "com.mypaste.json-3.3.0.mypaste-plugin",
-      "sha256": "af2bcf79225fc745a76fb42d648997c2c44ca86950b6f8efc2b0c1de747e0ee1",
+      "description": "在页面内用 Prettier 排版 JSON：左侧只读显示条目原文，所有结果写在右侧。文档头的图标行直接给出美化、压缩、转义、XML、TypeScript 与复制，行尾的「保留转义」开关决定右侧结果里 \\uXXXX 与 \\/ 是否还原为字符；粘贴 URL 参数、XML 或 YAML 也转换后写在右侧，原文面板可按 JavaScript 表达式过滤。Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。",
+      "fileName": "com.mypaste.json-3.3.1.mypaste-plugin",
+      "sha256": "1a487febc6b958675a2b4dff64de85ef88e9f87a8a7acb48cd4592428be18ff5",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },

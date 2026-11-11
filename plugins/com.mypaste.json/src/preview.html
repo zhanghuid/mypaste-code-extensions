@@ -82,11 +82,11 @@
 
   /*
    * The document header. The page owns the whole card now (D-1097), so this is
-   * one 44px band instead of a strip holding an empty tab: the summary sits at
-   * the left with a square accent rule beneath it (D-1045), and all of the
-   * document's tools share the row at the right, every one of them a 28px
-   * control (D-1051). The filter grows into the space between the two, so the
-   * header stays the only chrome row. Closing is set apart by a hairline.
+   * one 44px band: the document's name sits at the left with an accent rule
+   * beneath it (D-1045), and every tool is one flat icon at the right, all of
+   * them 28px (D-1051). There is no dropdown: the five conversions used to hide
+   * behind a "格式化" trigger, which cost a click to discover and a click to
+   * repeat. Each one is now visible at once. Closing is set apart by a hairline.
    */
   .doc-head {
     display: flex;
@@ -132,30 +132,38 @@
     flex: 1;
     min-width: 0;
   }
-  .menu-root { position: relative; display: inline-flex; flex: none; }
-  /* Ghost trigger: the band holds one kind of control, boxes belong to fields. */
-  .menu-trigger {
+  /*
+   * The one labeled control in the row: a switch that says what the document's
+   * spelling is. Off is quiet ink; on is a filled chip in the host accent, the
+   * same "this is on" material the image editor gives its pressed modes.
+   */
+  .doc-toggle {
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    flex: none;
     height: 28px;
-    padding: 0 8px;
-    border: 0;
+    padding: 0 10px;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--muted);
-    font: 12px/1 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
+    font: 600 12px/1 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
+    white-space: nowrap;
   }
-  .menu-trigger:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--ink) 8%, transparent);
-    color: var(--ink);
+  .doc-toggle:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+  .doc-toggle .check { width: 14px; height: 14px; flex: none; }
+  .doc-toggle[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--accent-ink);
   }
-  .menu-trigger:focus-visible {
+  .doc-toggle[aria-pressed="true"]:hover { background: var(--accent); color: var(--accent-ink); }
+  .doc-toggle:focus-visible {
     outline: none;
-    color: var(--ink);
     box-shadow: inset 0 0 0 1px var(--accent);
   }
-  .menu-trigger[aria-expanded="true"] { color: var(--accent); }
-  .menu-trigger .trigger-chevron { width: 12px; height: 12px; flex: none; }
+  .doc-toggle[aria-pressed="true"]:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--accent-ink);
+  }
   .doc-action {
     display: inline-flex;
     align-items: center;
@@ -199,52 +207,21 @@
     color: var(--ink);
     box-shadow: inset 0 0 0 1px var(--accent);
   }
-
-  .menu {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 40;
-    min-width: 200px;
-    max-width: calc(100vw - 16px);
-    max-height: min(360px, calc(100vh - 16px));
-    overflow-y: auto;
-    padding: 4px;
-    border: 1px solid var(--line);
-    background:
-      linear-gradient(var(--surface), var(--surface)),
-      var(--solid);
-    color: var(--ink);
-    box-shadow: 0 12px 28px color-mix(in srgb, var(--ink) 20%, transparent);
-  }
-  .menu[hidden] { display: none; }
-  .menu:focus { outline: none; }
-  .menu-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    min-height: 30px;
-    padding: 0 8px;
-    border: 0;
-    background: transparent;
-    color: var(--ink);
-    font: 12.5px/1.4 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif);
-    text-align: left;
-  }
-  .menu-item:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--ink) 6%, transparent);
-  }
-  .menu-item:focus-visible {
-    outline: none;
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-    box-shadow: inset 2px 0 0 var(--accent);
-  }
-  .menu-item:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
-  .menu-separator {
-    height: 1px;
-    margin: 4px 8px;
-    background: var(--line);
+  /*
+   * A narrow panel keeps every tool. The chip is the one labeled control in
+   * the row, so its label is what goes first: it stays a 28px toggle (D-1051)
+   * with its tooltip and accessible name intact, and the hairline separators
+   * give their width back to the buttons.
+   */
+  @media (max-width: 720px) {
+    #summary { max-width: 30vw; }
+    .doc-toggle {
+      width: 28px;
+      justify-content: center;
+      padding: 0;
+    }
+    .doc-toggle span { display: none; }
+    .doc-sep { display: none; }
   }
 
   .filter-root {
@@ -252,9 +229,11 @@
     align-items: center;
     gap: 6px;
     flex: 1 1 220px;
-    max-width: 360px;
     min-width: 140px;
   }
+  /* The expression queries the document it sits above, so it lives in the
+     original pane's head and grows into whatever room the title leaves. */
+  .pane-head .filter-root { flex: 1; }
   #filter {
     flex: 1;
     min-width: 0;
@@ -309,8 +288,10 @@
   .icon-button:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
 
   /*
-   * One editable code surface, shared with the code editor: a line-number
-   * gutter beside a scrolling textarea on the host's code palette (D-1046).
+   * The entry as it arrived, on the code surface (D-1046): a line-number
+   * gutter beside a scrolling textarea. It is read-only, so it carries the
+   * code surface's material but not its caret or focus ring: nothing here is
+   * edited, and the selection is the reader's.
    */
   .editor {
     display: grid;
@@ -319,7 +300,6 @@
     overflow: hidden;
     background: var(--editor-bg);
   }
-  .editor:focus-within { box-shadow: inset 0 0 0 1px var(--accent); }
   #editor-gutter {
     height: 100%;
     margin: 0;
@@ -342,7 +322,7 @@
     border: 0;
     background: transparent;
     color: var(--editor-ink);
-    caret-color: var(--accent);
+    caret-color: transparent;
     font: 12.5px/1.65 var(--mono);
     white-space: pre;
     tab-size: 2;
@@ -354,10 +334,10 @@
   #editor::placeholder { color: var(--muted); }
 
   /*
-   * The workbench is the original on the left and the derived document on the
+   * The workbench is the entry on the left and the derived document on the
    * right, each side its own card so the two materials stay legible side by
-   * side. The editor keeps the code surface; a converted result lands in the
-   * right pane without ever covering the source.
+   * side. The original is read-only; a converted result lands in the right
+   * pane without ever covering the source.
    */
   .workbench {
     display: grid;
@@ -487,14 +467,9 @@
   input {
     border-radius: var(--radius-sm);
   }
-  .pane,
-  .menu {
+  .pane {
     border-radius: var(--radius-md);
   }
-  .menu-item {
-    border-radius: var(--radius-sm);
-  }
-  .menu-separator,
   .doc-id::after {
     border-radius: var(--radius-pill);
   }
@@ -510,34 +485,57 @@
       <span id="summary">等待条目…</span>
     </div>
     <div class="doc-actions">
-      <div class="menu-root" id="doc-format-root">
-        <button type="button" class="menu-trigger" id="doc-format-toggle"
-          aria-haspopup="menu" aria-expanded="false" aria-label="格式化与转换" title="格式化与转换">
-          <span>格式化</span>
-          <svg class="trigger-chevron" viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <div class="menu" id="doc-format-menu" role="menu" aria-label="格式化与转换" tabindex="-1" hidden>
-          <button type="button" class="menu-item" id="format" role="menuitem">美化 · Prettier</button>
-          <button type="button" class="menu-item" id="minify" role="menuitem">压缩为单行</button>
-          <button type="button" class="menu-item" id="escape" role="menuitem">转义为字符串</button>
-          <div class="menu-separator" role="separator"></div>
-          <button type="button" class="menu-item" id="to-xml" role="menuitem">转为 XML</button>
-          <button type="button" class="menu-item" id="to-ts" role="menuitem">转为 TypeScript</button>
-        </div>
-      </div>
-      <div class="filter-root">
-        <input id="filter" type="text" spellcheck="false" autocomplete="off"
-          placeholder="JavaScript 表达式" title="例：data.items[0].id"
-          aria-label="JavaScript 表达式过滤">
-        <button type="button" class="filter-run" id="filter-run">运行</button>
-      </div>
+      <button type="button" class="doc-action" id="format" title="美化 · Prettier" aria-label="美化">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M7.2 2.6 8.3 6l3.4 1.1-3.4 1.1-1.1 3.4-1.1-3.4L2.7 7.1 6.1 6z"
+            fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+          <path d="M12.4 9.9v3M10.9 11.4h3" fill="none" stroke="currentColor"
+            stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button type="button" class="doc-action" id="minify" title="压缩为单行" aria-label="压缩为单行">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2.8 2.8 6.3 6.3M2.8 2.8v3.2M2.8 2.8h3.2" fill="none" stroke="currentColor"
+            stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M13.2 13.2 9.7 9.7M13.2 13.2v-3.2M13.2 13.2h-3.2" fill="none" stroke="currentColor"
+            stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <span class="doc-sep" aria-hidden="true"></span>
+      <button type="button" class="doc-action" id="escape" title="转义为字符串" aria-label="转义为字符串">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M6 5.2v3.4M10 5.2v3.4" fill="none" stroke="currentColor"
+            stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button type="button" class="doc-action" id="to-xml" title="转为 XML" aria-label="转为 XML">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M6 4.8 2.8 8 6 11.2M10 4.8 13.2 8 10 11.2" fill="none" stroke="currentColor"
+            stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button type="button" class="doc-action" id="to-ts" title="转为 TypeScript" aria-label="转为 TypeScript">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M6.4 2.8c-1.3 0-1.3 1.1-1.3 2.4S4.5 8 3.4 8c1.1 0 1.7.6 1.7 1.8s0 2.4 1.3 2.4"
+            fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M9.6 2.8c1.3 0 1.3 1.1 1.3 2.4S11.5 8 12.6 8c-1.1 0-1.7.6-1.7 1.8s0 2.4-1.3 2.4"
+            fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <span class="doc-sep" aria-hidden="true"></span>
       <button type="button" class="doc-action" id="copy-json" title="复制 JSON" aria-label="复制 JSON">
         <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
           <rect x="5.5" y="5.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.4"/>
           <path d="M3.5 10.5v-7h7" fill="none" stroke="currentColor" stroke-width="1.4"/>
         </svg>
+      </button>
+      <button type="button" class="doc-toggle" id="preserve-escapes" aria-pressed="false"
+        title="非 ASCII 字符保持 \uXXXX 写法，不还原为字符" aria-label="保留转义">
+        <svg class="check" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M3.6 8.4 6.3 11 12.4 4.9" fill="none" stroke="currentColor"
+            stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>保留转义</span>
       </button>
       <span class="doc-sep" aria-hidden="true"></span>
       <button type="button" class="doc-close" id="doc-close" title="关闭" aria-label="关闭">
@@ -552,11 +550,17 @@
     <section class="pane pane-editor" aria-label="原始 JSON">
       <div class="pane-head">
         <h2 class="pane-title">原始</h2>
+        <div class="filter-root">
+          <input id="filter" type="text" spellcheck="false" autocomplete="off"
+            placeholder="JavaScript 表达式" title="例：data.items[0].id"
+            aria-label="JavaScript 表达式过滤">
+          <button type="button" class="filter-run" id="filter-run">运行</button>
+        </div>
       </div>
       <div class="editor">
         <pre id="editor-gutter" aria-hidden="true"></pre>
         <textarea id="editor" spellcheck="false" autocomplete="off"
-          autocapitalize="off" wrap="off" aria-label="可编辑的 JSON"></textarea>
+          autocapitalize="off" wrap="off" readonly aria-label="条目原文（只读）"></textarea>
       </div>
     </section>
     <section class="pane pane-output" id="output" data-state="empty" aria-label="转换结果">
@@ -572,7 +576,7 @@
         </button>
       </div>
       <div class="pane-body">
-        <p class="pane-empty" id="output-empty">格式化、压缩或选择一种转换后，结果会显示在这里。</p>
+        <p class="pane-empty" id="output-empty">美化、压缩或选择一种转换后，结果显示在这里；左侧原文始终不变。</p>
         <pre id="output-text" tabindex="0" aria-label="转换结果"></pre>
       </div>
     </section>
@@ -583,7 +587,7 @@
       <span id="meta"></span>
     </div>
   </footer>
-  <p class="sr-only">Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。过滤框只对当前 JSON 求值，不改动原数据。</p>
+  <p class="sr-only">Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。左侧是条目原文，只读；所有操作的结果都写在右侧。过滤框只对条目原文求值。</p>
 <script>
 <!--bundle-->
 </script>

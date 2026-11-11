@@ -1,4 +1,4 @@
-"""The JSON editor surface page (protocol v3).
+r"""The JSON editor surface page (protocol v3).
 
 Everything the page needs is inside the document: Prettier's standalone build
 plus the babel and estree plugins are bundled by the same esbuild the surface
@@ -6,14 +6,17 @@ build uses, so the test can bundle `src/main.ts` into a module and run it under
 Node against a minimal DOM stub. That exercises exactly what the page paints
 and what it asks the host for:
 
-- an entry is formatted by the in-page Prettier, the editor stays editable,
-  and the result is Prettier's own output, token for token;
-- pasted URL parameters, XML and YAML are recognized and converted to JSON,
-  unrecognized or broken input is inserted verbatim with an explanation;
+- the entry arrives untouched in the left, read-only pane, and the in-page
+  Prettier writes its output to the right pane, token for token;
+- pasted URL parameters, XML and YAML are recognized and converted to JSON in
+  the right pane; unrecognized or broken input lands there verbatim with an
+  explanation, and the original stays as it arrived;
 - minify, escape, XML and TypeScript actions derive their document without
-  touching the editor, and copying any of them is a host request;
-- the filter bar evaluates a small JavaScript subset against the current JSON,
-  reports failures, and never mutates or copies over the original;
+  touching the original pane, and copying any of them is a host request;
+- the escape toggle decides whether `\uXXXX` and `\/` read as characters, and
+  every writer of the right pane follows that choice;
+- the filter bar evaluates a small JavaScript subset against the entry,
+  reports failures, and never mutates the original;
 - the built page fits the host's 1 MiB surface-document ceiling (D-1091) and
   the manifest ships no runtime at all.
 """
@@ -78,8 +81,7 @@ class ElementStub {
 const IDS = ["summary", "status", "editor", "meta", "copy-json", "doc-close",
              "format", "minify", "escape", "to-xml", "to-ts", "output",
              "output-title", "output-meta", "output-text", "copy-output",
-             "filter", "filter-run", "doc-format-root", "doc-format-toggle",
-             "doc-format-menu", "editor-gutter"];
+             "filter", "filter-run", "preserve-escapes", "editor-gutter"];
 const PAGE = path.join(process.argv[2], "page.mjs");
 
 /** One fresh page: a surface document is delivered exactly one item. */
@@ -169,22 +171,24 @@ const SOURCE = '{"name":"MyPaste","count":2,"ok":true,"items":[1,null,"x"]}';
 const FORMATTED =
   '{ "name": "MyPaste", "count": 2, "ok": true, "items": [1, null, "x"] }\n';
 
-// Delivery: Prettier runs inside the page, the editor holds its output, and
-// the copy button asks the host instead of touching a clipboard.
+// Delivery: the left pane keeps the entry exactly as it arrived, the in-page
+// Prettier writes its output to the right, and the copy button asks the host
+// instead of touching a clipboard.
 {
   const page = await open();
   page.deliver({ kind: "text", title: "示例", text: SOURCE });
-  await until(() => page.text("status") === "", "in-page formatting");
+  await until(() => page.text("output-title") === "美化", "in-page formatting");
   assert.equal(page.text("summary"), "示例");
-  assert.equal(page.element("editor").value, FORMATTED);
+  assert.equal(page.element("editor").value, SOURCE, "the original is untouched");
+  assert.equal(page.text("output-text"), FORMATTED);
   assert.equal(page.text("meta"),
-    `1 行 · ${new TextEncoder().encode(FORMATTED).length} 字节`);
+    `1 行 · ${new TextEncoder().encode(SOURCE).length} 字节`);
   assert.equal(page.element("copy-json").disabled, false);
 
   page.element("copy-json").click();
   await until(() => page.copyRequests().length === 1, "copy request");
   const copyRequest = page.copyRequests()[0];
-  assert.equal(copyRequest.text, FORMATTED);
+  assert.equal(copyRequest.text, SOURCE);
   page.answer(copyRequest, { ok: true });
   await until(() => page.text("status") === "已复制 JSON。", "copy confirmation");
 
@@ -194,12 +198,12 @@ const FORMATTED =
   await until(() => page.text("status") === "复制失败：宿主拒绝写入", "refused copy");
 }
 
-// The page owns the card (D-1097): closing is its own control in the tab
-// strip, and Escape with no menu open does the same through the bridge.
+// The page owns the card (D-1097): closing is its own control in the header,
+// and Escape does the same through the bridge.
 {
   const page = await open();
   page.deliver({ kind: "text", title: "示例", text: SOURCE });
-  await until(() => page.text("status") === "", "in-page formatting");
+  await until(() => page.text("output-title") === "美化", "in-page formatting");
   page.element("doc-close").click();
   await until(() => page.posted.some((m) => m.type === "close"), "close request");
   assert.deepEqual(page.posted.filter((m) => m.type === "close"),
@@ -209,8 +213,50 @@ const FORMATTED =
     "escape close");
 }
 
+// Escape spelling: an entry delivered in wire form keeps its bytes on the
+// left, while the right pane shows its characters; the labeled toggle puts the
+// \uXXXX spelling back. `\/` follows the same switch, so a PHP-style path reads
+// as a path instead of a row of slashes.
+{
+  const page = await open();
+  const escaped =
+    '{"msg":"\\u4efb\\u52a1 \\u5b58\\u5728","path":"\\/work\\/demo\\/Job.php"}';
+  page.deliver({ kind: "text", title: "转义", text: escaped });
+  await until(() => page.text("output-title") === "美化", "escape decoding");
+  assert.equal(page.element("editor").value, escaped, "the original is untouched");
+  assert.equal(page.text("output-text"),
+    '{ "msg": "任务 存在", "path": "/work/demo/Job.php" }\n');
+  assert.equal(page.element("preserve-escapes").attrs["aria-pressed"], "false");
+
+  page.element("preserve-escapes").click();
+  assert.equal(page.element("preserve-escapes").attrs["aria-pressed"], "true");
+  await until(() => page.text("output-text").includes("\\u4efb"), "preserved spelling");
+  assert.equal(page.text("output-text"),
+    '{ "msg": "\\u4efb\\u52a1 \\u5b58\\u5728", "path": "/work/demo/Job.php" }\n');
+  assert.equal(page.element("editor").value, escaped);
+
+  page.element("format").click();
+  await until(() => page.text("status") === "已在右侧排版；左侧原文未改动。",
+    "preserved format");
+  assert.equal(page.text("output-text"),
+    '{ "msg": "\\u4efb\\u52a1 \\u5b58\\u5728", "path": "/work/demo/Job.php" }\n');
+
+  page.element("minify").click();
+  assert.equal(page.text("output-title"), "压缩");
+  assert.equal(page.text("output-text"),
+    '{"msg":"\\u4efb\\u52a1 \\u5b58\\u5728","path":"/work/demo/Job.php"}');
+  assert.equal(page.text("status"), "已压缩为单行，写在右侧；左侧原文未改动。");
+
+  page.element("preserve-escapes").click();
+  assert.equal(page.element("preserve-escapes").attrs["aria-pressed"], "false");
+  assert.equal(page.text("output-text"),
+    '{"msg":"任务 存在","path":"/work/demo/Job.php"}');
+  assert.equal(page.element("editor").value, escaped, "the original is untouched");
+}
+
 // Broken JSON: the parse position is explained, the entry's text is kept
-// verbatim so the user can still edit it, and nothing is invented.
+// verbatim on the left, and the right pane stays empty rather than inventing
+// a document.
 {
   const page = await open();
   const broken = '{"a": 1,\n "b": 2,\n oops}';
@@ -218,6 +264,7 @@ const FORMATTED =
   await until(() => page.text("status").startsWith("无法排版："), "parse failure");
   assert.match(page.text("status"), /^无法排版：第 \d+ 行第 \d+ 列/);
   assert.equal(page.element("editor").value, broken);
+  assert.equal(page.element("output").dataset.state, "empty");
 }
 
 // An empty entry is explained, not parsed, and nothing can be copied.
@@ -230,36 +277,39 @@ const FORMATTED =
   assert.deepEqual(page.copyRequests(), []);
 }
 
-// The four derived actions and the beautify action: minify rewrites the
-// editor, format restores Prettier's layout, and escape, XML and TypeScript
-// write only the result panel. Copying the result is still a host request.
+// Beautify, minify, escape, XML and TypeScript all write the right pane; the
+// original pane keeps the delivered text through every one of them. Copying a
+// result is still a host request.
 {
   const page = await open();
   page.deliver({ kind: "text", title: "示例", text: SOURCE });
-  await until(() => page.text("status") === "", "in-page formatting");
+  await until(() => page.text("output-title") === "美化", "in-page formatting");
+  assert.equal(page.text("output-text"), FORMATTED);
 
   page.element("minify").click();
-  assert.equal(page.element("editor").value, JSON.stringify(json(SOURCE)));
-  assert.equal(page.text("status"), "已压缩为单行 JSON。");
-  assert.equal(page.element("output").dataset.state, "empty");
-  assert.equal(page.element("copy-output").disabled, true);
+  assert.equal(page.text("output-title"), "压缩");
+  assert.equal(page.text("output-text"), JSON.stringify(json(SOURCE)));
+  assert.equal(page.text("status"), "已压缩为单行，写在右侧；左侧原文未改动。");
+  assert.equal(page.element("editor").value, SOURCE, "the original is untouched");
 
   page.element("format").click();
-  await until(() => page.text("status") === "已按 Prettier 排版。", "beautify");
-  assert.equal(page.element("editor").value, FORMATTED);
+  await until(() => page.text("status") === "已在右侧排版；左侧原文未改动。",
+    "beautify");
+  assert.equal(page.text("output-title"), "美化");
+  assert.equal(page.text("output-text"), FORMATTED);
 
   page.element("escape").click();
   assert.equal(page.element("output").dataset.state, "filled");
   assert.equal(page.element("copy-output").disabled, false);
   assert.equal(page.text("output-title"), "转义结果");
-  assert.equal(page.text("output-text"), JSON.stringify(FORMATTED));
-  assert.equal(page.element("editor").value, FORMATTED, "derived, not rewritten");
+  assert.equal(page.text("output-text"), JSON.stringify(SOURCE));
+  assert.equal(page.element("editor").value, SOURCE, "derived, not rewritten");
 
   page.element("to-xml").click();
   assert.equal(page.text("output-title"), "XML");
   assert.match(page.text("output-text"), /^<root>/);
   assert.match(page.text("output-text"), /<name>MyPaste<\/name>/);
-  assert.equal(page.element("editor").value, FORMATTED, "derived, not rewritten");
+  assert.equal(page.element("editor").value, SOURCE, "derived, not rewritten");
 
   page.element("to-ts").click();
   assert.equal(page.text("output-title"), "TypeScript");
@@ -267,7 +317,7 @@ const FORMATTED =
   assert.match(page.text("output-text"), /name: string;/);
   assert.match(page.text("output-text"), /count: number;/);
   assert.match(page.text("output-text"), /items: \(number \| null \| string\)\[\];/);
-  assert.equal(page.element("editor").value, FORMATTED, "derived, not rewritten");
+  assert.equal(page.element("editor").value, SOURCE, "derived, not rewritten");
 
   const derived = page.text("output-text");
   page.element("copy-output").click();
@@ -278,7 +328,8 @@ const FORMATTED =
 }
 
 // The filter bar: member access, a leading-dot array filter, a syntax error
-// and a dangerous key. The evaluated document never changes the editor.
+// and a dangerous key. The evaluated document lands on the right and never
+// changes the original.
 {
   const page = await open();
   const document = JSON.stringify({
@@ -289,14 +340,14 @@ const FORMATTED =
     ],
   });
   page.deliver({ kind: "text", title: "用户", text: document });
-  await until(() => page.text("status") === "", "in-page formatting");
+  await until(() => page.text("output-title") === "美化", "in-page formatting");
   const original = page.element("editor").value;
 
   page.element("filter").value = "data.users[0].name";
   page.element("filter-run").click();
   assert.equal(page.text("output-title"), "过滤结果");
   assert.equal(page.text("output-text"), "Ada");
-  assert.equal(page.text("status"), "已对当前 JSON 求值；原数据未改动。");
+  assert.equal(page.text("status"), "已对当前 JSON 求值，写在右侧；左侧原文未改动。");
 
   page.element("filter").value = ".users.filter(x => x.age > 18).map(x => x.name)";
   page.element("filter").dispatch("keydown", {
@@ -314,43 +365,51 @@ const FORMATTED =
   assert.equal(page.element("editor").value, original, "filter never mutates");
 }
 
-// Paste recognition: URL parameters, XML and YAML become formatted JSON; a
-// document the page cannot convert is inserted verbatim with the reason.
+// Paste recognition: URL parameters, XML and YAML become JSON on the right,
+// and a document the page cannot convert lands there verbatim with the reason.
+// The original pane is never written.
 {
   const page = await open();
+  const original = page.element("editor").value;
 
   page.paste("name=MyPaste&count=2&tag=a&tag=b");
-  await until(() => page.text("status").startsWith("已把粘贴的"), "URL params");
-  assert.equal(page.text("status"), "已把粘贴的 URL 参数 转为 JSON 并排版。");
-  assert.deepEqual(json(page.element("editor").value), {
+  await until(() => page.text("output-title") === "粘贴 · URL 参数", "URL params");
+  assert.equal(page.text("status"),
+    "已把粘贴的 URL 参数 转为 JSON，写在右侧；左侧原文未改动。");
+  assert.deepEqual(json(page.text("output-text")), {
     name: "MyPaste", count: "2", tag: ["a", "b"],
   });
+  assert.equal(page.element("editor").value, original);
 
   page.paste("<root><name>MyPaste</name><count>2</count></root>");
-  await until(() => page.text("status") === "已把粘贴的 XML 转为 JSON 并排版。",
-    "XML");
-  assert.deepEqual(json(page.element("editor").value), {
+  await until(() => page.text("output-title") === "粘贴 · XML", "XML");
+  assert.equal(page.text("status"),
+    "已把粘贴的 XML 转为 JSON，写在右侧；左侧原文未改动。");
+  assert.deepEqual(json(page.text("output-text")), {
     root: { name: "MyPaste", count: "2" },
   });
 
   page.paste("name: MyPaste\ncount: 2\nitems:\n  - alpha\n  - beta\n");
-  await until(() => page.text("status") === "已把粘贴的 YAML 转为 JSON 并排版。",
-    "YAML");
-  assert.deepEqual(json(page.element("editor").value), {
+  await until(() => page.text("output-title") === "粘贴 · YAML", "YAML");
+  assert.equal(page.text("status"),
+    "已把粘贴的 YAML 转为 JSON，写在右侧；左侧原文未改动。");
+  assert.deepEqual(json(page.text("output-text")), {
     name: "MyPaste", count: 2, items: ["alpha", "beta"],
   });
 
-  page.element("editor").value = "";
   page.paste("<root><a></root>");
   await until(() => page.text("status").startsWith("识别为 XML，但转换失败："),
     "failed conversion");
-  assert.match(page.text("status"), /已原样插入。$/);
-  assert.equal(page.element("editor").value, "<root><a></root>");
+  assert.match(page.text("status"), /粘贴内容原样放在右侧，左侧原文未改动。$/);
+  assert.equal(page.text("output-title"), "粘贴内容");
+  assert.equal(page.text("output-text"), "<root><a></root>");
 
-  page.element("editor").value = "";
   page.paste("just some words");
-  await until(() => page.text("status").includes("已原样插入"), "unrecognized");
-  assert.equal(page.element("editor").value, "just some words");
+  await until(() => page.text("status").startsWith("不是可识别的"), "unrecognized");
+  assert.match(page.text("status"), /粘贴内容原样放在右侧，左侧原文未改动。$/);
+  assert.equal(page.text("output-title"), "粘贴内容");
+  assert.equal(page.text("output-text"), "just some words");
+  assert.equal(page.element("editor").value, original, "paste never writes the original");
 }
 
 console.log("json surface page: ok");
@@ -411,7 +470,7 @@ class JSONSurfacePageTest(unittest.TestCase):
         manifest = json.loads(
             (PACKAGE / "mypaste.plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["manifestVersion"], 3)
-        self.assertEqual(manifest["version"], "3.3.0")
+        self.assertEqual(manifest["version"], "3.3.1")
         self.assertEqual(manifest["capabilities"], ["entity.read"])
         self.assertNotIn("runtime", manifest)
         self.assertNotIn("commands", manifest)

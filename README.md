@@ -147,12 +147,13 @@ declaration fails the build instead of shipping.
 `com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view`,
 `com.mypaste.image-edit`, `com.mypaste.json` and `com.mypaste.timestamp` ship a
 page of their own. Code-edit additionally ships a runtime and internal commands
-for its built-in formatting (3.3.0). Json (3.3.0) is surface-only: Prettier's
+for its built-in formatting (3.3.0). Json (3.3.1) is surface-only: Prettier's
 standalone build plus the babel and estree plugins are bundled into the page,
 so it formats, converts and filters in the document with no Node and no
-runtime. Its workbench is two columns: the original JSON is editable on the
-left and every derived document (escape, XML, TypeScript, a filter result)
-lands in the right pane, so the source is never covered by its result. The
+runtime. Its workbench is two columns: the entry as it arrived sits read-only on
+the left, and every result (beautify on open, minify, escape, XML, TypeScript, a
+filter result, a paste conversion) lands in the right pane, so the original is
+never rewritten and never covered by its own result. The
 host reads a surface document up to 1 MiB (D-1091 in the host
 repository), which the built page fits. The other four run no process:
 
@@ -175,7 +176,7 @@ repository), which the built page fits. The other four run no process:
 `chrome` is optional, and only an `open` surface may set `"page"`: the page
 draws the whole card, so the host hides its own header and footer and the page
 closes through the bridge's `close` request. Omitting it keeps the host card
-(`"host"`). Code-edit (3.7.2), diff-view (3.2.2) and json (3.3.0) declare
+(`"host"`). Code-edit (3.7.2), diff-view (3.2.2) and json (3.3.1) declare
 `"page"`; image-edit and timestamp keep the host card.
 
 The host serves the page to a sandboxed frame and mediates reading this
@@ -190,9 +191,13 @@ editor toolbar and no host-drawn document action row (host D-1065, D-1068).
 Each page draws its own controls. Code-edit's page, for example, draws a
 GitHub-style editor chrome: an editable title tab, a toolbar with two dropdowns
 (语言 and 格式化) plus copy and save icons, a line-number gutter and a status
-bar. Diff-view and json reuse that chrome, each with its own actions in the
-toolbar: the language badge plus copy and save for the comparison, the 格式化
-dropdown, the filter box and copy for the JSON editor. The 格式化 dropdown
+bar. Diff-view reuses that chrome for its own actions: the language badge plus
+copy and save. Json keeps the same band but flattens it into one row of icons —
+beautify, minify, escape as string, XML, TypeScript and copy — and ends the row
+with the 保留转义 chip, which decides whether the right pane reads `\uXXXX` and
+`\/` as characters or re-derives them in the escaped spelling; its expression
+field sits in the original pane's
+head. The 格式化 dropdown
 turns the registry into a flat menu, and the 语言
 dropdown picks the tokenizer and the built-in operations. The menu always
 carries the editor's own built-in operations for
@@ -375,16 +380,21 @@ a Go module that both `com.mypaste.sql` and the code-edit runtime `replace` to
 the same source tree, so the two packages compile and ship the same analyzer,
 formatter and compressor rather than drifting apart.
 
-`com.mypaste.json` is surface-only (3.3.0): the archive is its manifest and one
-`preview.html`, and no process runs. The page is an editable JSON editor;
-Prettier's standalone build with the babel and estree plugins is bundled into
-it, so beautifying never leaves the document and needs no Node. The host reads
+`com.mypaste.json` is surface-only (3.3.1): the archive is its manifest and one
+`preview.html`, and no process runs. The page shows the entry read-only on the
+left and writes every result to the right; Prettier's standalone build with the
+babel and estree plugins is bundled into
+it, so beautifying never leaves the document and needs no Node. Prettier keeps
+whatever escapes the source spelled, so the page shapes them itself: `\uXXXX`
+and `\/` read as characters, and the 保留转义 chip re-derives the right pane in
+the escaped spelling instead. The host reads
 surface documents up to 1 MiB (D-1091 in the host repository), which the built
-page fits. Pasting URL parameters, XML or YAML converts to JSON in the page;
-minify, escape, JSON→XML and JSON→TypeScript write a derived result panel, and
-the toolbar's filter box evaluates a small JavaScript subset (member access,
+page fits. Pasting URL parameters, XML or YAML, minify, escape, JSON→XML and
+JSON→TypeScript all write that result pane, and
+the filter box in the original pane's head evaluates a small JavaScript subset
+(member access,
 indexing, array methods, comparisons, a leading-dot shorthand) against the
-current JSON. The page holds no database or file access and makes no network
+entry. The page holds no database or file access and makes no network
 request; copying is a `copy` bridge message the host performs.
 
 Supply chain: Prettier 3.6.2 is the only third-party library in this package
