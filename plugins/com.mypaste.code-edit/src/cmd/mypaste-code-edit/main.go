@@ -31,7 +31,7 @@ import (
 	"time"
 
 	builtinformat "github.com/zhanghuid/mypaste-code-extensions/plugins/com.mypaste.code-edit/src/internal/format"
-	"github.com/zhanghuid/mypaste-code-extensions/shared/sqlkit"
+	"github.com/zhanghuid/mypaste-code-extensions/plugins/com.mypaste.code-edit/src/internal/sqlkit"
 )
 
 const (
@@ -310,9 +310,9 @@ func findTool(name string) string {
 	return ""
 }
 
-// formatSQL runs the shared sqlkit engine in process. It is the same
-// implementation com.mypaste.sql ships, so both packages format SQL the same
-// way.
+// formatSQL runs this package's own sqlkit engine in process. The editor
+// ships its SQL scanner, diagnostics and layout; no other extension takes
+// part.
 func formatSQL(text string, compress bool, settings map[string]any) (string, error) {
 	dialect := sqlkit.ParseDialect(settings["dialect"])
 	analysis, err := sqlkit.Analyze(text, dialect)

@@ -562,21 +562,21 @@ commands with no `placement` and `output: ["text"]`. Protocol v3 exposes those
 commands only to the package's own surface; they never appear in the command
 palette or another surface's registry. The runtime speaks the same newline
 JSON protocol as a v2 process on stdin/stdout. Formatting runs inside the
-compiled binary: Go uses `go/format`, JSON `encoding/json`, SQL the shared
-`sqlkit` package, CSS a brace-aware re-indenter, and the remaining languages a
-whitespace normalizer that never re-nests indentation. No gofmt, rustfmt, php,
-python3, tidy, shfmt or Prettier CLI is looked up on the machine, so every
-command works on a machine with no formatter installed. When Node happens to
-exist, the runtime may use the archive's own helper scripts instead: the
-reviewed `js_format.mjs` (from `shared/`, which a test keeps byte-identical)
-and a pinned Prettier 3.6.2 standalone build for CSS and YAML
-(`engines/prettier/`, MIT, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md));
-without Node the in-process engines answer. Request text travels on stdin,
-never through a shell, and the runtime reads nothing outside its own directory.
-SQL has one compiled owner: `shared/sqlkit` is a Go module that the code-edit
-runtime `replace`s to the source tree, so the editor's SQL formatting keeps one
-analysis rather than drifting. The SQL workspace does not compile it: its page
-carries the equivalent TypeScript scanner and layout.
+compiled binary: Go uses `go/format`, JSON `encoding/json`, SQL its own
+`internal/sqlkit` package, CSS a brace-aware re-indenter, and the remaining
+languages a whitespace normalizer that never re-nests indentation. No gofmt,
+rustfmt, php, python3, tidy, shfmt or Prettier CLI is looked up on the machine,
+so every command works on a machine with no formatter installed. When Node
+happens to exist, the runtime may use the archive's own helper scripts instead:
+the reviewed `js_format.mjs` and a pinned Prettier 3.6.2 standalone build for
+CSS and YAML (`engines/prettier/`, MIT, see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)); without Node the in-process
+engines answer. Request text travels on stdin, never through a shell, and the
+runtime reads nothing outside its own directory. Every engine is built from
+this package's source: `internal/sqlkit` is the editor's SQL scanner,
+diagnostics and layout, and no `replace` or import reaches another extension.
+The SQL workspace does not compile it either: its page carries its own
+TypeScript scanner and layout, because extensions share no code.
 
 `com.mypaste.json` is surface-only (3.5.1): the archive is its manifest and one
 `preview.html`, and no process runs. The page holds the entry on the left and

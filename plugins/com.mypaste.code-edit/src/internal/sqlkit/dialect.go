@@ -1,11 +1,10 @@
-// Package sqlkit turns SQL text into bounded highlight tokens, structural
-// diagnostics and formatted output for the com.mypaste.sql extension.
+// Package sqlkit turns SQL text into bounded tokens, structural diagnostics
+// and formatted output for the code-edit runtime.
 //
 // Lexing belongs to chroma (the mainstream Go syntax-highlighting library);
-// this package only maps its token stream onto the closed kind set the host
-// render protocol accepts, derives diagnostics from that same stream, and
-// lays the stream out again for formatting. It never executes SQL and never
-// returns HTML or CSS.
+// this package maps its token stream onto a closed kind set, derives
+// diagnostics from that same stream, and lays the stream out again for
+// formatting. It never executes SQL and never returns HTML or CSS.
 package sqlkit
 
 import (

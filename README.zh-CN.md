@@ -440,18 +440,17 @@ SQL Server、Oracle PL/SQL、BigQuery）上色，同一份 token 流给出括号
 格式化命令。协议 v3 只让本包自己的表面看到这些命令；它们不会出现在 Cmd+K
 命令面板或其他表面的注册表里。runtime 在 stdin/stdout 上使用与 v2 进程相同
 的逐行 JSON 协议。格式化在编译进 runtime 的代码里完成：Go 用 `go/format`，
-JSON 用 `encoding/json`，SQL 用共享的 `sqlkit`，CSS 用按花括号层级重排的
-缩进器，其余语言只整理换行与行尾空白、绝不重排缩进层级。运行时不会在机器上
-查找 gofmt、rustfmt、php、python3、tidy、shfmt 或 Prettier CLI，因此本机没有
-安装任何格式化工具也能用。若本机恰好有 Node，runtime 可以改用归档自带的
-辅助脚本：经过审查的 `js_format.mjs`（从 `shared/` 复制，测试保证逐字节一致）
-与 CSS、YAML 用的固定版本 Prettier 3.6.2 standalone 构建
-（`engines/prettier/`，MIT，见
+JSON 用 `encoding/json`，SQL 用本包自己的 `internal/sqlkit`，CSS 用按花括号
+层级重排的缩进器，其余语言只整理换行与行尾空白、绝不重排缩进层级。运行时不会
+在机器上查找 gofmt、rustfmt、php、python3、tidy、shfmt 或 Prettier CLI，因此
+本机没有安装任何格式化工具也能用。若本机恰好有 Node，runtime 可以改用归档
+自带的辅助脚本：经过审查的 `js_format.mjs` 与 CSS、YAML 用的固定版本
+Prettier 3.6.2 standalone 构建（`engines/prettier/`，MIT，见
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）；没有 Node 时由内置引擎
 回答。请求文本只走 stdin，从不经过 shell，runtime 也不读取自己目录以外的
-任何文件。SQL 只有一个编译版所有者：`shared/sqlkit` 是一个 Go 模块，
-code-edit runtime `replace` 到源码树，编辑器的 SQL 格式化因此只有一份分析，
-不会漂移；SQL 工作区不编译它，它的页面自带等价的 TypeScript 扫描器与排版。
+任何文件。每个引擎都由本包源码编译而来：`internal/sqlkit` 是编辑器的 SQL
+扫描、诊断与排版，没有任何 `replace` 或 import 指向别的扩展。SQL 工作区也
+不编译它：页面自带 TypeScript 扫描器与排版，因为扩展之间不共享代码。
 
 `com.mypaste.json` 是纯表面包（3.5.1）：归档里只有 manifest 与一份
 `preview.html`，不运行任何进程。页面左侧是条目原文，每一步结果写在右侧；两侧

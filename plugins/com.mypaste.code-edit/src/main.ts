@@ -498,8 +498,8 @@ function closeMenu(name: MenuName | "any" = "any"): void {
  * as `["text"]`; D-1081 records the conflation host-side. Until the wire
  * carries declaredness, the protocol's fixed command ids (`format`,
  * `compress`) are the observable difference. A `highlight` command stays out:
- * it returns render tokens, not text (com.mypaste.sql), and highlighting is a
- * page concern here. Placement is filtered before this test, so the host's own
+ * it returns render tokens, not text, and highlighting is a page concern
+ * here. Placement is filtered before this test, so the host's own
  * placements never become page actions.
  */
 function isTextCapability(command: SurfaceCommand): boolean {

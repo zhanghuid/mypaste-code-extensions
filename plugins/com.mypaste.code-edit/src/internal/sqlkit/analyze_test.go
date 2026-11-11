@@ -6,8 +6,8 @@ import (
 )
 
 // joined asserts the render invariant: the token texts reconstruct the input
-// byte for byte. The host and the page both verify this, so the extension
-// must hold it on every input it accepts.
+// byte for byte. The formatter copies those tokens, so the engine must hold
+// it on every input it accepts.
 func joined(tokens []Token) string {
 	var out strings.Builder
 	for _, token := range tokens {

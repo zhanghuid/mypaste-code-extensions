@@ -870,24 +870,40 @@ class PackageTests(unittest.TestCase):
                 self.assertTrue(payload["ok"], (command, payload))
                 self.assertEqual(payload["result"]["output"], expected, command)
 
-    def test_shared_engines_have_one_owner(self) -> None:
-        # The private copy is the shipping asset; its source stays in shared/
-        # so the editor cannot drift from the reviewed engine. The Python
-        # predecessors are gone from code-edit: formatting now runs in the Go
-        # binary.
-        self.assertEqual(
-            (PLUGINS / "com.mypaste.code-edit" / "src" / "engines" / "js_format.mjs").read_bytes(),
-            (ROOT / "shared" / "js_format.mjs").read_bytes(),
-            "engines/js_format.mjs",
-        )
-        # SQL has exactly one compiled implementation: the code-edit runtime
-        # compiles the shared sqlkit package through a local replace. The SQL
-        # workspace is a surface-only page with its own scanner, so it carries
-        # no Go module at all.
+    def test_each_package_owns_the_engines_it_ships(self) -> None:
+        # Extensions share no code. Every engine an archive ships is built from
+        # that package's own src/, because one extension's release must never
+        # change another extension's behaviour; a repository-wide shared/ tree
+        # would make exactly that possible, so there is none. The one
+        # repository-wide replace left is com.mypaste.ferry's test-only link to
+        # servers/mypaste-relay, which is not an extension.
+        self.assertFalse((ROOT / "shared").exists(), "shared/")
+        for module in sorted(PLUGINS.glob("*/src/go.mod")):
+            text = module.read_text(encoding="utf-8")
+            self.assertNotIn("shared/", text, str(module))
+            for target in re.findall(r"^replace\s+\S+\s*=>\s*(\S+)", text, re.MULTILINE):
+                self.assertNotIn(
+                    "plugins/", target,
+                    f"{module}: an extension may not compile another extension ({target})",
+                )
+
+        # The editor's only compiled SQL implementation lives inside its own
+        # module: internal/sqlkit. It is not a shared module and no replace
+        # points at another tree.
+        code_edit = PLUGINS / "com.mypaste.code-edit" / "src"
+        self.assertTrue((code_edit / "internal" / "sqlkit" / "dialect.go").is_file())
+        go_mod = (code_edit / "go.mod").read_text(encoding="utf-8")
+        self.assertIn("/plugins/com.mypaste.code-edit/src", go_mod)
+        self.assertNotIn("replace", go_mod)
+
+        # Both Node helpers ship from the editor's own engines/ directory.
+        for name in ("js_format.mjs", "prettier.mjs"):
+            self.assertTrue((code_edit / "engines" / name).is_file(), name)
+
+        # The SQL workspace is a surface-only page with its own TypeScript
+        # scanner and layout, so it carries no Go module and imports nothing
+        # from the editor.
         self.assertFalse((PLUGINS / "com.mypaste.sql" / "src" / "go.mod").exists())
-        go_mod = (PLUGINS / "com.mypaste.code-edit" / "src" / "go.mod").read_text(encoding="utf-8")
-        self.assertIn("shared/sqlkit", go_mod, "com.mypaste.code-edit")
-        self.assertIn("=> ../../../shared/sqlkit", go_mod, "com.mypaste.code-edit")
 
     def test_dist_index_is_deterministic(self) -> None:
         build_packages()
