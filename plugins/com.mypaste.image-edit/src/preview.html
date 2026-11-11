@@ -196,7 +196,7 @@
 
   .zoom { display: grid; grid-template-columns: 30px 1fr 30px auto; gap: 6px; align-items: center; }
   .zoom button {
-    padding: 5px 0;
+    padding: 5px 8px;
     border: 1px solid var(--im-line);
     background: var(--im-bg);
     color: var(--im-ink);
@@ -204,7 +204,16 @@
     cursor: pointer;
   }
   .zoom button:disabled { opacity: 0.4; cursor: default; }
-  .zoom button[aria-pressed="true"] { border-color: var(--im-accent); color: var(--im-accent); }
+  /*
+   * The selected zoom mode is a filled chip, like the active tool in the rail.
+   * An accent outline alone sat next to the row's own borders and read as a
+   * focus ring rather than as "this mode is on".
+   */
+  .zoom button[aria-pressed="true"] {
+    border-color: transparent;
+    background: var(--im-accent);
+    color: var(--im-accent-ink);
+  }
   .zoom output { text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; }
 
   .actions { display: grid; gap: 6px; margin-top: auto; }
@@ -224,7 +233,20 @@
     background: var(--im-accent);
     color: var(--im-accent-ink);
   }
-  .actions button.ghost { border-color: transparent; background: transparent; color: var(--im-muted); font-weight: 500; }
+  /*
+   * Close is the quiet action, but a control with neither fill nor border read
+   * as plain text in the app: it keeps its outline and only its ink steps back.
+   */
+  .actions button.ghost {
+    border-color: var(--im-line);
+    background: transparent;
+    color: var(--im-muted);
+    font-weight: 500;
+  }
+  .actions button.ghost:hover:not(:disabled) {
+    border-color: var(--im-accent);
+    color: var(--im-ink);
+  }
   .actions button:focus-visible,
   .rail-group button:focus-visible,
   .tool-rail button:focus-visible { outline: 2px solid var(--im-focus); outline-offset: 2px; }
