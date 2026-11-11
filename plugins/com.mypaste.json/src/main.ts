@@ -45,6 +45,7 @@ const editorGutter = one<HTMLElement>("#editor-gutter");
 const editorHighlight = one<HTMLElement>("#editor-highlight");
 const editorLint = one<HTMLElement>("#editor-lint");
 const preserveToggle = one<HTMLButtonElement>("#preserve-escapes");
+const wrapToggle = one<HTMLButtonElement>("#wrap-toggle");
 const formatButton = one<HTMLButtonElement>("#format");
 const minifyButton = one<HTMLButtonElement>("#minify");
 const foldButton = one<HTMLButtonElement>("#fold");
@@ -78,6 +79,8 @@ let writeToken = 0;
 let previewTimer: ReturnType<typeof setTimeout> | null = null;
 /** Whether the document keeps the wire spelling of escapes (see `escape.ts`). */
 let preserveEscapes = false;
+/** Whether long lines wrap inside the panes; on by default. */
+let wrapping = true;
 /** The action the result pane follows from the entry; `null` when it is its own. */
 let active: ActionName | null = null;
 /** The last pasted conversion, kept so the toggle can re-shape its result. */
@@ -109,6 +112,64 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
   bridge.close();
 });
+
+/**
+ * How many visual rows each logical line occupies once the pane wraps.
+ *
+ * The coloured copy is the same text in the same box as the textarea, so its
+ * line boxes are the pane's: a Range over one logical line reports a rect per
+ * visual row, and rects that share a top belong to spans on the same row. The
+ * gutter prints a number on the first row and leaves the rest blank, so the
+ * numbers stay beside the lines they name. Without layout (a test stub, a
+ * hidden pane) each line counts once.
+ */
+function wrappedRows(target: HTMLElement, text: string): number[] {
+  const lines = text.split("\n");
+  const rows = lines.map(() => 1);
+  if (typeof document.createRange !== "function" || lines.length > 4000) {
+    return rows;
+  }
+  const nodes: Node[] = [];
+  const collect = (node: Node): void => {
+    node.childNodes.forEach((child) => {
+      if (child.nodeType === 3) nodes.push(child);
+      else collect(child);
+    });
+  };
+  collect(target);
+  if (nodes.length === 0) return rows;
+
+  const locate = (offset: number): { node: Node; offset: number } | null => {
+    let remaining = offset;
+    for (const node of nodes) {
+      const length = node.textContent?.length ?? 0;
+      if (remaining <= length) return { node, offset: remaining };
+      remaining -= length;
+    }
+    return null;
+  };
+
+  const range = document.createRange();
+  let cursor = 0;
+  for (let line = 0; line < lines.length; line += 1) {
+    const length = lines[line]!.length;
+    const start = locate(cursor);
+    const end = locate(cursor + length);
+    if (start !== null && end !== null) {
+      range.setStart(start.node, start.offset);
+      range.setEnd(end.node, end.offset);
+      const tops = new Set<number>();
+      const rects = range.getClientRects();
+      for (let index = 0; index < rects.length; index += 1) {
+        const rect = rects.item(index);
+        if (rect !== null) tops.add(Math.round(rect.top));
+      }
+      if (tops.size > 1) rows[line] = tops.size;
+    }
+    cursor += length + 1; // the newline belongs to no line
+  }
+  return rows;
+}
 
 interface CodePane {
   readonly input: HTMLTextAreaElement;
@@ -142,20 +203,28 @@ function codePane(
 ): CodePane {
   function paintGutter(diagnostic: Diagnostic | null): void {
     const lines = input.value.split("\n").length;
+    const occupied = wrapping ? wrappedRows(highlight, input.value) : null;
     const errorLine = diagnostic === null
       ? 0
       : positionOf(input.value, diagnostic.start).line;
     const fragment = document.createDocumentFragment();
+    let printed = false;
     for (let line = 1; line <= lines; line += 1) {
-      if (line > 1) fragment.append(document.createTextNode("\n"));
-      if (line !== errorLine) {
-        fragment.append(document.createTextNode(String(line)));
-        continue;
+      const height = occupied?.[line - 1] ?? 1;
+      for (let row = 0; row < height; row += 1) {
+        if (printed) fragment.append(document.createTextNode("\n"));
+        printed = true;
+        // A wrapped line is numbered once; the rows below it stay blank.
+        if (row > 0) continue;
+        if (line !== errorLine) {
+          fragment.append(document.createTextNode(String(line)));
+          continue;
+        }
+        const marked = document.createElement("span");
+        marked.className = "gutter-line is-error";
+        marked.textContent = String(line);
+        fragment.append(marked);
       }
-      const marked = document.createElement("span");
-      marked.className = "gutter-line is-error";
-      marked.textContent = String(line);
-      fragment.append(marked);
     }
     gutter.replaceChildren(fragment);
     gutter.scrollTop = input.scrollTop;
@@ -223,6 +292,27 @@ function codePane(
 
 const sourcePane = codePane(editor, editorHighlight, editorGutter, editorLint, "json");
 const resultPane = codePane(outputInput, outputText, outputGutter, outputLint, "json");
+
+/**
+ * Applies the wrap state to both panes: the textarea's `wrap` attribute, the
+ * document root's `data-wrap` (which the stylesheet keys the coloured copy
+ * off), and a repaint so the gutter numbers follow the new line heights.
+ */
+function setWrapping(next: boolean): void {
+  wrapping = next;
+  wrapToggle.setAttribute("aria-pressed", String(next));
+  document.documentElement.dataset.wrap = next ? "on" : "off";
+  for (const pane of [sourcePane, resultPane]) {
+    pane.input.setAttribute("wrap", next ? "soft" : "off");
+    if (next) pane.input.scrollLeft = 0;
+    pane.render();
+    pane.sync();
+  }
+}
+wrapToggle.addEventListener("click", () => {
+  setWrapping(!wrapping);
+});
+setWrapping(true);
 
 function setStatus(text: string): void {
   status.textContent = text;

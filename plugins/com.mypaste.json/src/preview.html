@@ -355,8 +355,15 @@
     padding: 14px 16px;
     border: 0;
     font: 12.5px/1.65 var(--mono);
-    white-space: pre;
+    /* Wrapping is the default; the head's toggle turns it off (§ wrap). */
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
     tab-size: 2;
+  }
+  :root[data-wrap="off"] .highlight,
+  :root[data-wrap="off"] .code-input {
+    white-space: pre;
+    overflow-wrap: normal;
   }
   .highlight {
     overflow: hidden;
@@ -618,6 +625,16 @@
           <path d="M3.5 10.5v-7h7" fill="none" stroke="currentColor" stroke-width="1.4"/>
         </svg>
       </button>
+      <button type="button" class="doc-toggle" id="wrap-toggle" aria-pressed="true"
+        title="长行在面板内自动换行；关闭后横向滚动" aria-label="自动换行">
+        <svg class="check" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2.8 3.8h10.4M2.8 8h7.4a2.1 2.1 0 0 1 0 4.2H7.6" fill="none"
+            stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M9.2 10.4 7.4 12.2l1.8 1.8" fill="none" stroke="currentColor"
+            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>自动换行</span>
+      </button>
       <button type="button" class="doc-toggle" id="preserve-escapes" aria-pressed="false"
         title="非 ASCII 字符保持 \uXXXX 写法，不还原为字符" aria-label="保留转义">
         <svg class="check" viewBox="0 0 16 16" aria-hidden="true">
@@ -651,7 +668,7 @@
         <div class="code-surface">
           <pre class="highlight" id="editor-highlight" aria-hidden="true"></pre>
           <textarea class="code-input" id="editor" spellcheck="false" autocomplete="off"
-            autocapitalize="off" wrap="off" aria-label="原始 JSON（可编辑）"
+            autocapitalize="off" wrap="soft" aria-label="原始 JSON（可编辑）"
             aria-describedby="editor-lint"></textarea>
         </div>
       </div>
@@ -676,7 +693,7 @@
           <div class="code-surface">
             <pre class="highlight" id="output-text" aria-hidden="true"></pre>
             <textarea class="code-input" id="output-input" spellcheck="false" autocomplete="off"
-              autocapitalize="off" wrap="off" aria-label="转换结果（可编辑）"
+              autocapitalize="off" wrap="soft" aria-label="转换结果（可编辑）"
               aria-describedby="output-lint"></textarea>
           </div>
         </div>

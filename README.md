@@ -504,10 +504,14 @@ a Go module that both `com.mypaste.sql` and the code-edit runtime `replace` to
 the same source tree, so the two packages compile and ship the same analyzer,
 formatter and compressor rather than drifting apart.
 
-`com.mypaste.json` is surface-only (3.5.0): the archive is its manifest and one
+`com.mypaste.json` is surface-only (3.5.1): the archive is its manifest and one
 `preview.html`, and no process runs. The page holds the entry on the left and
 every result on the right, and both panes are the same surface: editable, with
-line numbers and syntax colour. The right pane previews the left one: editing
+line numbers and syntax colour. Long lines wrap inside the pane by default
+(the head's 自动换行 chip turns wrapping off and brings back horizontal
+scrolling; a wrapped line is numbered once and its continuation rows stay
+blank, so the gutter still names the line). The right pane previews the left
+one: editing
 the entry re-derives the chosen result after a short pause, and a hand edit on
 the right makes it its own document until an action is chosen again. Both panes
 lint what they hold at the position of the problem — the wrong token is

@@ -92,8 +92,8 @@ class ElementStub {
 const IDS = ["summary", "status", "editor", "meta", "copy-json", "doc-close",
              "format", "minify", "fold", "to-xml", "to-ts", "output",
              "output-title", "output-meta", "output-text", "copy-output",
-             "filter", "filter-run", "preserve-escapes", "editor-gutter",
-             "editor-highlight", "editor-lint", "output-gutter",
+             "filter", "filter-run", "preserve-escapes", "wrap-toggle",
+             "editor-gutter", "editor-highlight", "editor-lint", "output-gutter",
              "output-input", "output-lint"];
 const PAGE = path.join(process.argv[2], "page.mjs");
 
@@ -316,6 +316,28 @@ const FORMATTED =
   assert.equal(page.text("summary"), "当前条目");
   assert.equal(page.element("copy-json").disabled, true);
   assert.deepEqual(page.copyRequests(), []);
+}
+
+// Both panes wrap their text by default. The head's toggle flips the two
+// textareas and the coloured copies together and brings wrapping back.
+{
+  const page = await open();
+  const toggle = page.element("wrap-toggle");
+  assert.equal(toggle.attrs["aria-pressed"], "true");
+  assert.equal(page.element("editor").attrs.wrap, "soft");
+  assert.equal(page.element("output-input").attrs.wrap, "soft");
+  assert.equal(document.documentElement.dataset.wrap, "on");
+
+  toggle.click();
+  assert.equal(toggle.attrs["aria-pressed"], "false");
+  assert.equal(page.element("editor").attrs.wrap, "off");
+  assert.equal(page.element("output-input").attrs.wrap, "off");
+  assert.equal(document.documentElement.dataset.wrap, "off");
+
+  toggle.click();
+  assert.equal(toggle.attrs["aria-pressed"], "true");
+  assert.equal(page.element("editor").attrs.wrap, "soft");
+  assert.equal(document.documentElement.dataset.wrap, "on");
 }
 
 // Beautify, minify, fold, XML and TypeScript all write the right pane; the
@@ -676,7 +698,7 @@ class JSONSurfacePageTest(unittest.TestCase):
         manifest = json.loads(
             (PACKAGE / "mypaste.plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["manifestVersion"], 3)
-        self.assertEqual(manifest["version"], "3.5.0")
+        self.assertEqual(manifest["version"], "3.5.1")
         self.assertEqual(manifest["capabilities"], ["entity.read"])
         self.assertNotIn("runtime", manifest)
         self.assertNotIn("commands", manifest)
