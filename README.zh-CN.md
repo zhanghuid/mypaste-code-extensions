@@ -424,14 +424,17 @@ manifest 与一个可执行文件。
 页面只经 `settings.data` 与宿主往来；选文件、检查归档与所有写入都在宿主侧
 完成。页面字节就是应用内嵌的那份，所以从扩展市场安装后它仍是随包扩展。
 
-`com.mypaste.sql`——SQL 工具包扩展（4.0.0）——是纯表面包：归档里只有
+`com.mypaste.sql`——SQL 工具包扩展（4.1.0）——是纯表面包：归档里只有
 manifest 与一份 `preview.html`，不运行任何进程。页面为 `text` 条目打开并
 拥有整个工作区：扫描器为七种方言（ANSI、PostgreSQL、MySQL、SQLite、
 SQL Server、Oracle PL/SQL、BigQuery）上色，同一份 token 流给出括号与子句
-顺序诊断，工具栏选择方言、关键字大小写与缩进宽度。格式化按子句、连接与
-子查询重排；压缩去掉注释并把空白折叠成一行，原样保留字符串、引号标识符与
-`/*+ */` 优化器提示。页面从不执行 SQL、不联网、也不写回条目；复制是经
-`clipboard.write` 的宿主请求。引擎（`src/dialect.ts`、`tokenize.ts`、
+顺序诊断，工具栏选择方言、关键字大小写与缩进宽度。美化让放得下的子句留在
+一行，放不下时在逗号、AND/OR 与子句头断行——连接短语、`IN`/`VALUES` 列表
+与窗口子句保持完整——多分支的 `CASE` 打开成 `WHEN` 行。压缩去掉注释并把
+空白折叠成一行，原样保留字符串、引号标识符与 `/*+ */` 优化器提示。长行
+默认在面板内自动换行，工具栏的换行开关可以关掉它改用横向滚动。页面从不
+执行 SQL、不联网、也不写回条目；复制是经 `clipboard.write` 的宿主请求。
+引擎（`src/dialect.ts`、`tokenize.ts`、
 `analyze.ts`、`format.ts`、`compress.ts`）由 `scripts/build-surfaces.mjs`
 打进页面。归档里没有二进制，也没有 `go.mod`。
 

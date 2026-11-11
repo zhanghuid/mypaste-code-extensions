@@ -542,15 +542,19 @@ the host only through `settings.data`; picking files, inspecting archives and
 every write stay on the host side. The page bytes are the ones the app embeds,
 so installing this package from the marketplace leaves it first-party.
 
-`com.mypaste.sql` — the SQL toolkit extension (4.0.0) — is surface-only: the
+`com.mypaste.sql` — the SQL toolkit extension (4.1.0) — is surface-only: the
 archive is its manifest and one `preview.html`, and no process runs. The page
 opens for a `text` entry and owns the whole workspace: the scanner paints
 seven dialects (ANSI, PostgreSQL, MySQL, SQLite, SQL Server, Oracle PL/SQL and
 BigQuery), the same token stream yields bracket and clause-order findings, and
-the toolbar chooses the dialect, keyword case and indent width. Formatting
-lays clauses, joins and subqueries out; compression removes comments and folds
-whitespace onto one line while preserving string literals, quoted identifiers
-and `/*+ */` optimizer hints. The page never executes SQL, never opens a
+the toolbar chooses the dialect, keyword case and indent width. Beautifying
+keeps a clause on one line while it fits, then breaks it at its commas,
+AND/OR and clause heads — join phrases, `IN`/`VALUES` lists and window
+clauses keep their shape — and a multi-branch `CASE` opens into `WHEN` rows.
+Compression removes comments and folds whitespace onto one line while
+preserving string literals, quoted identifiers and `/*+ */` optimizer hints.
+Long lines wrap inside the pane by default; the toolbar's wrap toggle turns
+that off for horizontal scrolling. The page never executes SQL, never opens a
 network connection and never writes the entry; copying is a host request
 through `clipboard.write`, and the engine (`src/dialect.ts`, `tokenize.ts`,
 `analyze.ts`, `format.ts`, `compress.ts`) is bundled into the page by

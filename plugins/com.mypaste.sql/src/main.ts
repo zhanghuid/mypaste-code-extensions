@@ -40,6 +40,7 @@ const position = one<HTMLSpanElement>("#position");
 const formatButton = one<HTMLButtonElement>("#format");
 const compressButton = one<HTMLButtonElement>("#compress");
 const copyButton = one<HTMLButtonElement>("#copy");
+const wrapToggle = one<HTMLButtonElement>("#wrap-toggle");
 const closeButton = one<HTMLButtonElement>("#close");
 
 const bridge = connectSurface();
@@ -56,6 +57,10 @@ let current: Analysis = { tokens: [], diagnostics: [] };
 let previousText: string | null = null;
 let scheduled = 0;
 let renderedLines = 0;
+let renderedOccupancy = "";
+
+/** Whether long lines wrap inside the pane; on by default. */
+let wrapping = true;
 
 const raf: (callback: FrameRequestCallback) => number =
   typeof requestAnimationFrame === "function"
@@ -124,23 +129,89 @@ function renderHighlight(text: string): void {
   highlight.replaceChildren(fragment);
 }
 
+/**
+ * How many visual rows each logical line occupies once the pane wraps.
+ *
+ * The painted copy is the same text in the same box as the textarea, so its
+ * line boxes are the pane's: a Range over one logical line reports a rect per
+ * visual row, and rects that share a top belong to spans on the same row. The
+ * gutter prints a number on the first row and stretches it over the rest, so
+ * the numbers stay beside the lines they name. Without layout (a test stub, a
+ * hidden pane) each line counts once.
+ */
+function wrappedRows(target: HTMLElement, text: string): number[] {
+  const lines = text.split("\n");
+  const rows = lines.map(() => 1);
+  if (typeof document.createRange !== "function" || lines.length > 4000) {
+    return rows;
+  }
+  const nodes: Node[] = [];
+  const collect = (node: Node): void => {
+    node.childNodes.forEach((child) => {
+      if (child.nodeType === 3) nodes.push(child);
+      else collect(child);
+    });
+  };
+  collect(target);
+  if (nodes.length === 0) return rows;
+
+  const locate = (offset: number): { node: Node; offset: number } | null => {
+    let remaining = offset;
+    for (const node of nodes) {
+      const length = node.textContent?.length ?? 0;
+      if (remaining <= length) return { node, offset: remaining };
+      remaining -= length;
+    }
+    return null;
+  };
+
+  const range = document.createRange();
+  let cursor = 0;
+  for (let index = 0; index < lines.length; index += 1) {
+    const length = lines[index]!.length;
+    const start = locate(cursor);
+    const end = locate(cursor + length);
+    if (start !== null && end !== null) {
+      range.setStart(start.node, start.offset);
+      range.setEnd(end.node, end.offset);
+      const tops = new Set<number>();
+      const rects = range.getClientRects();
+      for (let rectIndex = 0; rectIndex < rects.length; rectIndex += 1) {
+        const rect = rects.item(rectIndex);
+        if (rect !== null) tops.add(Math.round(rect.top));
+      }
+      if (tops.size > 1) rows[index] = tops.size;
+    }
+    cursor += length + 1; // the newline belongs to no line
+  }
+  return rows;
+}
+
 function renderGutter(text: string): void {
   const lineCount = text.split("\n").length;
   const marks = errorLines(current);
-  if (lineCount !== renderedLines) {
+  const occupancy = wrapping
+    ? wrappedRows(highlight, text).join(",")
+    : "";
+  if (lineCount !== renderedLines || occupancy !== renderedOccupancy) {
+    const rows = wrapping ? wrappedRows(highlight, text) : null;
     const fragment = document.createDocumentFragment();
     for (let line = 1; line <= lineCount; line += 1) {
       const row = document.createElement("div");
       row.className = marks.has(line) ? "gutter-line error" : "gutter-line";
       row.textContent = String(line);
+      if (rows !== null && rows[line - 1]! > 1) {
+        row.style.height = `${rows[line - 1]! * 21}px`;
+      }
       fragment.append(row);
     }
     gutterInner.replaceChildren(fragment);
     renderedLines = lineCount;
+    renderedOccupancy = occupancy;
   } else {
-    const rows = gutterInner.children;
+    const gutterRows = gutterInner.children;
     for (let line = 1; line <= lineCount; line += 1) {
-      const row = rows.item(line - 1);
+      const row = gutterRows.item(line - 1);
       if (row === null) continue;
       row.className = marks.has(line) ? "gutter-line error" : "gutter-line";
     }
@@ -234,6 +305,21 @@ function offsetOf(line: number, column: number): number {
   return index;
 }
 
+/**
+ * Applies the wrap state: the textarea's `wrap` attribute, the root's
+ * `data-wrap` (which the stylesheet keys the painted copy to) and a fresh
+ * render, because the gutter's rows now occupy a different height.
+ */
+function setWrapping(next: boolean): void {
+  wrapping = next;
+  wrapToggle.setAttribute("aria-pressed", String(next));
+  document.documentElement.dataset.wrap = next ? "on" : "off";
+  editor.setAttribute("wrap", next ? "soft" : "off");
+  renderedLines = 0;
+  renderedOccupancy = "";
+  render();
+}
+
 function runFormat(): void {
   if (editor.value.trim() === "") return;
   const analysis = analyzeSql(editor.value, currentDialect());
@@ -247,10 +333,10 @@ function runFormat(): void {
     parseFormatOptions(keywordCase.value, indent.value),
   );
   if (next === editor.value) {
-    setStatus("已经是格式化后的样子");
+    setStatus("已经是美化后的样子");
     return;
   }
-  replaceText(next, "已格式化");
+  replaceText(next, "已美化");
 }
 
 function runCompress(): void {
@@ -289,6 +375,7 @@ compressButton.addEventListener("click", runCompress);
 copyButton.addEventListener("click", () => {
   void runCopy();
 });
+wrapToggle.addEventListener("click", () => setWrapping(!wrapping));
 closeButton.addEventListener("click", () => bridge.close());
 
 dialectSelect.addEventListener("change", () => {
@@ -337,5 +424,13 @@ bridge.onItem(({ item }) => {
   else editor.focus();
 });
 
+// The host never sees a key pressed inside this frame, so Esc is the page's
+// own: it closes the surface through the bridge (D-1097).
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  bridge.close();
+});
+
 setStatus("就绪");
-render();
+setWrapping(true);

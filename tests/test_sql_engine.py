@@ -150,25 +150,67 @@ assert.deepEqual([positionOf("a\nbc", 3), positionOf("😀x", 2), positionOf("",
 ]);
 checks.push("diagnostics are rune-positioned and ordered for the status line");
 
-// Formatting: clause lines, comma breaks, join and condition breaks, case,
-// indent width, tight operators, and stable on a second pass.
+// Beautifying: a clause stays on one line while it fits, then breaks at its
+// commas, AND/OR and clause heads; join phrases, IN/VALUES lists and window
+// clauses keep their shape; a wide CASE opens into WHEN rows; a second pass
+// changes nothing.
 assert.equal(
   format("select a.id,a.name, sum(o.total) as total from accounts a left join orders o on o.account_id=a.id where a.deleted_at is null and o.total>100 group by a.id,a.name order by total desc limit 10;", "upper"),
-  "SELECT a.id,\n  a.name,\n  SUM(o.total) AS total\nFROM accounts a LEFT\n" +
-  "JOIN orders o\nON o.account_id = a.id\nWHERE a.deleted_at IS null\n" +
-  "  AND o.total > 100\nGROUP BY a.id,\n  a.name\nORDER BY total DESC\nLIMIT 10;",
+  "SELECT a.id, a.name, SUM(o.total) AS total\n" +
+  "FROM accounts a\nLEFT JOIN orders o ON o.account_id = a.id\n" +
+  "WHERE a.deleted_at IS null AND o.total > 100\n" +
+  "GROUP BY a.id, a.name\nORDER BY total DESC\nLIMIT 10;",
 );
 assert.equal(format("select a, b from t where x=1 and y=2", "upper", "4"),
-  "SELECT a,\n    b\nFROM t\nWHERE x = 1\n    AND y = 2");
+  "SELECT a, b\nFROM t\nWHERE x = 1 AND y = 2");
 assert.equal(format("select a from t", "lower", "8"), "select a\nfrom t");
 assert.equal(format("select a from t", "nonsense", "3"), "select a\nfrom t");
 assert.equal(format("select a::text, b->>c, d #>> e, x?|y from t", "preserve", "2", "postgresql"),
-  "select a::text,\n  b->>c,\n  d#>>e,\n  x ?| y\nfrom t");
+  "select a::text, b->>c, d#>>e, x ?| y\nfrom t");
+// A wide WHERE breaks at AND with one indent; a wide select list at commas;
+// wide function arguments one per line, closing bracket on its own row.
+assert.equal(
+  format("select a from t where x = 1 and y = 2 and z = 3 and w = 4 and v = 5 and u = 6 and long_column_name_here = 7 and another_long_column = 8"),
+  "select a\nfrom t\nwhere x = 1\n  and y = 2\n  and z = 3\n  and w = 4\n  and v = 5\n" +
+  "  and u = 6\n  and long_column_name_here = 7\n  and another_long_column = 8");
+assert.equal(
+  format("select first_column, second_column, third_column_with_long_name, fourth_column, fifth_column, sixth_column from t"),
+  "select first_column,\n  second_column,\n  third_column_with_long_name,\n" +
+  "  fourth_column,\n  fifth_column,\n  sixth_column\nfrom t");
+assert.equal(
+  format("select coalesce(first_value, second_value, third_value, fourth_value, fifth_value, sixth_value, seventh_value) as merged from t"),
+  "select coalesce(\n  first_value,\n  second_value,\n  third_value,\n" +
+  "  fourth_value,\n  fifth_value,\n  sixth_value,\n  seventh_value\n) as merged\nfrom t");
+// Join phrases stay whole; IN and VALUES lists keep their space; COUNT sits
+// tight; AND after BETWEEN stays inline; INSERT INTO keeps the column list
+// spaced; a multi-branch CASE opens into rows, a fitting one stays inline.
+assert.equal(format("select a from t1 left outer join t2 on t1.x = t2.x cross join t3"),
+  "select a\nfrom t1\nleft outer join t2 on t1.x = t2.x\ncross join t3");
+assert.equal(format("select * from t where id in (1, 2) and name in ('a', 'b')"),
+  "select *\nfrom t\nwhere id in (1, 2) and name in ('a', 'b')");
+assert.equal(format("insert into users (id, name) values (1, 'a'), (2, 'b')"),
+  "insert into users (id, name)\nvalues (1, 'a'), (2, 'b')");
+assert.equal(format("select count(*) from t"), "select count(*)\nfrom t");
+assert.equal(format("select a from t where x between 1 and 10 and y = 2"),
+  "select a\nfrom t\nwhere x between 1 and 10 and y = 2");
+assert.equal(
+  format("select case when a = 1 then 'one' when a = 2 then 'two' else 'other' end as label from t"),
+  "select case\n  when a = 1 then 'one'\n  when a = 2 then 'two'\n  else 'other'\nend as label\nfrom t");
+assert.equal(format("select x = case when a then b else c end from t"),
+  "select x = case when a then b else c end\nfrom t");
+// A fitting subquery and window clause stay on the line that holds them.
 const subquery = format("select * from (select a from t where b=1) s join u on u.id=s.a");
 assert.equal(subquery,
-  "select *\nfrom (\n  select a\n  from t\n  where b = 1\n) s\njoin u\non u.id = s.a");
+  "select *\nfrom (select a from t where b = 1) s\njoin u on u.id = s.a");
 assert.equal(format(subquery), subquery);
-checks.push("formatting lays out clauses, joins and subqueries at the chosen width");
+assert.equal(format("select count(*) over (partition by dept order by hired) as rank from staff"),
+  "select count(*) over (partition by dept order by hired) as rank\nfrom staff");
+// CTEs sit one per row once the WITH list breaks at its commas.
+assert.equal(
+  format("with a as (select 1 as x, 2 as y, 3 as z, 4 as w, 5 as v, 6 as u, 7 as t2, 8 as s), b as (select 2 as y) select * from a join b on a.x = b.y"),
+  "with a as (select 1 as x, 2 as y, 3 as z, 4 as w, 5 as v, 6 as u, 7 as t2, 8 as s),\n" +
+  "  b as (select 2 as y)\nselect *\nfrom a\njoin b on a.x = b.y");
+checks.push("beautifying keeps fitting clauses whole and breaks wide ones at their joints");
 
 // Compressing keeps strings and hints, drops other comments, and only adds a
 // space where two units would merge.
