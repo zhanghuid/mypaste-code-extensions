@@ -58,6 +58,12 @@ OFFICIAL = {
         "goos": "darwin",
         "goarch": "arm64",
     },
+    "com.mypaste.calculator": {
+        # A surface-only scratch sheet: the page evaluates every row in the
+        # document, and copying or saving still goes through the host. No
+        # process runs and nothing leaves the machine.
+        "surface": True,
+    },
     "com.mypaste.code-card": {
         "surface": True,
     },
@@ -124,19 +130,10 @@ OFFICIAL = {
         "goos": "darwin",
         "goarch": "arm64",
     },
+    # The SQL workspace is a surface-only package: its scanner, diagnostics,
+    # formatter and compressor live in the page, so no process runs and the
+    # archive carries one HTML document.
     "com.mypaste.sql": {
-        "module": "plugins/com.mypaste.sql/src",
-        "entrypoint": "sql",
-        "package": "./cmd/mypaste-sql",
-        "assets": [],
-        # One binary per platform the host may ever run on; the layout the
-        # host resolves through is bin/<goos>-<goarch>/<entrypoint>.
-        "targets": [
-            {"goos": "darwin", "goarch": "arm64"},
-            {"goos": "darwin", "goarch": "amd64"},
-            {"goos": "linux", "goarch": "amd64"},
-            {"goos": "linux", "goarch": "arm64"},
-            {"goos": "windows", "goarch": "amd64"},
-        ],
+        "surface": True,
     },
 }

@@ -94,7 +94,7 @@ class PackageTests(unittest.TestCase):
         )
         packaging.validate_target(
             {"id": "highlight", "forms": ["text"]},
-            "com.mypaste.sql",
+            "com.mypaste.code-edit",
         )
         invalid = [
             {"id": "format"},
@@ -262,12 +262,9 @@ class PackageTests(unittest.TestCase):
         """
         pure_capabilities = [
             package for package in PLUGINS.iterdir()
-            if package.is_dir() and (
-                package.name.startswith("mypaste.format-")
-                or package.name == "com.mypaste.sql"
-            )
+            if package.is_dir() and package.name.startswith("mypaste.format-")
         ]
-        self.assertEqual(len(pure_capabilities), 9)
+        self.assertEqual(len(pure_capabilities), 8)
         for package in sorted(pure_capabilities):
             manifest = json.loads(
                 (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
@@ -428,15 +425,15 @@ class PackageTests(unittest.TestCase):
         sys.path.insert(0, str(ROOT / "scripts"))
         import official_packages  # noqa: E402
 
-        spec = official_packages.OFFICIAL["com.mypaste.sql"]
+        spec = official_packages.OFFICIAL["com.mypaste.sync"]
         archive = next(
-            path for path in DIST.glob("com.mypaste.sql-*.mypaste-plugin")
+            path for path in DIST.glob("com.mypaste.sync-*.mypaste-plugin")
         )
         with zipfile.ZipFile(archive) as bundle:
             names = bundle.namelist()
         expected = {
             f"bin/{target['goos']}/{target['goarch']}/"
-            + ("sql.exe" if target["goos"] == "windows" else "sql")
+            + ("sync.exe" if target["goos"] == "windows" else "sync")
             for target in spec["targets"]
         }
         self.assertEqual(expected, expected & set(names))
@@ -606,6 +603,39 @@ class PackageTests(unittest.TestCase):
 
             entry = by_id[plugin_id]
             self.assertEqual(entry["runtimeProtocol"], 0, plugin_id)
+
+    def test_sql_workspace_is_a_surface_only_package(self) -> None:
+        # The SQL workspace moved from a Go capability to a page: the scanner,
+        # the diagnostics, the formatter and the compressor all run inside the
+        # document, so the package declares no runtime and no commands, and the
+        # archive holds exactly the manifest and one page.
+        build_packages()
+        package = PLUGINS / "com.mypaste.sql"
+        manifest = json.loads(
+            (package / "mypaste.plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["kind"], "ui")
+        self.assertEqual(manifest["surface"], {
+            "entry": "preview.html",
+            "forms": ["text"],
+            "role": "open",
+            "chrome": "page",
+        })
+        self.assertNotIn("runtime", manifest)
+        self.assertNotIn("commands", manifest)
+        self.assertEqual(manifest["capabilities"], ["entity.read", "clipboard.write"])
+        self.assertFalse((package / "src" / "go.mod").exists())
+
+        archive = DIST / f"{manifest['id']}-{manifest['version']}.mypaste-plugin"
+        with zipfile.ZipFile(archive) as bundle:
+            names = sorted(bundle.namelist())
+            self.assertEqual(names, ["mypaste.plugin.json", "preview.html"])
+            page = bundle.read("preview.html")
+        self.assertNotIn(b"<!--bundle-->", page)
+        self.assertIn(b"<script>", page)
+        self.assertLessEqual(len(page), 1 << 20)
+        index = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
+        entry = next(item for item in index["packages"] if item["id"] == manifest["id"])
+        self.assertEqual(entry["runtimeProtocol"], 0)
 
     def test_menu_page_package_ships_its_pages_and_no_binary(self) -> None:
         # A settings-window menu page has no surface and no runtime: the
@@ -850,12 +880,14 @@ class PackageTests(unittest.TestCase):
             (ROOT / "shared" / "js_format.mjs").read_bytes(),
             "engines/js_format.mjs",
         )
-        # SQL has exactly one implementation: both modules compile the shared
-        # sqlkit package through a local replace.
-        for module in ("plugins/com.mypaste.sql/src", "plugins/com.mypaste.code-edit/src"):
-            go_mod = (ROOT / module / "go.mod").read_text(encoding="utf-8")
-            self.assertIn("shared/sqlkit", go_mod, module)
-            self.assertIn("=> ../../../shared/sqlkit", go_mod, module)
+        # SQL has exactly one compiled implementation: the code-edit runtime
+        # compiles the shared sqlkit package through a local replace. The SQL
+        # workspace is a surface-only page with its own scanner, so it carries
+        # no Go module at all.
+        self.assertFalse((PLUGINS / "com.mypaste.sql" / "src" / "go.mod").exists())
+        go_mod = (PLUGINS / "com.mypaste.code-edit" / "src" / "go.mod").read_text(encoding="utf-8")
+        self.assertIn("shared/sqlkit", go_mod, "com.mypaste.code-edit")
+        self.assertIn("=> ../../../shared/sqlkit", go_mod, "com.mypaste.code-edit")
 
     def test_dist_index_is_deterministic(self) -> None:
         build_packages()

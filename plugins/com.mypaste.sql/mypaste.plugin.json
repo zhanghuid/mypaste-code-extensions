@@ -1,96 +1,20 @@
 {
   "manifestVersion": 3,
+  "kind": "ui",
   "id": "com.mypaste.sql",
   "name": "SQL Toolkit",
-  "version": "3.1.2",
-  "kind": "command",
-  "description": "SQL 语法高亮、语法错误提示、格式化与压缩：七种方言，跨平台官方包；失败时回退内置高亮、不写剪贴板。",
+  "version": "4.0.0",
+  "description": "七种方言的 SQL 工作区：语法高亮、括号与子句顺序诊断、格式化与压缩都在页面内完成，不执行 SQL、不联网；方言、关键字大小写与缩进随页面切换，复制由宿主写入剪贴板。",
   "capabilities": [
-    "entity.read"
+    "entity.read",
+    "clipboard.write"
   ],
-  "runtime": {
-    "protocolVersion": 2,
-    "mode": "command",
-    "entrypoint": "sql"
-  },
-  "commands": [
-    {
-      "id": "highlight",
-      "title": "高亮 SQL",
-      "description": "返回方言感知的语法 token 与语法错误提示；失败时 MyPaste 自动回退内置高亮。",
-      "forms": [
-        "text"
-      ],
-      "capabilities": [
-        "entity.read"
-      ]
-    },
-    {
-      "id": "format",
-      "title": "格式化 SQL",
-      "description": "按方言排版 SQL；有语法错误时不写剪贴板并报告位置。",
-      "forms": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ],
-      "capabilities": [
-        "entity.read"
-      ]
-    },
-    {
-      "id": "compress",
-      "title": "压缩 SQL",
-      "description": "去掉注释并把空白折叠成一行，保留字符串、引号标识符与优化器提示；有语法错误时不写剪贴板并报告位置。",
-      "forms": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ],
-      "capabilities": [
-        "entity.read"
-      ]
-    }
-  ],
-  "settings": [
-    {
-      "key": "dialect",
-      "type": "enum",
-      "title": "SQL 方言",
-      "values": [
-        "ansi",
-        "postgresql",
-        "mysql",
-        "sqlite",
-        "tsql",
-        "plsql",
-        "bigquery"
-      ],
-      "default": "ansi"
-    },
-    {
-      "key": "keywordcase",
-      "type": "enum",
-      "title": "关键字大小写",
-      "values": [
-        "preserve",
-        "upper",
-        "lower"
-      ],
-      "default": "preserve"
-    },
-    {
-      "key": "indent",
-      "type": "enum",
-      "title": "缩进宽度",
-      "values": [
-        "2",
-        "4",
-        "8"
-      ],
-      "default": "4"
-    }
-  ]
+  "surface": {
+    "entry": "preview.html",
+    "forms": [
+      "text"
+    ],
+    "role": "open",
+    "chrome": "page"
+  }
 }

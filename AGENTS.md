@@ -18,7 +18,8 @@ plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
     `role` is `open` (the target of "open this entity") or `preview` (drawn
     into the dock's card preview). A page may also ship a runtime and internal
     commands (code-edit); protocol v3 lets only that package's own surface
-    reach them. Json is surface-only and bundles its formatter into the page.
+    reach them. Json and SQL are surface-only and bundle their engine into the
+    page.
   - **settings-window menu page** — a manifest `menus` entry (or several) plus
     the page each `entry` names, copied verbatim: no surface, no runtime
     (com.mypaste.data-settings).
@@ -27,7 +28,7 @@ plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
   original input on failure and must never execute user code; the host never
   writes their answer to the clipboard. Syntax highlighting is no longer a
   capability package: the code-edit and code-card surfaces render it with their
-  own tokenizers, and `com.mypaste.sql` still returns SQL tokens.
+  own tokenizers (the SQL workspace is such a surface).
 - Every manifest is `manifestVersion: 3`. Every command declares non-empty
   `forms` (a subtree of the host's entity tree: `text`/`plain`/`rich`, `link`,
   `color`, `media`/`image`/`audio`/`video`, `file`/`document`/`archive`/

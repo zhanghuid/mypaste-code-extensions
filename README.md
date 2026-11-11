@@ -31,8 +31,8 @@ This repository holds:
   packaged by `scripts/package.py` from plain source; see the language table
   below.
 - **Binary capability packages** (`plugins/com.mypaste.ferry`,
-  `plugins/com.mypaste.sql`, `plugins/com.mypaste.link-mime`) — compiled Go
-  programs built by `scripts/build-official.py`.
+  `plugins/com.mypaste.link-mime`) — compiled Go programs built by
+  `scripts/build-official.py`.
 - **Settings-page packages** (`plugins/com.mypaste.sync`,
   `plugins/com.mypaste.data-settings`) — a hand-written `panel.html`, plus a
   compiled Go runtime for sync; built by `scripts/build-official.py`.
@@ -44,11 +44,11 @@ This repository holds:
 - **Surface packages** (`plugins/com.mypaste.code-card`,
   `plugins/com.mypaste.code-edit`, `plugins/com.mypaste.diff-view`,
   `plugins/com.mypaste.image-edit`, `plugins/com.mypaste.json`,
-  `plugins/com.mypaste.timestamp`, `plugins/com.mypaste.link-inspector`) — a
-  page of their own; code-edit also ships a runtime with internal commands,
-  json bundles its engine into the page, link-inspector calls the link
-  detector through the registry and renders what it finds; see "Surface
-  packages" below.
+  `plugins/com.mypaste.sql`, `plugins/com.mypaste.timestamp`,
+  `plugins/com.mypaste.link-inspector`) — a page of their own; code-edit also
+  ships a runtime with internal commands, json and sql bundle their engines
+  into the page, link-inspector calls the link detector through the registry
+  and renders what it finds; see "Surface packages" below.
 - **Official packages** (`plugins/com.mypaste.*`) — the binaries and surfaces
   above, built by `scripts/build-official.py`; see "Official packages" below.
   `scripts/official_packages.py` is the single owner of the list;
@@ -74,9 +74,8 @@ the clipboard. It cannot read history, use files, reach the network, or spawn
 arbitrary commands. It declares no `placement`, so the host never shows it
 directly: a surface integrates it through the registry, and a language is the
 package's own internal concept — the host never infers one. Syntax highlighting
-is no longer a capability package: the code-edit and code-card surfaces render
-it with their own tokenizers (see "Surface packages"), and `com.mypaste.sql`
-still returns SQL tokens.
+is no longer a capability package: the code-edit, code-card and SQL surfaces
+render it with their own tokenizers (see "Surface packages").
 
 ## Manifest version 3
 
@@ -359,8 +358,8 @@ a language without keywords) stay in the menu disabled rather than
 disappearing. Today the host fills an omitted
 output from `forms`, so a token command also arrives as text; code-edit still
 filters the protocol's fixed `highlight` id out of the format list (a
-`highlight` command returns render tokens, not text — `com.mypaste.sql`) and
-treats `format` / `compress` as text until the wire carries declaredness.
+`highlight` command returns render tokens, not text) and treats `format` /
+`compress` as text until the wire carries declaredness.
 
 - `{v: 1, type: "registry", requestId, forms}` → `{v: 1, type: "result",
   requestId, ok, commands: [{pluginId, commandId, title, description?,
@@ -496,18 +495,19 @@ the host only through `settings.data`; picking files, inspecting archives and
 every write stay on the host side. The page bytes are the ones the app embeds,
 so installing this package from the marketplace leaves it first-party.
 
-`com.mypaste.sql` — the SQL toolkit extension (syntax highlighting, syntax
-diagnostics, formatting and compression for seven dialects, lexed by
-[chroma](https://github.com/alecthomas/chroma)) — ships as a compiled binary
-too. It is a pure capability: it exposes `highlight`, `format` and `compress`
-commands and has no UI. Compression removes comments and folds whitespace onto
-one line while preserving string literals, quoted identifiers and `/*+ */`
-optimizer hints; a syntax error refuses the result instead of writing it. Its
-Go source lives in `plugins/com.mypaste.sql/src/` (own `go.mod`); the archive
-contains only the manifest and the built binaries, never the source tree. Its
-spec declares a `targets` list, so the archive nests one binary per platform
-under `bin/<goos>/<goarch>/` (`.exe` on windows); the host resolves the declared
-entrypoint through that layout (D-1057 in the host repository).
+`com.mypaste.sql` — the SQL toolkit extension (4.0.0) — is surface-only: the
+archive is its manifest and one `preview.html`, and no process runs. The page
+opens for a `text` entry and owns the whole workspace: the scanner paints
+seven dialects (ANSI, PostgreSQL, MySQL, SQLite, SQL Server, Oracle PL/SQL and
+BigQuery), the same token stream yields bracket and clause-order findings, and
+the toolbar chooses the dialect, keyword case and indent width. Formatting
+lays clauses, joins and subqueries out; compression removes comments and folds
+whitespace onto one line while preserving string literals, quoted identifiers
+and `/*+ */` optimizer hints. The page never executes SQL, never opens a
+network connection and never writes the entry; copying is a host request
+through `clipboard.write`, and the engine (`src/dialect.ts`, `tokenize.ts`,
+`analyze.ts`, `format.ts`, `compress.ts`) is bundled into the page by
+`scripts/build-surfaces.mjs`. The archive holds no binary and no `go.mod`.
 
 `com.mypaste.code-edit` is a combined official package: `kind` is `"ui"`,
 it ships its page and a compiled runtime, and it declares internal formatting
@@ -525,10 +525,11 @@ reviewed `js_format.mjs` (from `shared/`, which a test keeps byte-identical)
 and a pinned Prettier 3.6.2 standalone build for CSS and YAML
 (`engines/prettier/`, MIT, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md));
 without Node the in-process engines answer. Request text travels on stdin,
-never through a shell, and the runtime reads nothing outside its own directory. SQL has one owner: `shared/sqlkit` is
-a Go module that both `com.mypaste.sql` and the code-edit runtime `replace` to
-the same source tree, so the two packages compile and ship the same analyzer,
-formatter and compressor rather than drifting apart.
+never through a shell, and the runtime reads nothing outside its own directory.
+SQL has one compiled owner: `shared/sqlkit` is a Go module that the code-edit
+runtime `replace`s to the source tree, so the editor's SQL formatting keeps one
+analysis rather than drifting. The SQL workspace does not compile it: its page
+carries the equivalent TypeScript scanner and layout.
 
 `com.mypaste.json` is surface-only (3.5.1): the archive is its manifest and one
 `preview.html`, and no process runs. The page holds the entry on the left and

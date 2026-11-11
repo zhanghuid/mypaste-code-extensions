@@ -218,9 +218,9 @@ emit({
   ] : [
     { pluginId: "mypaste.format-json", commandId: "format", title: "格式化 JSON", output: ["text"] },
     { pluginId: "mypaste.highlight-json", commandId: "highlight", title: "高亮 JSON" },
-    { pluginId: "com.mypaste.sql", commandId: "format", title: "格式化 SQL", output: ["text"] },
-    { pluginId: "com.mypaste.sql", commandId: "compress", title: "压缩 SQL", output: ["text"] },
-    { pluginId: "com.mypaste.sql", commandId: "highlight", title: "高亮 SQL" },
+    // An external formatter for the same language the built-ins own, under a
+    // third-party id: it must be listed as external, never shadow a built-in.
+    { pluginId: "com.example.sql-format", commandId: "format", title: "格式化 SQL", output: ["text"] },
     // A 0.26 host answers its own surface with this package's internal
     // commands too; the page must treat them as built-ins, never as external.
     { pluginId: "com.mypaste.code-edit", commandId: "format.sql", title: "格式化 SQL", output: ["text"], outputDeclared: true },
@@ -304,7 +304,7 @@ chooseLanguage("json");
 showFormat();
 assert.equal(menuButton("格式化文档").disabled, false);
 assert.equal(menuButton("格式化 JSON（外部：mypaste.format-json）"), undefined);
-assert.ok(menuButtons().some((button) => button.textContent.includes("格式化 SQL（外部：com.mypaste.sql）")));
+assert.ok(menuButtons().some((button) => button.textContent.includes("格式化 SQL（外部：com.example.sql-format）")));
 chooseLanguage("auto");
 hideFormat();
 checks.push("picking a language moves the built-in operation and keeps external sources distinct");

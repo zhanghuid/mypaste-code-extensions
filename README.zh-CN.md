@@ -27,7 +27,7 @@
 
 - **脚本能力包**（`plugins/mypaste.*`）——run-script 扩展，由
   `scripts/package.py` 从纯源码打包；语言表见下文。
-- **二进制能力包**（`plugins/com.mypaste.ferry`、`plugins/com.mypaste.sql`、
+- **二进制能力包**（`plugins/com.mypaste.ferry`、
   `plugins/com.mypaste.link-mime`）——编译后的 Go 程序，由
   `scripts/build-official.py` 构建。
 - **设置页包**（`plugins/com.mypaste.sync`、`plugins/com.mypaste.data-settings`）
@@ -35,10 +35,11 @@
   `scripts/build-official.py` 构建。
 - **表面包**（`plugins/com.mypaste.code-card`、`plugins/com.mypaste.code-edit`、
   `plugins/com.mypaste.diff-view`、`plugins/com.mypaste.image-edit`、
-  `plugins/com.mypaste.json`、`plugins/com.mypaste.timestamp`、
-  `plugins/com.mypaste.link-inspector`）——各自一个页面；code-edit 另带
-  runtime 与内部命令；json 把引擎打进页面；link-inspector 经注册表调用
-  链接识别能力并直接渲染链接；见下文「表面包」。
+  `plugins/com.mypaste.json`、`plugins/com.mypaste.sql`、
+  `plugins/com.mypaste.timestamp`、`plugins/com.mypaste.link-inspector`）——
+  各自一个页面；code-edit 另带 runtime 与内部命令；json 与 sql 把引擎打进
+  页面；link-inspector 经注册表调用链接识别能力并直接渲染链接；见下文
+  「表面包」。
 - **官方包**（`plugins/com.mypaste.*`）——上面的二进制与表面，由
   `scripts/build-official.py` 构建；见下文「官方包」。
   `scripts/official_packages.py` 是这份清单的唯一所有者；
@@ -62,8 +63,8 @@
 每个都只申请 `entity.read`。格式化返回文本，从不写剪贴板。它不能读历史、用
 文件、联网或执行任意命令。它不声明 `placement`，宿主因此从不直接展示：由
 表面通过注册表集成。语言是包自己的内部概念，宿主从不推断。语法高亮不再作为
-能力包存在：code-edit 与 code-card 两个表面用自己的分词器渲染（见「表面包」），
-`com.mypaste.sql` 仍返回 SQL token。
+能力包存在：code-edit、code-card 与 sql 三个表面用自己的分词器渲染（见
+「表面包」）。
 
 ## manifest 版本 3
 
@@ -187,7 +188,7 @@ Shell，外加 SQL 压缩——通过本包 runtime 以 `format.go`、`compress.
 语言里的关键字大小写）留在菜单里置灰，而不是消失。当前
 宿主会用 `forms` 补全缺省的 `output`，token 命令在线上也是文本；在线上出现
 「是否声明」之前，code-edit 仍把协议固定的 `highlight` id 挡在格式化列表之外
-（`highlight` 命令返回 render token 而非文本——`com.mypaste.sql`），并只把
+（`highlight` 命令返回 render token 而非文本），并只把
 `format` / `compress` 当作文本。
 
 - `{v: 1, type: "registry", requestId, forms}` → `{v: 1, type: "result",
@@ -387,15 +388,16 @@ manifest 与一个可执行文件。
 页面只经 `settings.data` 与宿主往来；选文件、检查归档与所有写入都在宿主侧
 完成。页面字节就是应用内嵌的那份，所以从扩展市场安装后它仍是随包扩展。
 
-`com.mypaste.sql`——SQL 工具包扩展（七方言的语法高亮、语法诊断、格式化与
-压缩，词法分析用 [chroma](https://github.com/alecthomas/chroma)）——同样以
-编译二进制交付。它是纯能力：只暴露 `highlight`、`format` 与 `compress`
-命令，没有 UI。压缩会去掉注释并把空白折叠成一行，原样保留字符串、引号标识符
-与 `/*+ */` 优化器提示；有语法错误时拒绝结果而不是写出去。它的 Go 源码在
-`plugins/com.mypaste.sql/src/`（独立 `go.mod`）；归档里只有 manifest 与构建
-出的二进制，绝无源码树。它的规格声明了 `targets` 列表，归档按平台在
-`bin/<goos>/<goarch>/` 下嵌套每平台一个二进制（Windows 为 `.exe`）；宿主按
-这个布局解析声明的入口（宿主 D-1057）。
+`com.mypaste.sql`——SQL 工具包扩展（4.0.0）——是纯表面包：归档里只有
+manifest 与一份 `preview.html`，不运行任何进程。页面为 `text` 条目打开并
+拥有整个工作区：扫描器为七种方言（ANSI、PostgreSQL、MySQL、SQLite、
+SQL Server、Oracle PL/SQL、BigQuery）上色，同一份 token 流给出括号与子句
+顺序诊断，工具栏选择方言、关键字大小写与缩进宽度。格式化按子句、连接与
+子查询重排；压缩去掉注释并把空白折叠成一行，原样保留字符串、引号标识符与
+`/*+ */` 优化器提示。页面从不执行 SQL、不联网、也不写回条目；复制是经
+`clipboard.write` 的宿主请求。引擎（`src/dialect.ts`、`tokenize.ts`、
+`analyze.ts`、`format.ts`、`compress.ts`）由 `scripts/build-surfaces.mjs`
+打进页面。归档里没有二进制，也没有 `go.mod`。
 
 `com.mypaste.code-edit` 是组合型官方包：`kind` 为 `"ui"`，同时交付
 页面与编译后的 runtime，并声明不带 `placement`、`output: ["text"]` 的内部
@@ -411,10 +413,9 @@ JSON 用 `encoding/json`，SQL 用共享的 `sqlkit`，CSS 用按花括号层级
 （`engines/prettier/`，MIT，见
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）；没有 Node 时由内置引擎
 回答。请求文本只走 stdin，从不经过 shell，runtime 也不读取自己目录以外的
-任何文件。SQL 只有一个所有者：
-`shared/sqlkit` 是一个 Go 模块，`com.mypaste.sql` 与 code-edit runtime 都
-`replace` 到同一份源码，因此两个包编译并交付同一套分析、格式化与压缩实现，
-不会各自漂移。
+任何文件。SQL 只有一个编译版所有者：`shared/sqlkit` 是一个 Go 模块，
+code-edit runtime `replace` 到源码树，编辑器的 SQL 格式化因此只有一份分析，
+不会漂移；SQL 工作区不编译它，它的页面自带等价的 TypeScript 扫描器与排版。
 
 `com.mypaste.json` 是纯表面包（3.5.1）：归档里只有 manifest 与一份
 `preview.html`，不运行任何进程。页面左侧是条目原文，每一步结果写在右侧；两侧
