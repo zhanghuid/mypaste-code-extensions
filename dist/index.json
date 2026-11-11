@@ -159,11 +159,11 @@
     {
       "id": "com.mypaste.image-edit",
       "name": "图片编辑",
-      "version": "3.0.1",
+      "version": "3.0.2",
       "kind": "ui",
       "description": "在本地裁剪、旋转、翻转、标注与马赛克，另存为新的图片条目或复制到剪贴板；原图保持不变。编辑只作用于宿主交给本次命令的那一张图片。",
-      "fileName": "com.mypaste.image-edit-3.0.1.mypaste-plugin",
-      "sha256": "4efab16ba18b6d224748ee613dccd632038188320f48732e231757bfc3d6fd1e",
+      "fileName": "com.mypaste.image-edit-3.0.2.mypaste-plugin",
+      "sha256": "390f72b4eb58197adbe8e1ddf25991e6d194e1463ad7e34865a33171399c4185",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },

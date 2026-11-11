@@ -180,9 +180,13 @@ class SurfaceDocumentTests(unittest.TestCase):
                 self.assertIn("bridge.close()", script)
 
     def test_bridges_mirror_host_tokens_as_mp_variables(self) -> None:
-        # The two documents that paint a full surface consume the tokens; the
-        # export card and the image editor keep their own fixed palettes.
-        for plugin_id in ("com.mypaste.diff-view", "com.mypaste.code-edit"):
+        # The full-surface documents consume the host's resolved tokens; only
+        # the export card keeps a palette of its own.
+        for plugin_id in (
+            "com.mypaste.diff-view",
+            "com.mypaste.code-edit",
+            "com.mypaste.image-edit",
+        ):
             bridge = PLUGINS / plugin_id / "src" / "bridge.ts"
             with self.subTest(package=plugin_id):
                 self.assertTrue(bridge.is_file(), plugin_id)
@@ -190,6 +194,33 @@ class SurfaceDocumentTests(unittest.TestCase):
                 self.assertIn('setProperty(`--mp-${name}`', script)
                 self.assertIn("data.tokens", script)
                 self.assertIn('typeof value === "string"', script)
+
+    def test_image_edit_paints_by_the_host_theme(self) -> None:
+        # The editor draws a whole surface inside the host card, so it follows
+        # the appearance chosen in MyPaste: the scheme arrives on `data-scheme`
+        # and every colour prefers the host's `--mp-*` value. Its own warm
+        # palette is the fallback for an older host, not a second theme, so no
+        # `prefers-color-scheme` rule may repaint it.
+        page = (PLUGINS / "com.mypaste.image-edit" / "src" / "preview.html").read_text(
+            encoding="utf-8")
+        self.assertIn(':root[data-scheme="dark"]', page)
+        self.assertNotIn("@media (prefers-color-scheme", page)
+        for token in ("surface-solid", "surface-raised", "ink", "ink-soft",
+                      "line", "accent", "accent-ink", "code-surface"):
+            with self.subTest(token=token):
+                self.assertIn(f"var(--mp-{token},", page)
+        # Corners come from the one ladder (host D-1099); a literal pixel
+        # radius is not one of its values.
+        radii = re.findall(r"border-radius:\s*([^;}]+)", page)
+        allowed = {
+            "50%", "var(--radius-xs)", "var(--radius-sm)",
+            "var(--radius-md)", "var(--radius-lg)", "var(--radius-pill)",
+        }
+        self.assertTrue(all(value.strip() in allowed for value in radii), radii)
+        for token in ("--radius-xs: 4px", "--radius-sm: 6px",
+                      "--radius-md: 10px", "--radius-lg: 14px",
+                      "--radius-pill: 999px"):
+            self.assertIn(token, page)
 
 
 if __name__ == "__main__":

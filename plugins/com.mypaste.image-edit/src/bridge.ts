@@ -52,6 +52,53 @@ function parseItem(data: unknown): SurfaceItem | null {
   return null;
 }
 
+/** The application's resolved colour scheme (D-1042). */
+type SurfaceScheme = "light" | "dark";
+
+/** Resolved host tokens; keys are the host's CSS names without `--` (D-1043). */
+type SurfaceTokens = Record<string, string>;
+
+interface ParsedTheme {
+  scheme: SurfaceScheme;
+  tokens: SurfaceTokens;
+}
+
+/** The only shape a token name may take once it is prefixed with `--mp-`. */
+const TOKEN_NAME = /^[a-z][a-z0-9-]*$/;
+
+/**
+ * parseTheme reads the scheme the host resolved from the application's
+ * appearance. The frame's own prefers-color-scheme follows the system, so it
+ * cannot answer this question on its own.
+ */
+function parseTheme(data: unknown): ParsedTheme | null {
+  if (!isRecord(data) || data.v !== 1 || data.type !== "theme") return null;
+  if (data.scheme !== "light" && data.scheme !== "dark") return null;
+  const tokens: SurfaceTokens = {};
+  if (isRecord(data.tokens)) {
+    for (const [name, value] of Object.entries(data.tokens)) {
+      if (typeof value === "string" && value !== "" && TOKEN_NAME.test(name)) {
+        tokens[name] = value;
+      }
+    }
+  }
+  return { scheme: data.scheme, tokens };
+}
+
+/**
+ * applyTheme writes the host's resolved values onto this document's root as
+ * `--mp-<name>` (D-1043). The stylesheet prefers those variables and keeps
+ * its own palette as the fallback, so an older host that sends no tokens still
+ * paints, and a new host repaints whenever the pair changes.
+ */
+function applyTheme(theme: ParsedTheme): void {
+  const root = document.documentElement;
+  root.dataset.scheme = theme.scheme;
+  for (const [name, value] of Object.entries(theme.tokens)) {
+    root.style.setProperty(`--mp-${name}`, value);
+  }
+}
+
 /**
  * connectSurface wires the bridge and tells the host the document is ready.
  * The host delivers the item only after that message, so nothing may be drawn
@@ -62,6 +109,11 @@ export function connectSurface(): SurfaceBridge {
   let itemListener: ((item: SurfaceItem) => void) | null = null;
   let nextRequest = 1;
   const pending = new Map<number, (result: BridgeResult) => void>();
+  // Until the host sends its theme, the system appearance is the best guess;
+  // a dark system with a light application would otherwise flash this page's
+  // light palette for the first frame.
+  document.documentElement.dataset.scheme =
+    window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 
   function settle(result: ResultMessage): void {
     const resolve = pending.get(result.requestId);
@@ -72,6 +124,11 @@ export function connectSurface(): SurfaceBridge {
 
   window.addEventListener("message", (event) => {
     if (event.source !== window.parent) return;
+    const theme = parseTheme(event.data);
+    if (theme) {
+      applyTheme(theme);
+      return;
+    }
     const parsed = parseItem(event.data);
     if (parsed) {
       if (item) return;

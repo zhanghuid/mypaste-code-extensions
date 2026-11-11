@@ -1,27 +1,38 @@
 <style>
   :root {
-    --im-bg: #f3ece1;
-    --im-surface: #fbf7f0;
-    --im-ink: #2f261e;
-    --im-muted: #8b7c6a;
-    --im-line: rgba(70, 48, 26, 0.14);
-    --im-accent: #a65d2e;
-    --im-accent-ink: #fff8ef;
-    --im-stage: #ece3d5;
-    --im-focus: rgba(166, 93, 46, 0.35);
+    color-scheme: light;
+    /*
+     * The host's resolved tokens arrive as --mp-* (D-1043); every value below
+     * prefers them and keeps this document's own palette as the fallback for
+     * an older host or a local preview. The host owns the theme, so the page
+     * follows the appearance chosen in MyPaste instead of painting its own.
+     */
+    --im-bg: var(--mp-surface-solid, #f3ece1);
+    --im-surface: var(--mp-surface-raised, #fbf7f0);
+    --im-ink: var(--mp-ink, #2f261e);
+    --im-muted: var(--mp-ink-soft, #8b7c6a);
+    --im-line: var(--mp-line, rgba(70, 48, 26, 0.14));
+    --im-accent: var(--mp-accent, #a65d2e);
+    --im-accent-ink: var(--mp-accent-ink, #fff8ef);
+    --im-stage: var(--mp-code-surface, #ece3d5);
+    --im-focus: color-mix(in srgb, var(--mp-accent, #a65d2e) 35%, transparent);
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --im-bg: #171412;
-      --im-surface: #201c18;
-      --im-ink: #f0e6d9;
-      --im-muted: #9a8c7b;
-      --im-line: rgba(255, 236, 214, 0.12);
-      --im-accent: #e2955f;
-      --im-accent-ink: #241a12;
-      --im-stage: #12100e;
-      --im-focus: rgba(226, 149, 95, 0.35);
-    }
+  /*
+   * The scheme comes from the host's theme message (D-1042): the frame's own
+   * prefers-color-scheme follows the system, not the appearance chosen in
+   * MyPaste. Until the message arrives the document uses its light palette.
+   */
+  :root[data-scheme="dark"] {
+    color-scheme: dark;
+    --im-bg: var(--mp-surface-solid, #171412);
+    --im-surface: var(--mp-surface-raised, #201c18);
+    --im-ink: var(--mp-ink, #f0e6d9);
+    --im-muted: var(--mp-ink-soft, #9a8c7b);
+    --im-line: var(--mp-line, rgba(255, 236, 214, 0.12));
+    --im-accent: var(--mp-accent, #e2955f);
+    --im-accent-ink: var(--mp-accent-ink, #241a12);
+    --im-stage: var(--mp-code-surface, #12100e);
+    --im-focus: color-mix(in srgb, var(--mp-accent, #e2955f) 35%, transparent);
   }
   html, body { height: 100%; }
   body { background: var(--im-bg); color: var(--im-ink); }
@@ -153,7 +164,9 @@
     padding: 0;
     border: 2px solid transparent;
     background: var(--swatch);
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+    /* The ring is the theme's line, not a fixed dark alpha: the black swatch
+       needs an edge against a dark surface as much as the white one does. */
+    box-shadow: inset 0 0 0 1px var(--im-line);
     cursor: pointer;
   }
   .swatch[aria-pressed="true"] {
@@ -223,10 +236,7 @@
     font-size: 12px;
     line-height: 1.5;
   }
-  .status[data-tone="error"] { color: #b4553f; }
-  @media (prefers-color-scheme: dark) {
-    .status[data-tone="error"] { color: #e89a83; }
-  }
+  .status[data-tone="error"] { color: var(--mp-danger, #b4553f); }
 
   #image-text-entry {
     position: fixed;
