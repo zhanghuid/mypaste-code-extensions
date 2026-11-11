@@ -46,7 +46,9 @@ plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
   (`entity.read`, `entity.save`, `copy`, `clipboard.write`, `entry.payload`,
   `secret.read`, `network.outbound`, `storage.plugin`, `companion.read`,
   `backup.schedule`, `boards.control`, `saved-searches.control`,
-  `backup.sync`, `data.read`, `asset.read`, `settings.data`); ask for the
+  `backup.sync`, `data.read`, `asset.read`, `settings.data`, and
+  `surface.network` (official packages only: it widens that package's own
+  surface document, host D-1100); ask for the
   least one that does the job. A run-script package that needs one of the
   three control services must also declare the page action it opens
   (`boards` or `saved-searches`) on exactly one palette command. Control

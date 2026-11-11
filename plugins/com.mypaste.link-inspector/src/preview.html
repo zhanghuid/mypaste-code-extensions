@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>链接类型</title>
+<style>
+  :root {
+    color-scheme: light;
+    /*
+     * The host's resolved tokens arrive as --mp-* (D-1043); every value below
+     * prefers them and keeps this document's own palette as the fallback for
+     * an older host. The host owns the theme, so there is no second copy.
+     */
+    --bg: var(--mp-surface-solid, #f6f2ea);
+    --solid: var(--mp-surface-solid, #f6f2ea);
+    --surface: var(--mp-surface-raised, #fbf8f2);
+    --ink: var(--mp-ink, #241f19);
+    --muted: var(--mp-ink-soft, #776b5c);
+    --line: var(--mp-line, rgba(60, 45, 25, 0.16));
+    --accent: var(--mp-accent, #9a5427);
+    --accent-ink: var(--mp-accent-ink, #fff8ef);
+    --focus: color-mix(in srgb, var(--mp-accent, #9a5427) 40%, transparent);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  }
+  :root[data-scheme="dark"] {
+    color-scheme: dark;
+    --bg: var(--mp-surface-solid, #171412);
+    --solid: var(--mp-surface-solid, #171412);
+    --surface: var(--mp-surface-raised, #201c18);
+    --ink: var(--mp-ink, #f0e6d9);
+    --muted: var(--mp-ink-soft, #9a8c7b);
+    --line: var(--mp-line, rgba(255, 236, 214, 0.14));
+    --accent: var(--mp-accent, #e2955f);
+    --accent-ink: var(--mp-accent-ink, #241a12);
+    --focus: color-mix(in srgb, var(--mp-accent, #e2955f) 45%, transparent);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--ink);
+    font: 13.5px/1.55 var(--mp-font-body, -apple-system, "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", sans-serif);
+    overflow: hidden;
+  }
+  [hidden] { display: none !important; }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  /*
+   * The document band. The page owns the whole card (D-1097), so this is one
+   * 44px header: an icon and the document's name at the left, the only close
+   * control at the right. The accent rule under the name marks the document,
+   * not a tab.
+   */
+  .doc-head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 10px 0 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--solid);
+  }
+  .doc-icon {
+    width: 16px;
+    height: 16px;
+    color: var(--accent);
+    flex: none;
+  }
+  .doc-title {
+    position: relative;
+    font-size: 13px;
+    font-weight: 600;
+    padding-bottom: 2px;
+  }
+  .doc-title::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--accent);
+    border-radius: var(--radius-pill);
+  }
+  .doc-close {
+    margin-left: auto;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--muted);
+  }
+  .doc-close:hover { background: var(--surface); color: var(--ink); }
+  .doc-close svg { width: 14px; height: 14px; }
+
+  main {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .sheet {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 22px 18px 24px;
+  }
+
+  .hero {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    padding: 18px 20px;
+  }
+  .hero-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .hero-text { min-width: 0; }
+  .kicker {
+    margin: 0 0 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .hero h1 {
+    margin: 0;
+    font-size: 21px;
+    line-height: 1.25;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    word-break: break-word;
+  }
+  .mime {
+    margin: 7px 0 0;
+    font: 13px/1.4 var(--mono);
+    color: var(--accent);
+    word-break: break-all;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+    flex: none;
+    padding-top: 2px;
+  }
+  .chip {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 5px 9px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    color: var(--muted);
+    background: var(--bg);
+    white-space: nowrap;
+  }
+  .chip-accent {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  }
+  .chip[data-level="high"] { color: var(--accent); }
+  .url {
+    margin: 14px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    font: 12px/1.5 var(--mono);
+    color: var(--muted);
+    word-break: break-all;
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px 18px;
+    margin: 18px 0 0;
+  }
+  .fact { min-width: 0; }
+  .facts dt {
+    margin: 0 0 2px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .facts dd {
+    margin: 0;
+    font: 12.5px/1.5 var(--mono);
+    word-break: break-all;
+  }
+
+  .block { margin-top: 24px; }
+  .block-title {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .evidence-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .evidence {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .evidence + .evidence { border-top: 1px solid var(--line); }
+  .evidence-kind {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    padding-top: 1px;
+  }
+  .evidence-detail {
+    min-width: 0;
+    font-size: 12.5px;
+    word-break: break-word;
+  }
+  .evidence-value {
+    display: block;
+    margin-top: 3px;
+    font: 11.5px/1.45 var(--mono);
+    color: var(--muted);
+    word-break: break-all;
+  }
+
+  .note {
+    margin: 16px 0 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  /*
+   * The preview stage. One bordered canvas holds whatever renderer ran: the
+   * browser's own image, video or audio element, a text surface, or the card
+   * that says why nothing could be shown. The stage is the only place on this
+   * page with a remote subresource.
+   */
+  .preview { margin-top: 24px; }
+  .preview-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .preview-head .block-title { margin: 0; }
+  .preview-head .chip { margin-left: auto; }
+  .preview-reload { flex: none; }
+  .stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 132px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .stage-image {
+    display: block;
+    max-width: 100%;
+    max-height: 440px;
+    object-fit: contain;
+  }
+  .stage-video {
+    display: block;
+    width: 100%;
+    max-height: 440px;
+    background: #000;
+  }
+  .stage-audio {
+    width: calc(100% - 32px);
+    margin: 20px 16px;
+  }
+  .stage-text {
+    width: 100%;
+    margin: 0;
+    padding: 14px 16px;
+    max-height: 440px;
+    overflow: auto;
+    background: var(--solid);
+    color: var(--ink);
+    font: 12px/1.55 var(--mono);
+    white-space: pre-wrap;
+    word-break: break-word;
+    tab-size: 2;
+  }
+  .stage-empty {
+    width: 100%;
+    padding: 22px 20px;
+  }
+  .stage-empty h3 {
+    margin: 0 0 6px;
+    font-size: 14px;
+    font-weight: 650;
+  }
+  .stage-empty p {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--muted);
+    word-break: break-word;
+  }
+  .stage-empty[data-tone="error"] h3 { color: var(--accent); }
+  .preview-note {
+    margin: 9px 2px 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--muted);
+    word-break: break-word;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .action {
+    height: 30px;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .action:hover { border-color: color-mix(in srgb, var(--ink) 30%, var(--line)); }
+  .action.primary {
+    border-color: transparent;
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  .action.primary:hover { border-color: transparent; filter: brightness(1.05); }
+
+  .empty {
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    background: var(--surface);
+  }
+  .empty h1 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 650;
+  }
+  .empty p {
+    margin: 0;
+    color: var(--muted);
+    word-break: break-word;
+  }
+  .raw {
+    margin: 14px 0 0;
+    padding: 12px;
+    max-height: 320px;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--bg);
+    font: 12px/1.5 var(--mono);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .status {
+    min-height: 18px;
+    margin: 14px 2px 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /*
+   * Corner system (host D-1099): one ladder owns every box on this page.
+   * --radius-sm for controls, --radius-md for rows and cards,
+   * --radius-lg for the outer panels, --radius-pill for the markers.
+   */
+  :root {
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 999px;
+  }
+</style>
+</head>
+<body>
+  <header class="doc-head">
+    <svg class="doc-icon" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M6.6 9.4l2.8-2.8M6.9 11.6l-1 1a2.5 2.5 0 0 1-3.5-3.5l2-2a2.5 2.5 0 0 1 3.5 0M9.1 4.4l1-1a2.5 2.5 0 0 1 3.5 3.5l-2 2a2.5 2.5 0 0 1-3.5 0"
+            fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="doc-title">链接类型</span>
+    <button id="doc-close" class="doc-close" type="button" aria-label="关闭">
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </header>
+
+  <main>
+    <div class="sheet">
+      <section id="result" class="result" hidden>
+        <div class="hero">
+          <div class="hero-top">
+            <div class="hero-text">
+              <p class="kicker">推断的链接类型</p>
+              <h1 id="type-label">正在识别…</h1>
+              <p class="mime" id="mime">—</p>
+            </div>
+            <div class="chips">
+              <span class="chip chip-accent" id="category"></span>
+              <span class="chip" id="confidence"></span>
+            </div>
+          </div>
+          <p class="url" id="url" hidden></p>
+        </div>
+
+        <section id="preview" class="preview" hidden>
+          <div class="preview-head">
+            <h2 class="block-title">预览</h2>
+            <span class="chip chip-accent" id="preview-kind"></span>
+            <button id="preview-reload" class="action quiet preview-reload" type="button" hidden>重新加载</button>
+          </div>
+          <div id="preview-stage" class="stage"></div>
+          <p id="preview-note" class="preview-note" hidden></p>
+        </section>
+
+        <dl class="facts" id="facts" hidden>
+          <div class="fact" id="fact-scheme">
+            <dt>协议</dt>
+            <dd id="scheme"></dd>
+          </div>
+          <div class="fact" id="fact-host">
+            <dt>主机</dt>
+            <dd id="host"></dd>
+          </div>
+          <div class="fact" id="fact-path">
+            <dt>路径</dt>
+            <dd id="path"></dd>
+          </div>
+          <div class="fact" id="fact-source">
+            <dt>判断方式</dt>
+            <dd id="source"></dd>
+          </div>
+        </dl>
+
+        <section id="evidence-block" class="block" hidden>
+          <h2 class="block-title">判断依据</h2>
+          <ul class="evidence-list" id="evidence"></ul>
+        </section>
+
+        <p class="note" id="note" hidden></p>
+
+        <div class="actions" id="actions" hidden>
+          <button id="copy-mime" class="action primary" type="button" hidden>复制 MIME</button>
+          <button id="copy-result" class="action quiet" type="button" hidden>复制完整结果</button>
+          <button id="copy-link" class="action quiet" type="button" hidden>复制链接</button>
+        </div>
+      </section>
+
+      <section id="empty" class="empty" hidden>
+        <h1 id="empty-title"></h1>
+        <p id="empty-detail"></p>
+        <pre id="empty-raw" class="raw" hidden></pre>
+      </section>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </div>
+  </main>
+<script>
+<!--bundle-->
+</script>
+</body>
+</html>

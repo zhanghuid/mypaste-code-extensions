@@ -31,8 +31,8 @@ This repository holds:
   packaged by `scripts/package.py` from plain source; see the language table
   below.
 - **Binary capability packages** (`plugins/com.mypaste.ferry`,
-  `plugins/com.mypaste.sql`) — compiled Go programs built by
-  `scripts/build-official.py`.
+  `plugins/com.mypaste.sql`, `plugins/com.mypaste.link-mime`) — compiled Go
+  programs built by `scripts/build-official.py`.
 - **Settings-page packages** (`plugins/com.mypaste.sync`,
   `plugins/com.mypaste.data-settings`) — a hand-written `panel.html`, plus a
   compiled Go runtime for sync; built by `scripts/build-official.py`.
@@ -44,9 +44,11 @@ This repository holds:
 - **Surface packages** (`plugins/com.mypaste.code-card`,
   `plugins/com.mypaste.code-edit`, `plugins/com.mypaste.diff-view`,
   `plugins/com.mypaste.image-edit`, `plugins/com.mypaste.json`,
-  `plugins/com.mypaste.timestamp`) — a page of their own; code-edit also
-  ships a runtime with internal commands, json bundles its engine into the
-  page; see "Surface packages" below.
+  `plugins/com.mypaste.timestamp`, `plugins/com.mypaste.link-inspector`) — a
+  page of their own; code-edit also ships a runtime with internal commands,
+  json bundles its engine into the page, link-inspector calls the link
+  detector through the registry and renders what it finds; see "Surface
+  packages" below.
 - **Official packages** (`plugins/com.mypaste.*`) — the binaries and surfaces
   above, built by `scripts/build-official.py`; see "Official packages" below.
   `scripts/official_packages.py` is the single owner of the list;
@@ -128,7 +130,9 @@ one that does the job: `entity.read`, `entity.save`, `copy`, `clipboard.write`,
 `entry.payload`, `secret.read`, `network.outbound`, `storage.plugin`,
 `companion.read`, `backup.schedule`, `boards.control`,
 `saved-searches.control`, `backup.sync`, `data.read`, `asset.read`,
-`settings.data`.
+`settings.data`. `surface.network` is the one official-only page grant: it
+widens that package's own surface document so it can load the content it
+renders (myPaste D-1100).
 
 A command the host drives declares a closed `role` on a `trigger` command:
 `board-membership`, `board-create`, `board-update`, `board-delete`,
@@ -145,17 +149,20 @@ declaration fails the build instead of shipping.
 ## Surface packages
 
 `com.mypaste.code-card`, `com.mypaste.code-edit`, `com.mypaste.diff-view`,
-`com.mypaste.image-edit`, `com.mypaste.json` and `com.mypaste.timestamp` ship a
-page of their own. Code-edit additionally ships a runtime and internal commands
-for its built-in formatting (3.3.0). Json (3.3.1) is surface-only: Prettier's
-standalone build plus the babel and estree plugins are bundled into the page,
-so it formats, converts and filters in the document with no Node and no
-runtime. Its workbench is two columns: the entry as it arrived sits read-only on
-the left, and every result (beautify on open, minify, escape, XML, TypeScript, a
-filter result, a paste conversion) lands in the right pane, so the original is
-never rewritten and never covered by its own result. The
-host reads a surface document up to 1 MiB (D-1091 in the host
-repository), which the built page fits. The other four run no process:
+`com.mypaste.image-edit`, `com.mypaste.json`, `com.mypaste.timestamp` and
+`com.mypaste.link-inspector` ship a page of their own. Code-edit additionally
+ships a runtime and internal commands for its built-in formatting (3.3.0). Json
+(3.3.1) is surface-only: Prettier's standalone build plus the babel and estree
+plugins are bundled into the page, so it formats, converts and filters in the
+document with no Node and no runtime. Its workbench is two columns: the entry as
+it arrived sits read-only on the left, and every result (beautify on open,
+minify, escape, XML, TypeScript, a filter result, a paste conversion) lands in
+the right pane, so the original is never rewritten and never covered by its own
+result. Link-inspector is surface-only too: it invokes `com.mypaste.link-mime`
+through the registry and then renders the link with the element its MIME calls
+for (see "Link type" below).
+The host reads a surface document up to 1 MiB (D-1091 in the host repository),
+which every built page fits. The others run no process:
 
 ```json
 "surface": {
@@ -169,15 +176,57 @@ repository), which the built page fits. The other four run no process:
 `forms` names the entities the surface adapts, and `role` is one of:
 
 - `open` — the target of "open this entity" (a double-click on a card when this
-  surface is the chosen default). Code-edit, diff-view, image-edit, json and
-  timestamp declare it.
+  surface is the chosen default). Code-edit, diff-view, image-edit, json,
+  timestamp and link-inspector declare it.
 - `preview` — drawn into the dock's card preview. Code-card declares it.
 
 `chrome` is optional, and only an `open` surface may set `"page"`: the page
 draws the whole card, so the host hides its own header and footer and the page
 closes through the bridge's `close` request. Omitting it keeps the host card
-(`"host"`). Code-edit (3.7.2), diff-view (3.2.2) and json (3.3.1) declare
-`"page"`; image-edit and timestamp keep the host card.
+(`"host"`). Code-edit (3.7.2), diff-view (3.2.2), json (3.3.1) and
+link-inspector (1.0.0) declare `"page"`; image-edit and timestamp keep the host
+card.
+
+### Link type
+
+`com.mypaste.link-inspector` and `com.mypaste.link-mime` are the two halves of
+one feature, and show the composition path of v3: the detector is a binary
+package with no `placement`, so the host lists it to no menu and calls it only
+when another surface asks. The inspector opens a `link` entry, asks the
+registry which capabilities adapt links, finds the detector's `{pluginId,
+commandId}` pair in that answer, and invokes it with the link text. It never
+composes the id itself; a missing or disabled detector is a visible state on
+the page, not a failed call.
+
+The detector infers the MIME type offline, from what the URL itself says, in
+this order: a `data:` URL's own media type, the scheme (`mailto:` →
+`message/rfc822`, `magnet:` → `application/x-bittorrent`), the path extension
+(`.png` → `image/png`, `.docx` → the OOXML wordprocessing type), a known host
+only when no extension was recognized, a filename hint in the query
+(`?filename=…`, `?format=…`), and finally the page default for `http(s)` or
+`application/octet-stream` for `file:`. Types, hosts, schemes and their labels
+live in one data file (`src/internal/linkmime/mime-types.json`), embedded into
+the binary; the Go code owns precedence and the result document. It does not
+fetch the link: `network.outbound` only reaches declared hosts, and a guess
+from the URL is what can honestly be offered without one. The result carries
+`confidence` and an `evidence` list, and the page renders those words through
+its own lookup tables — a changed or newer document is refused whole rather
+than half-painted.
+
+Once the type is known the inspector renders it. It declares the host's
+official-only `surface.network` capability (host D-1100), which widens this one
+surface document's policy — no other page, menu or plugin path changes — so the
+page can load the link itself. Images, video and audio go to the browser's own
+`<img>`, `<video>` and `<audio>` elements, `data:` content is decoded locally
+and never touches the network, and JSON, XML, HTML, CSV and other text is
+fetched, formatted and painted as text: JSON is indented when it parses, HTML
+is shown as source and never executed, and every document is capped at 200,000
+characters. A PDF or an archive has no in-page renderer, a cross-origin JSON
+endpoint may refuse the read (CORS), and an unreachable host may time out;
+each of those replaces the stage with a card that names the attempt and the
+reason, plus a retry and a copy-link action. The detector still never fetches
+anything: the two halves stay separate, and only the page that was asked to
+show a link does.
 
 ### Code card
 
@@ -325,6 +374,14 @@ plugins/com.mypaste.json/        the JSON editor page (Prettier bundled into
                                  the document, its own XML / YAML / TypeScript
                                  converters and expression evaluator; no
                                  runtime, copy-only)
+plugins/com.mypaste.link-inspector/ the link type page (opens a link, looks the
+                                 detector up in the registry, paints its
+                                 document, renders the link; no runtime,
+                                 copy-only, loads remote content)
+plugins/com.mypaste.link-mime/   the link detector (Go, no placement: infers a
+                                 MIME type from the URL text only; the type
+                                 table and host list are one embedded JSON
+                                 file)
 plugins/com.mypaste.timestamp/   the timestamp page (its own parser and
                                  formatters; copy-only, no runtime)
 ```
@@ -346,6 +403,13 @@ Ferry needs capabilities outside the run-script allowlist (`entry.payload`,
 lists them in the install confirmation, and the single enable switch is the
 whole permission decision (D-1039 in the host repository). There is no
 signature or trusted tier to obtain.
+
+`com.mypaste.link-mime` is the smallest binary package: a command runtime that
+reads one `{type, text}` invocation, decodes the URL and exits, declaring only
+`entity.read` and running on the host's first shipping platform. Its `detect`
+command has no `placement`, so no menu lists it; `com.mypaste.link-inspector`
+is the surface-only package that calls it through the registry. The type table
+is embedded in the binary, so the archive is the manifest and one executable.
 
 `com.mypaste.sync` — the S3 snapshot extension — is a UI package with a
 runtime of its own: its settings-window menu (`sync.panel`, order 50) is a
@@ -405,18 +469,20 @@ a Go module that both `com.mypaste.sql` and the code-edit runtime `replace` to
 the same source tree, so the two packages compile and ship the same analyzer,
 formatter and compressor rather than drifting apart.
 
-`com.mypaste.json` is surface-only (3.3.1): the archive is its manifest and one
-`preview.html`, and no process runs. The page shows the entry read-only on the
-left and writes every result to the right; Prettier's standalone build with the
+`com.mypaste.json` is surface-only (3.4.1): the archive is its manifest and one
+`preview.html`, and no process runs. The page holds the entry on the left and
+every result on the right, and both panes are the same surface: editable, with
+line numbers and syntax colour, so either side can be corrected in place while
+the other keeps its own text. Prettier's standalone build with the
 babel and estree plugins is bundled into
 it, so beautifying never leaves the document and needs no Node. Prettier keeps
 whatever escapes the source spelled, so the page shapes them itself: `\uXXXX`
 and `\/` read as characters, and the 保留转义 chip re-derives the right pane in
 the escaped spelling instead. The host reads
 surface documents up to 1 MiB (D-1091 in the host repository), which the built
-page fits. Pasting URL parameters, XML or YAML, minify, escape, JSON→XML and
+page fits. Pasting URL parameters, XML or YAML, minify, fold, escape, JSON→XML and
 JSON→TypeScript all write that result pane, and
-the filter box in the original pane's head evaluates a small JavaScript subset
+the filter box in the left pane's head evaluates a small JavaScript subset
 (member access,
 indexing, array methods, comparisons, a leading-dot shorthand) against the
 entry. The page holds no database or file access and makes no network

@@ -1,0 +1,32 @@
+{
+  "manifestVersion": 3,
+  "kind": "command",
+  "id": "com.mypaste.link-mime",
+  "name": "链接类型识别",
+  "version": "1.0.0",
+  "description": "从链接文本推断它指向的资源类型（MIME）：先看 data: 声明与路径扩展名，再看已知站点、链接协议与查询参数，最后按网页兜底；输出 MIME、类别、置信度与判断依据。只读本次条目的文本，不联网、不写剪贴板。",
+  "capabilities": [
+    "entity.read"
+  ],
+  "runtime": {
+    "protocolVersion": 2,
+    "mode": "command",
+    "entrypoint": "link-mime"
+  },
+  "commands": [
+    {
+      "id": "detect",
+      "title": "识别链接类型",
+      "description": "返回链接推断出的 MIME、类别、置信度与依据（JSON）",
+      "forms": [
+        "link"
+      ],
+      "output": [
+        "text"
+      ],
+      "capabilities": [
+        "entity.read"
+      ]
+    }
+  ]
+}

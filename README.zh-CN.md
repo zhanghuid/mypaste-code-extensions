@@ -27,15 +27,18 @@
 
 - **脚本能力包**（`plugins/mypaste.*`）——run-script 扩展，由
   `scripts/package.py` 从纯源码打包；语言表见下文。
-- **二进制能力包**（`plugins/com.mypaste.ferry`、`plugins/com.mypaste.sql`）
-  ——编译后的 Go 程序，由 `scripts/build-official.py` 构建。
+- **二进制能力包**（`plugins/com.mypaste.ferry`、`plugins/com.mypaste.sql`、
+  `plugins/com.mypaste.link-mime`）——编译后的 Go 程序，由
+  `scripts/build-official.py` 构建。
 - **设置页包**（`plugins/com.mypaste.sync`、`plugins/com.mypaste.data-settings`）
   ——手写 `panel.html`，sync 另加编译后的 Go runtime，由
   `scripts/build-official.py` 构建。
 - **表面包**（`plugins/com.mypaste.code-card`、`plugins/com.mypaste.code-edit`、
   `plugins/com.mypaste.diff-view`、`plugins/com.mypaste.image-edit`、
-  `plugins/com.mypaste.json`、`plugins/com.mypaste.timestamp`）——各自一个页面；
-  code-edit 另带 runtime 与内部命令；json 把引擎打进页面；见下文「表面包」。
+  `plugins/com.mypaste.json`、`plugins/com.mypaste.timestamp`、
+  `plugins/com.mypaste.link-inspector`）——各自一个页面；code-edit 另带
+  runtime 与内部命令；json 把引擎打进页面；link-inspector 经注册表调用
+  链接识别能力并直接渲染链接；见下文「表面包」。
 - **官方包**（`plugins/com.mypaste.*`）——上面的二进制与表面，由
   `scripts/build-official.py` 构建；见下文「官方包」。
   `scripts/official_packages.py` 是这份清单的唯一所有者；
@@ -106,7 +109,10 @@
 能力使用宿主的封闭服务清单，并只申请足以完成工作的最小一项：
 `entity.read`、`entity.save`、`copy`、`clipboard.write`、`entry.payload`、
 `secret.read`、`network.outbound`、`storage.plugin`、`companion.read`、
-`history.exchange`。
+`backup.schedule`、`boards.control`、`saved-searches.control`、`backup.sync`、
+`data.read`、`asset.read`、`settings.data`。`surface.network` 是唯一只向官方包
+开放的页面授权：放宽本包表面文档的页面策略，让页面加载它要渲染的内容
+（宿主 D-1100）。
 
 `scripts/package.py` 拒绝缺少或误用这些字段的包，也拒绝仍带 v2 词汇
 （`surface: "editor"`、`appliesTo`、`global`、`menus`、`workbench`、
@@ -115,15 +121,16 @@
 ## 表面包
 
 `com.mypaste.code-card`、`com.mypaste.code-edit`、`com.mypaste.diff-view`、
-`com.mypaste.image-edit`、`com.mypaste.json` 与 `com.mypaste.timestamp` 各自交付
-一个页面。code-edit 另外交付 runtime 与内部命令，用于自带格式化（3.3.0）；
-json（3.3.1）是纯表面包：Prettier 的 standalone 构建加 babel、estree 两个插件
-打进页面本身，格式化、转换与过滤都在文档内完成，不需要 Node，也没有 runtime。
-工作区是两列：左侧只读显示条目原文，右侧接收全部结果（打开时的美化、压缩、
-转义、XML、TypeScript、过滤结果与粘贴转换），原文既不会被改写，也不会被自己的
-结果盖住。
-宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），构建出的页面在此之内。其余
-四个不运行进程：
+`com.mypaste.image-edit`、`com.mypaste.json`、`com.mypaste.timestamp` 与
+`com.mypaste.link-inspector` 各自交付一个页面。code-edit 另外交付 runtime 与
+内部命令，用于自带格式化（3.3.0）；json（3.3.1）是纯表面包：Prettier 的
+standalone 构建加 babel、estree 两个插件打进页面本身，格式化、转换与过滤都在
+文档内完成，不需要 Node，也没有 runtime。工作区是两列：左侧只读显示条目原文，
+右侧接收全部结果（打开时的美化、压缩、转义、XML、TypeScript、过滤结果与粘贴
+转换），原文既不会被改写，也不会被自己的结果盖住。link-inspector 同样是纯表面
+包：它经注册表调用 `com.mypaste.link-mime`，再按 MIME 选渲染器把链接显示出来
+（见下文「链接类型」）。宿主读取表面文档的上限是 1 MiB（宿主仓库 D-1091），
+构建出的页面都在此之内。其余包不运行进程：
 
 ```json
 "surface": {
@@ -137,13 +144,13 @@ json（3.3.1）是纯表面包：Prettier 的 standalone 构建加 babel、estre
 `forms` 声明表面适配的实体，`role` 是以下之一：
 
 - `open`——「打开这个实体」的目标（卡片被双击、且它是默认表面时）。
-  code-edit、diff-view、image-edit、json 与 timestamp 声明它。
+  code-edit、diff-view、image-edit、json、timestamp 与 link-inspector 声明它。
 - `preview`——画进剪切坞的卡片预览。code-card 声明它。
 
 `chrome` 可选，且只有 `open` 表面能声明 `"page"`：卡片外框整块归页面，宿主
 隐藏自己的页眉与页脚，页面经桥的 `close` 请求关闭。省略时保留宿主卡片
-（`"host"`）。code-edit（3.7.1）、diff-view（3.2.1）与 json（3.3.1）声明
-`"page"`；image-edit 与 timestamp 保留宿主卡片。
+（`"host"`）。code-edit（3.7.1）、diff-view（3.2.1）、json（3.3.1）与
+link-inspector（1.0.0）声明 `"page"`；image-edit 与 timestamp 保留宿主卡片。
 
 宿主把页面放进沙箱 frame，并中介这些操作：读取本次调用的条目、把文本或图片
 另存为一条新历史、复制文本或图片、关闭。别的什么都到不了它——没有宿主绑定、
@@ -216,6 +223,38 @@ title}` 与 `{v: 1, type: "copy", requestId, text}`）；宿主对文本再校�
 6px、卡片与弹出层 10px、面板与对话框 14px，指示条与滚动条是胶囊；只有圆就是
 形状本意的地方（如状态点）才用 50%。
 
+### 链接类型
+
+`com.mypaste.link-inspector` 与 `com.mypaste.link-mime` 是同一个功能的两半，
+也是 v3 组合路径的示例：识别器是二进制包，命令没有 `placement`，宿主不把它
+列进任何菜单，只有别的表面来问时才调用。检查器打开一条 `link` 条目，先问
+注册表有哪些能力适配链接，再在宿主返回的答案里找到识别器的
+`{pluginId, commandId}` 对，用它和链接文本发起调用。页面从不自己拼命令名；
+识别器缺失或停用是页面上的一种可见状态，而不是一次失败的调用。
+
+识别器离线推断 MIME，只依据 URL 文本，顺序是：`data:` URL 自带媒体类型、
+协议（`mailto:` → `message/rfc822`，`magnet:` → `application/x-bittorrent`）、
+路径扩展名（`.png` → `image/png`，`.docx` → OOXML 文档类型）、仅在扩展名无法
+识别时查已知站点、查询参数里的文件名提示（`?filename=…`、`?format=…`），
+最后是 `http(s)` 的网页默认值或 `file:` 的 `application/octet-stream`。类型、
+站点、协议与各自的标签都只在同一份数据文件
+（`src/internal/linkmime/mime-types.json`）里，并嵌入二进制；优先级与结果文档
+由 Go 代码所有。它不抓取链接本身：`network.outbound` 只能到达已声明的主机，
+而从 URL 推断是无需联网时唯一诚实的答案。结果带 `confidence` 与 `evidence`
+列表，页面用只读查表把这两个封闭词集翻成中文；版本更新的结果文档整份拒绝，
+不画一半。
+
+类型确定之后，检查器负责渲染。它声明宿主只向官方扩展开放的
+`surface.network` 能力（宿主 D-1100）：这条能力只放宽**这一个表面文档**的
+策略，别的页面、菜单与插件路径都不变，页面因此可以自己加载链接。图片、视频
+与音频交给浏览器自己的 `<img>`、`<video>`、`<audio>`；`data:` 内容在本地
+解码，不经过网络；JSON、XML、HTML、CSV 等文本抓回来后格式化再画——JSON 能
+解析就缩进，HTML 只显示源码、从不执行，每份内容最多显示 20 万个字符。PDF、
+压缩包没有页面内渲染器，跨域的 JSON 端点可能拒绝读取（CORS），主机也可能
+超时；这些情况都会把预览区换成一张卡片，写清尝试了什么、为什么停下，并提供
+重试与复制链接。识别器仍然不抓任何东西：两半各守其职，只有被要求显示链接的
+页面才联网。
+
 ### 代码卡片
 
 代码卡片把条目画在 canvas 上并导出一张 PNG；不联网，页面也没有宿主绑定。
@@ -256,6 +295,12 @@ plugins/com.mypaste.image-edit/  图片编辑器（自己的画布工具）
 plugins/com.mypaste.json/        JSON 编辑器页面（Prettier 打进文档，另有自己
                                  的 XML / YAML / TypeScript 转换与表达式求值；
                                  没有 runtime，只复制）
+plugins/com.mypaste.link-inspector/ 链接类型页面（打开链接、在注册表里找识别
+                                 器、画它返回的文档并渲染链接；无 runtime，
+                                 只复制，会加载远程内容）
+plugins/com.mypaste.link-mime/   链接识别器（Go，无 placement：只凭 URL 文本
+                                 推断 MIME；类型表与站点表是同一份嵌入的 JSON
+                                 文件）
 plugins/com.mypaste.timestamp/   时间戳页面（自己的解析与格式化；只复制，
                                  无 runtime）
 ```
@@ -274,6 +319,12 @@ manifest 与构建出的 `ferry` 二进制，绝无源码树。它对话的中�
 `network.outbound`（配置的主机）、`storage.plugin`、触发器）；MyPaste 在
 安装确认里逐项列出，唯一的启用开关就是全部的许可决定（宿主 D-1039）。
 没有签名或可信层级可取得。
+
+`com.mypaste.link-mime` 是最小的二进制包：runtime 读一条 `{type, text}` 调用、
+解析 URL 后退出，只声明 `entity.read`，只构建宿主首个交付平台。`detect` 命令
+没有 `placement`，任何菜单都不列出它；调用它的是纯表面包
+`com.mypaste.link-inspector`，经注册表找到命令。类型表嵌入二进制，归档里只有
+manifest 与一个可执行文件。
 
 `com.mypaste.sync`——S3 快照扩展——是有自己 runtime 的 UI 包：设置窗口的
 「同步」菜单（`sync.panel`，顺序 50）是手写的 `panel.html`，所有动作都在编译
@@ -322,9 +373,10 @@ JSON 用 `encoding/json`，SQL 用共享的 `sqlkit`，CSS 用按花括号层级
 `replace` 到同一份源码，因此两个包编译并交付同一套分析、格式化与压缩实现，
 不会各自漂移。
 
-`com.mypaste.json` 是纯表面包（3.3.1）：归档里只有 manifest 与一份
-`preview.html`，不运行任何进程。页面左侧只读显示条目原文，所有结果都写在右侧；
-Prettier 的
+`com.mypaste.json` 是纯表面包（3.4.1）：归档里只有 manifest 与一份
+`preview.html`，不运行任何进程。页面左侧是条目原文，每一步结果写在右侧；两侧
+是同一套面板——可编辑、带行号与语法高亮，任何一侧都能就地修改，另一侧保持自己
+的文字。Prettier 的
 standalone 构建连同 babel、estree 两个插件打进页面，美化不离开文档，也不需要
 Node。Prettier 会保留源文的转义写法，所以页面自己整理：`\uXXXX` 与 `\/`
 还原为字符，工具栏的「保留转义」开关则让右侧按转义写法重新生成。宿主读取表面

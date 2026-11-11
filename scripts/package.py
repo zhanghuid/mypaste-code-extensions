@@ -46,6 +46,10 @@ SERVICES = {
     # First-party functional service (host D-1003): the host owns the
     # confirmation, transaction and pinned protection.
     "history.cleanup",
+    # First-party page policy (host D-1100): widens this package's own surface
+    # document so it can load the remote content it renders. It carries no
+    # message channel.
+    "surface.network",
 }
 # Where the host shows a command. A command without one is a pure capability:
 # it is never shown, only reached through the registry by a surface.

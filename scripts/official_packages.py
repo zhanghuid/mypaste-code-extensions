@@ -75,6 +75,23 @@ OFFICIAL = {
     "com.mypaste.image-edit": {
         "surface": True,
     },
+    "com.mypaste.link-mime": {
+        # A headless link capability with no placement: it answers on the
+        # `link` form only when another surface invokes it through the
+        # registry, so the host never shows it on its own. The type table is
+        # embedded in the binary, and the process only reads URL text.
+        "module": "plugins/com.mypaste.link-mime/src",
+        "entrypoint": "link-mime",
+        "package": "./cmd/mypaste-link-mime",
+        "assets": [],
+        "goos": "darwin",
+        "goarch": "arm64",
+    },
+    "com.mypaste.link-inspector": {
+        # A surface-only package: the page reaches the detector through the
+        # host's registry and invoke, and has no runtime of its own.
+        "surface": True,
+    },
     "com.mypaste.json": {
         # A surface-only package: Prettier's standalone build and the babel /
         # estree plugins are bundled into the page itself, so no process runs
