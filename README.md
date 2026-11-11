@@ -176,7 +176,7 @@ which every built page fits. The others run no process:
 `forms` names the entities the surface adapts, and `role` is one of:
 
 - `open` — the target of "open this entity" (a double-click on a card when this
-  surface is the chosen default). Code-card (6.2.0), code-edit, diff-view,
+  surface is the chosen default). Code-card (6.3.0), code-edit, diff-view,
   image-edit, json, timestamp and link-inspector declare it.
 - `preview` — drawn into the dock's card preview. No package declares it today:
   code-card drew it until 6.0.0 and now opens as a page of its own.
@@ -184,7 +184,7 @@ which every built page fits. The others run no process:
 `chrome` is optional, and only an `open` surface may set `"page"`: the page
 draws the whole card, so the host hides its own header and footer and the page
 closes through the bridge's `close` request. Omitting it keeps the host card
-(`"host"`). Code-card (6.2.0), code-edit (3.7.2), diff-view (3.2.2), json
+(`"host"`). Code-card (6.3.0), code-edit (3.7.2), diff-view (3.2.2), json
 (3.3.1) and link-inspector (1.0.0) declare `"page"`; image-edit and timestamp
 keep the host card.
 
@@ -303,6 +303,14 @@ or an image, and closing. Nothing else reaches it — no host binding, no asset
 path, no other item. A surface that compares against a neighbour declares the
 `companion.read` capability and asks for it; the host chooses the adjacent
 item and never gives the page a way to browse history.
+
+6.3.0 makes the card itself the editor. A click puts the caret where it landed —
+the layout records where each drawn line begins in the source, so a click on a
+wrapped line still finds the right character — and the card becomes the same
+card with a transparent textarea over its own token-coloured text, so nothing
+shifts and no second pane opens; Tab indents two spaces, Escape or a click
+beside the card puts the canvas back. The toolbar's pencil enters the same
+place, and the width still follows what is typed.
 
 v3 removed the host workbench: there is no buffer exchange, no host-drawn
 editor toolbar and no host-drawn document action row (host D-1065, D-1068).

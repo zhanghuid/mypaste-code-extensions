@@ -452,17 +452,19 @@ function isWideCharacter(character: string): boolean {
   );
 }
 
-/**
- * Splits tokens into drawn lines; a tab is drawn as four spaces, like Carbon.
- * Each piece keeps the kind of the token it came from — the line is what the
- * renderer paints, so dropping the kind here would draw every card in one
- * colour.
- */
 /** One drawn character, with the kind of the token it came from and its cells. */
 interface Cell {
   text: string;
   kind: string;
   width: number;
+  /** Where the character sits in the source; a tab's four cells share one. */
+  offset: number;
+}
+
+/** A drawn line, and the source offset the line begins at. */
+interface DrawnLine {
+  cells: Cell[];
+  start: number;
 }
 
 /** Appends a character to a line, merging it into the run of its own colour. */
@@ -470,6 +472,13 @@ function appendCell(line: CodeToken[], cell: Cell): void {
   const last = line[line.length - 1];
   if (last && last.kind === cell.kind) last.text += cell.text;
   else line.push({ text: cell.text, kind: cell.kind });
+}
+
+/** A drawn line as the pieces the renderer paints. */
+function lineTokens(line: DrawnLine): CodeToken[] {
+  const tokens: CodeToken[] = [];
+  for (const cell of line.cells) appendCell(tokens, cell);
+  return tokens;
 }
 
 /**
@@ -480,64 +489,83 @@ function appendCell(line: CodeToken[], cell: Cell): void {
  *
  * Past `maxChars` a line ends at its last space, so the break lands between
  * words the way the page's own text wraps; a word longer than the whole line is
- * the only thing cut where it runs out of room.
+ * the only thing cut where it runs out of room. Every line also remembers where
+ * it starts in the source, which is how a click on the card finds a caret.
  */
-export function splitTokenLines(tokens: CodeToken[], maxChars: number): CodeToken[][] {
-  const lines: CodeToken[][] = [[]];
+function splitDrawnLines(tokens: CodeToken[], maxChars: number): DrawnLine[] {
+  const lines: DrawnLine[] = [];
   /** The line being filled, one character at a time. */
   let current: Cell[] = [];
   let column = 0;
   /** Where the next line starts if this one breaks at a space; 0 for none. */
   let breakAfter = 0;
+  /** The source offset the line being filled begins at. */
+  let start = 0;
 
   const reset = (): void => {
     current = [];
     column = 0;
     breakAfter = 0;
   };
-  const endLine = (): void => {
-    const line = lines[lines.length - 1];
-    if (line) for (const cell of current) appendCell(line, cell);
+  const endLine = (nextStart: number): void => {
+    lines.push({ cells: current, start });
     reset();
+    start = nextStart;
   };
   /** Ends the line at its last space and carries the rest onto the next one. */
-  const breakAtSpace = (): void => {
+  const breakAtSpace = (offset: number): void => {
     const tail = current.slice(breakAfter);
     current = current.slice(0, breakAfter);
-    endLine();
-    lines.push([]);
+    endLine(tail[0]?.offset ?? offset);
     current = tail;
     tail.forEach((cell, index) => {
       column += cell.width;
       if (cell.text === " ") breakAfter = index + 1;
     });
   };
+  const place = (cell: Cell): void => {
+    // One round either moves the break to a space (strictly shorter line) or
+    // closes the line outright, so it cannot spin.
+    while (column > 0 && column + cell.width > maxChars) {
+      if (breakAfter > 0) breakAtSpace(cell.offset);
+      else endLine(cell.offset);
+    }
+    current.push(cell);
+    column += cell.width;
+    if (cell.text === " ") breakAfter = current.length;
+  };
 
+  let offset = 0;
   for (const token of tokens) {
-    const text = token.text.replace(/\t/g, "    ");
-    for (const character of text) {
+    for (const character of token.text) {
+      const at = offset;
+      offset += 1;
       if (character === "\n") {
-        endLine();
-        lines.push([]);
+        endLine(offset);
         continue;
       }
-      const width = isWideCharacter(character) ? 2 : 1;
-      // One round of this either moves the break to a space (strictly shorter
-      // line) or closes the line outright, so it cannot spin.
-      while (column > 0 && column + width > maxChars) {
-        if (breakAfter > 0) breakAtSpace();
-        else {
-          endLine();
-          lines.push([]);
+      if (character === "\t") {
+        // A tab is four spaces on the canvas, but one character in the source.
+        for (let cell = 0; cell < 4; cell += 1) {
+          place({ text: " ", kind: token.kind, width: 1, offset: at });
         }
+        continue;
       }
-      current.push({ text: character, kind: token.kind, width });
-      column += width;
-      if (character === " ") breakAfter = current.length;
+      place({
+        text: character,
+        kind: token.kind,
+        width: isWideCharacter(character) ? 2 : 1,
+        offset: at,
+      });
     }
   }
-  endLine();
+  endLine(offset);
   return lines;
+}
+
+/** The drawn lines alone, for callers that only paint. */
+export function splitTokenLines(tokens: CodeToken[], maxChars: number): CodeToken[][] {
+  return splitDrawnLines(tokens, maxChars).map(lineTokens);
 }
 
 export interface CodeCardLayout {
@@ -550,6 +578,11 @@ export interface CodeCardLayout {
   paddingX: number;
   paddingY: number;
   lines: CodeToken[][];
+  /**
+   * Where each drawn line begins in the source text. A click on the card turns
+   * into a caret through this: the line's start plus the column it landed on.
+   */
+  lineStarts: number[];
   charWidth: number;
   lineHeight: number;
   /** Height of the window band above the code (Carbon's 48 px). */
@@ -576,7 +609,7 @@ export const MAX_LINE_HEIGHT = 200;
 export const MIN_PADDING = 16;
 export const MAX_PADDING = 128;
 
-const FONT_STACK = '"Hack", "SF Mono", "Menlo", "PingFang SC", monospace';
+export const CARD_FONT_STACK = '"Hack", "SF Mono", "Menlo", "PingFang SC", monospace';
 
 /**
  * A drawn line's width in CSS pixels. The layout's default is the monospace
@@ -614,7 +647,8 @@ export function codeCardLayout(
     24,
     Math.floor((ceiling - CARD_PAD_LEFT - CARD_PAD_RIGHT - gutterWidth) / charWidth),
   );
-  const lines = splitTokenLines(source.tokens, maxChars);
+  const drawn = splitDrawnLines(source.tokens, maxChars);
+  const lines = drawn.map(lineTokens);
   // A line's width is the sum of its glyphs: the estimate for a plain layout,
   // the canvas's measurement at draw time. Taking the estimate here instead
   // left the window wider than the code it held.
@@ -636,6 +670,7 @@ export function codeCardLayout(
     paddingX,
     paddingY,
     lines,
+    lineStarts: drawn.map((line) => line.start),
     charWidth,
     lineHeight,
     barHeight: CARD_BAR_HEIGHT,
@@ -660,7 +695,7 @@ export function drawCodeCard(
   // canvas below resets the context, which is why the font is set again before
   // the first glyph.
   const probe = codeCardLayout(source, options, undefined, available);
-  context.font = `${probe.fontSize}px ${FONT_STACK}`;
+  context.font = `${probe.fontSize}px ${CARD_FONT_STACK}`;
   const layout = codeCardLayout(
     source,
     options,
@@ -711,7 +746,7 @@ export function drawCodeCard(
     );
   }
 
-  context.font = `${layout.fontSize}px ${FONT_STACK}`;
+  context.font = `${layout.fontSize}px ${CARD_FONT_STACK}`;
   context.textBaseline = "middle";
   const top = y + layout.barHeight;
   layout.lines.forEach((line, index) => {

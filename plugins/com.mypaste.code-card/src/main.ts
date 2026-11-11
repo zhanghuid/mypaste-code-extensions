@@ -17,19 +17,27 @@
 
 import { connectSurface } from "./bridge";
 import {
+  CARD_FONT_STACK,
   CODE_CARD_THEMES,
   DEFAULT_CODE_CARD_OPTIONS,
   cardSource,
   drawCodeCard,
   resolveBackground,
   resolvePalette,
+  type CodeCardLayout,
   type CodeCardOptions,
   type CodeCardSource,
   type CodeCardTheme,
   type CodeWindowStyle,
   type HostTheme,
 } from "./card";
-import { CODE_LANGUAGES, LANGUAGE_LABELS, isCodeLanguage } from "./tokenize";
+import {
+  CODE_LANGUAGES,
+  LANGUAGE_LABELS,
+  isCodeLanguage,
+  tokenizeCode,
+  type CodeToken,
+} from "./tokenize";
 
 const bridge = connectSurface();
 
@@ -88,8 +96,9 @@ const exportMenuButton = one<HTMLButtonElement>("#export-menu-button");
 const exportMenu = one<HTMLElement>("#export-menu");
 const closeButton = one<HTMLButtonElement>("#close-button");
 const editButton = one<HTMLButtonElement>("#edit-button");
-const editorPane = one<HTMLElement>("#editor-pane");
-const editor = one<HTMLTextAreaElement>("#card-editor");
+const editorCard = one<HTMLElement>("#card-editor");
+const editorHighlight = one<HTMLElement>("#editor-highlight");
+const editorInput = one<HTMLTextAreaElement>("#card-editor-input");
 const wrapLines = one<HTMLInputElement>("#wrap-lines");
 const windowStyles = one<HTMLElement>("#window-styles");
 const paddingX = one<HTMLInputElement>("#padding-x");
@@ -114,6 +123,10 @@ let hostTheme: HostTheme | null = null;
 let itemText = "";
 let itemTitle = "";
 let source: CodeCardSource | null = null;
+/** The card as last drawn; a click on it reads its lines to find the caret. */
+let layout: CodeCardLayout | null = null;
+/** Whether the card is being edited in place. */
+let editing = false;
 /** The room the stage gives the canvas, in CSS pixels; 0 before the first paint. */
 let available = 0;
 let pendingFrame = 0;
@@ -186,13 +199,14 @@ function draw(): void {
 
   source = cardSource(itemText, itemTitle, options.language);
   if (!source) {
+    layout = null;
     preview.hidden = true;
-    stageEmpty.hidden = false;
+    stageEmpty.hidden = editing;
     return;
   }
-  preview.hidden = false;
+  preview.hidden = editing;
   stageEmpty.hidden = true;
-  const layout = drawCodeCard(preview, source, options, hostTheme, available);
+  layout = drawCodeCard(preview, source, options, hostTheme, available);
   preview.style.width = `${layout.width}px`;
   preview.style.height = `${layout.height}px`;
 }
@@ -202,25 +216,124 @@ function scheduleDraw(): void {
   pendingFrame = window.requestAnimationFrame(draw);
 }
 
-/* ---------------------------------------------------------------- editing */
-
-/**
- * The pane above the stage edits this card, not the entry: nothing is written
- * back, so closing the surface leaves the history as it was. The card redraws
- * on every keystroke, and the text keeps the page's language and formatting
- * rules.
- */
-function setEditing(open: boolean): void {
-  editorPane.hidden = !open;
-  editButton.setAttribute("aria-pressed", String(open));
-  if (!open) {
-    editor.blur();
+/** The card's settings changed: repaint, and repaint the editor if it is up. */
+function update(): void {
+  reflect();
+  if (editing) {
+    draw();
+    renderEditor();
     return;
   }
-  editor.value = itemText;
-  editor.focus();
-  editor.setSelectionRange(editor.value.length, editor.value.length);
+  scheduleDraw();
 }
+
+/* ---------------------------------------------------------------- editing */
+
+function escapeHTML(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/**
+ * The editor is the card itself — same surface, band, padding and type — so the
+ * text does not move when the pen comes out. Its colours are the export's own:
+ * the backdrop carries the token colours and the textarea types over it with the
+ * caret as its only glyph.
+ */
+function renderEditor(): void {
+  const palette = resolvePalette(options.theme, hostTheme);
+  const size = layout?.fontSize ?? Math.round(options.fontSize);
+  const line = layout?.lineHeight ?? Math.max(size + 2, Math.round(size * (options.lineHeight / 100)));
+  editorCard.style.setProperty("--card-surface", palette.surface);
+  editorCard.style.setProperty("--card-ink", palette.ink);
+  editorCard.style.setProperty("--card-muted", palette.muted);
+  editorCard.style.setProperty("--card-shadow-color", palette.shadow);
+  editorCard.style.setProperty("--card-shadow-y", `${options.shadowOffset}px`);
+  editorCard.style.setProperty("--card-shadow-blur", `${options.shadowBlur}px`);
+  editorCard.style.setProperty("--card-font", `${size}px/${line}px ${CARD_FONT_STACK}`);
+  editorCard.dataset.window = options.windowStyle;
+  editorCard.dataset.shadow = String(options.shadow);
+  // The editor carries the card's own width, so nothing shifts sideways when
+  // the pen comes out and the wrap is the same one the export uses.
+  if (layout) editorCard.style.width = `${layout.cardWidth}px`;
+  else editorCard.style.width = "";
+
+  // The editor edits what the entry holds, so the highlighting comes from this
+  // text rather than from the copy the card re-indents for a one-line snippet.
+  const tokens: CodeToken[] = itemText
+    ? tokenizeCode(itemText, source?.language ?? "javascript")
+    : [];
+  editorHighlight.innerHTML = tokens
+    .map(
+      (token) =>
+        `<span style="color:${palette.tokens[token.kind] ?? palette.ink}">${escapeHTML(token.text)}</span>`,
+    )
+    .join("");
+  // The textarea grows with its text; the backdrop in the same grid cell then
+  // sizes the card, so the editor is as tall as what is being written.
+  editorInput.style.height = "auto";
+  editorInput.style.height = `${editorInput.scrollHeight}px`;
+}
+
+/** The column a pointer landed on, measured with the card's own font. */
+function columnAt(text: string, x: number): number {
+  const context = preview.getContext("2d");
+  if (!context || x <= 0) return 0;
+  context.font = `${layout?.fontSize ?? Math.round(options.fontSize)}px ${CARD_FONT_STACK}`;
+  let column = 0;
+  while (column < text.length) {
+    if (context.measureText(text.slice(0, column + 1)).width > x) break;
+    column += 1;
+  }
+  return column;
+}
+
+/** Where a click on the card lands, as an offset in the item's own text. */
+function caretFromPoint(event: PointerEvent): number {
+  if (!layout) return itemText.length;
+  const rect = preview.getBoundingClientRect();
+  const x = event.clientX - rect.left - layout.paddingX - layout.contentLeft;
+  const y = event.clientY - rect.top - layout.paddingY - layout.barHeight;
+  const index = Math.max(
+    0,
+    Math.min(layout.lines.length - 1, Math.floor(y / layout.lineHeight)),
+  );
+  const line = layout.lines[index] ?? [];
+  const text = line.map((token) => token.text).join("");
+  const offset = (layout.lineStarts[index] ?? 0) + columnAt(text, x);
+  return Math.max(0, Math.min(itemText.length, offset));
+}
+
+/**
+ * Editing happens in place, and only for this invocation: nothing is written
+ * back, so closing the surface leaves the history as it was. A click on the
+ * code opens the editor with the caret where the click landed; Escape and a
+ * click on the stage around it put the card back.
+ */
+function setEditing(open: boolean, caret?: number): void {
+  if (open === editing) {
+    if (open && caret !== undefined) editorInput.setSelectionRange(caret, caret);
+    return;
+  }
+  editing = open;
+  editButton.setAttribute("aria-pressed", String(open));
+  editorCard.hidden = !open;
+  if (!open) {
+    editorInput.blur();
+    draw();
+    return;
+  }
+  closePopovers();
+  editorInput.value = itemText;
+  renderEditor();
+  draw();
+  editorInput.focus();
+  const at = Math.max(0, Math.min(itemText.length, caret ?? itemText.length));
+  editorInput.setSelectionRange(at, at);
+}
+
 
 function reflect(): void {
   themeSelect.value = options.theme;
@@ -340,8 +453,7 @@ function setPane(name: string): void {
 
 function chooseBackground(id: string): void {
   options.background = id;
-  reflect();
-  scheduleDraw();
+  update();
 }
 
 /* ------------------------------------------------------------------ wiring */
@@ -352,14 +464,12 @@ function wire(): void {
 
   themeSelect.addEventListener("change", () => {
     options.theme = themeSelect.value as CodeCardTheme;
-    reflect();
-    scheduleDraw();
+    update();
   });
   languageSelect.addEventListener("change", () => {
     const value = languageSelect.value;
     options.language = value === "auto" || !isCodeLanguage(value) ? "auto" : value;
-    reflect();
-    scheduleDraw();
+    update();
   });
 
   backgroundHex.addEventListener("change", () => {
@@ -378,8 +488,7 @@ function wire(): void {
   }
   resetButton.addEventListener("click", () => {
     options = { ...DEFAULT_CODE_CARD_OPTIONS };
-    reflect();
-    scheduleDraw();
+    update();
   });
   presetRow.addEventListener("click", (event) => {
     const preset = (event.target as HTMLElement).closest<HTMLElement>("[data-background]");
@@ -389,71 +498,66 @@ function wire(): void {
   for (const button of all<HTMLButtonElement>("[data-window-style]")) {
     button.addEventListener("click", () => {
       options.windowStyle = (button.dataset.windowStyle ?? "mac") as CodeWindowStyle;
-      reflect();
-      scheduleDraw();
+      update();
     });
   }
 
   paddingX.addEventListener("input", () => {
     options.paddingX = Number(paddingX.value);
-    reflect();
-    scheduleDraw();
+    update();
   });
   paddingY.addEventListener("input", () => {
     options.paddingY = Number(paddingY.value);
-    reflect();
-    scheduleDraw();
+    update();
   });
   shadowToggle.addEventListener("change", () => {
     options.shadow = shadowToggle.checked;
-    reflect();
-    scheduleDraw();
+    update();
   });
   shadowOffset.addEventListener("input", () => {
     options.shadowOffset = Number(shadowOffset.value);
-    reflect();
-    scheduleDraw();
+    update();
   });
   shadowBlur.addEventListener("input", () => {
     options.shadowBlur = Number(shadowBlur.value);
-    reflect();
-    scheduleDraw();
+    update();
   });
   autoWidth.addEventListener("change", () => {
     options.autoWidth = autoWidth.checked;
-    reflect();
-    scheduleDraw();
+    update();
   });
   fontSize.addEventListener("input", () => {
     options.fontSize = Number(fontSize.value);
-    reflect();
-    scheduleDraw();
+    update();
   });
   lineHeight.addEventListener("input", () => {
     options.lineHeight = Number(lineHeight.value);
-    reflect();
-    scheduleDraw();
+    update();
   });
   lineNumbers.addEventListener("change", () => {
     options.lineNumbers = lineNumbers.checked;
-    reflect();
-    scheduleDraw();
+    update();
   });
   wrapLines.addEventListener("change", () => {
     options.wrap = wrapLines.checked;
-    reflect();
-    scheduleDraw();
+    update();
   });
 
-  editButton.addEventListener("click", () => {
-    closePopovers();
-    setEditing(editorPane.hidden);
+  // The code is the editor: a click on the card puts the caret where it landed.
+  preview.addEventListener("pointerdown", (event) => {
+    setEditing(true, caretFromPoint(event));
   });
-  editor.addEventListener("input", () => {
-    itemText = editor.value;
-    scheduleDraw();
+  stage.addEventListener("pointerdown", (event) => {
+    if (!editing || event.target === preview) return;
+    if (editorCard.contains(event.target as Node)) return;
+    setEditing(false);
   });
-  editor.addEventListener("keydown", (event) => {
+  editorInput.addEventListener("input", () => {
+    itemText = editorInput.value;
+    draw();
+    renderEditor();
+  });
+  editorInput.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
@@ -464,10 +568,17 @@ function wire(): void {
     if (event.key !== "Tab") return;
     // Tab indents in the editor instead of leaving it for the next control.
     event.preventDefault();
-    editor.setRangeText("  ", editor.selectionStart, editor.selectionEnd, "end");
-    itemText = editor.value;
-    scheduleDraw();
+    editorInput.setRangeText(
+      "  ",
+      editorInput.selectionStart,
+      editorInput.selectionEnd,
+      "end",
+    );
+    itemText = editorInput.value;
+    draw();
+    renderEditor();
   });
+  editButton.addEventListener("click", () => setEditing(!editing));
 
   // The card is painted to the room the stage actually has, so a resized window
   // re-wraps instead of waiting for the next setting change. Wrapping only
@@ -490,8 +601,7 @@ function wire(): void {
   for (const entry of all<HTMLButtonElement>("[data-scale]")) {
     entry.addEventListener("click", () => {
       options.scale = Number(entry.dataset.scale) === 1 ? 1 : 2;
-      reflect();
-      scheduleDraw();
+      update();
       closePopovers();
     });
   }
@@ -509,17 +619,19 @@ function wire(): void {
     closePopovers();
   });
   // The host never sees a key pressed inside this page, and this page draws the
-  // card's chrome, so Escape is its own: an open popover closes first, and the
-  // next Escape asks the container to close the surface (D-1097).
+  // card's chrome, so Escape is its own: an open popover closes first, then the
+  // editor, and only then does it ask the container to close the surface
+  // (D-1097). A key pressed in the editor never reaches this listener.
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (!settingsPopout.hidden || !exportMenu.hidden) closePopovers();
+    else if (editing) setEditing(false);
     else bridge.close();
   });
   closeButton.addEventListener("click", () => bridge.close());
 
   bridge.onItem((item) => {
-    setEditing(false);
+    if (editing) setEditing(false);
     itemText = item.kind === "text" ? item.text : "";
     itemTitle = item.title;
     // Each entry is read on its own terms: a language kept from the last one
@@ -531,7 +643,7 @@ function wire(): void {
   });
   bridge.onTheme((next) => {
     hostTheme = next;
-    scheduleDraw();
+    update();
   });
 }
 

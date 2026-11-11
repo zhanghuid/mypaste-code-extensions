@@ -179,45 +179,81 @@
     background-image: conic-gradient(#d6d6d6 25%, #f5f5f5 0 50%, #d6d6d6 0 75%, #f5f5f5 0);
     background-size: 18px 18px;
   }
-  .stage canvas { margin: auto; display: block; flex: none; }
+  .stage canvas { margin: auto; display: block; flex: none; cursor: text; }
   .stage-empty {
     margin: auto;
     color: var(--ui-muted);
     font-size: 13px;
   }
   /*
-   * The editor sits above the stage rather than beside it: the card keeps the
-   * full width of the page, so what is being edited and what the export will
-   * hold are the same layout. Its focus material is the caret — the box draws no
-   * ring of its own.
+   * Editing happens in the card itself. Clicking the code swaps the canvas for
+   * a card-shaped editor in the same place: the same surface, window band,
+   * padding and typography, so the text does not move when the pen comes out.
+   * The colours are the export's own — a backdrop carries the token colours and
+   * the textarea on top types over it with a caret and no glyphs of its own.
    */
-  .editor-pane {
+  .card-editor {
     flex: none;
-    height: 34%;
-    max-height: 220px;
-    min-height: 116px;
+    margin: auto;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 96px;
     border-radius: var(--radius-md);
-    background: var(--ui-raised);
-    box-shadow: inset 0 0 0 1px var(--ui-line);
+    background: var(--card-surface, #fbf7f0);
+    box-shadow: 0 var(--card-shadow-y, 20px) var(--card-shadow-blur, 68px) var(--card-shadow-color, rgba(0,0,0,0.25));
+  }
+  .card-editor[hidden] { display: none; }
+  .card-editor[data-shadow="false"] { box-shadow: none; }
+  .card-editor-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 18px 0 16px;
+  }
+  .card-editor-bar i {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--dot);
+  }
+  .card-editor[data-window="windows"] { --dot: var(--card-muted, #7d7264); }
+  .card-editor[data-window="windows"] .card-editor-bar { justify-content: flex-end; }
+  .card-editor[data-window="none"] .card-editor-bar i { display: none; }
+  .card-editor-code {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0 18px 18px 16px;
+    font: var(--card-font, 14px/19px "Hack", "SF Mono", "Menlo", "PingFang SC", monospace);
+    tab-size: 4;
+  }
+  .card-editor-code > * {
+    grid-area: 1 / 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font: inherit;
+    line-height: inherit;
+    letter-spacing: 0;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    word-break: normal;
+    tab-size: inherit;
+    color: var(--card-ink, #241e19);
+  }
+  .card-editor-backdrop { pointer-events: none; }
+  .card-editor-input {
+    width: 100%;
+    min-height: 1em;
+    color: transparent;
+    caret-color: var(--card-ink, #241e19);
+    background: transparent;
+    resize: none;
     overflow: hidden;
   }
-  .editor-pane textarea {
-    display: block;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    border: 0;
-    padding: 14px 16px;
-    background: transparent;
-    color: var(--ui-ink);
-    font: 13px/1.6 "Hack", "SF Mono", "Menlo", "PingFang SC", monospace;
-    tab-size: 2;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    resize: none;
-  }
-  .editor-pane textarea:focus,
-  .editor-pane textarea:focus-visible { outline: none; }
+  .card-editor-input:focus,
+  .card-editor-input:focus-visible { outline: none; }
 
   .status {
     position: absolute;
@@ -512,12 +548,17 @@
     </button>
   </div>
 
-  <div class="editor-pane" id="editor-pane" hidden>
-    <textarea id="card-editor" aria-label="编辑内容" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
-  </div>
-
   <div class="stage" id="stage">
     <canvas id="card-preview" aria-label="代码卡片预览"></canvas>
+    <div class="card-editor" id="card-editor" data-window="mac" hidden>
+      <div class="card-editor-bar">
+        <i style="background:#ff5f56"></i><i style="background:#ffbd2e"></i><i style="background:#27c93f"></i>
+      </div>
+      <div class="card-editor-code">
+        <pre class="card-editor-backdrop" aria-hidden="true"><code id="editor-highlight"></code></pre>
+        <textarea class="card-editor-input" id="card-editor-input" aria-label="编辑内容" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+      </div>
+    </div>
     <p class="stage-empty" id="stage-empty" hidden>这条条目没有可绘制的文本。</p>
   </div>
 

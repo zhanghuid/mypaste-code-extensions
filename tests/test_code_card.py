@@ -271,6 +271,26 @@ const unbroken = card
 assert.deepEqual(unbroken.map((line) => line.length), [24, 24, 2]);
 checks.push("a wrapped line ends at a space, and only a word longer than the line is cut");
 
+// A click on the card turns into a caret through the line starts: every drawn
+// line knows where it begins in the source, so the offset a click resolves to
+// is the character the reader pointed at.
+const multi = [
+  "const alpha = loadTemplates(root, options);",
+  "const beta = render(alpha, options, depth);",
+  "return beta;",
+].join("\n");
+const multiLines = card.codeCardLayout(card.cardSource(multi, "multi", "javascript"), base, undefined, 420);
+const drawnText = multiLines.lines.map((line) => line.map((token) => token.text).join(""));
+assert.equal(multiLines.lineStarts.length, drawnText.length);
+assert.equal(multiLines.lineStarts[0], 0);
+drawnText.forEach((text, index) => {
+  assert.ok(
+    multi.slice(multiLines.lineStarts[index]).startsWith(text),
+    `line ${index} starts at ${multiLines.lineStarts[index]}`,
+  );
+});
+checks.push("each drawn line knows where it begins in the source, so a click finds a caret");
+
 // The canvas behind the window is the palette's ground, a chosen hex, or
 // nothing at all for a transparent export.
 const ground = card.resolvePalette("nord", null);
@@ -420,6 +440,7 @@ class CodeCardTest(unittest.TestCase):
             "auto width follows the measured glyphs and keeps a floor for the window controls",
             "wrapping keeps the card inside the stage it is previewed in",
             "a wrapped line ends at a space, and only a word longer than the line is cut",
+            "each drawn line knows where it begins in the source, so a click finds a caret",
             "the background resolves to the palette, a hex, or transparent",
             "the host palette follows the host tokens and stored palettes do not",
             "every stored palette is complete",
