@@ -185,7 +185,7 @@ which every built page fits. The others run no process:
 draws the whole card, so the host hides its own header and footer and the page
 closes through the bridge's `close` request. Omitting it keeps the host card
 (`"host"`). Code-card (6.3.0), code-edit (3.7.2), diff-view (3.2.2), json
-(3.3.1) and link-inspector (1.0.0) declare `"page"`; image-edit and timestamp
+(3.3.1) and link-inspector (1.0.1) declare `"page"`; image-edit and timestamp
 keep the host card.
 
 ### Link type
@@ -225,9 +225,16 @@ is shown as source and never executed, and every document is capped at 200,000
 characters. A PDF or an archive has no in-page renderer, a cross-origin JSON
 endpoint may refuse the read (CORS), and an unreachable host may time out;
 each of those replaces the stage with a card that names the attempt and the
-reason, plus a retry and a copy-link action. The detector still never fetches
-anything: the two halves stay separate, and only the page that was asked to
-show a link does.
+reason, plus a retry and a copy-link action. Before choosing any of those
+renderers the page asks the server what it is about to send: one `HEAD` reads
+`Content-Type`, and when the header names a different type — an extensionless
+path the detector could only call a web page, for example — the measured type
+wins and the link is rendered as what it actually is. The preview header shows
+the measured type beside the renderer, so a disagreement between the guess and
+the server stays visible; a server that refuses `HEAD` or blocks the
+cross-origin read leaves the detection in place. The detector still never
+fetches anything: the two halves stay separate, and only the page that was
+asked to show a link does.
 
 ### Code card
 

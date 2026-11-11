@@ -49,6 +49,7 @@ const {
 } = mod;
 const renderers = await import(pathToFileURL(path.join(work, "renderer.mjs")).href);
 const { planFor, planWord, formatText, decodeInlineText, MAX_TEXT_CHARS } = renderers;
+const { mimeFromContentType, replanWithMime, schemeOf } = renderers;
 
 const checks = [];
 const complete = {
@@ -190,6 +191,31 @@ assert.equal(planWord(plan({ url: "https://example.com/a.pdf", mime: "applicatio
   "无预览");
 checks.push("the stage badge names the renderer that ran");
 
+// The detector reads the link text only, so an extensionless path it cannot
+// place becomes text/html. A measured header must be able to overrule that.
+assert.equal(schemeOf("http://file.example.com/70bae72c0513d7406305197fb97cdd4e"), "http");
+assert.equal(schemeOf("data:image/png;base64,AA=="), "data");
+assert.equal(mimeFromContentType("video/mp4; charset=utf-8"), "video/mp4");
+assert.equal(mimeFromContentType(" TEXT/HTML "), "text/html");
+assert.equal(mimeFromContentType(""), "");
+assert.equal(mimeFromContentType(null), "");
+assert.equal(mimeFromContentType("not-a-mime"), "");
+const guessedPage = {
+  ...base,
+  url: "http://file.example.com/70bae72c0513d7406305197fb97cdd4e",
+  mime: "text/html",
+  category: "page",
+  categoryLabel: "网页",
+};
+assert.equal(planFor(guessedPage).kind, "text");
+const measured = replanWithMime(guessedPage, "video/mp4; charset=utf-8");
+assert.equal(measured.kind, "video");
+assert.equal(measured.mime, "video/mp4");
+assert.equal(measured.url, guessedPage.url);
+assert.equal(replanWithMime(guessedPage, ""), null);
+assert.equal(replanWithMime(guessedPage, "application/octet-stream").kind, "unsupported");
+checks.push("a response header re-plans the renderer, an empty one does not");
+
 console.log(JSON.stringify(checks));
 """
 
@@ -246,6 +272,8 @@ class InspectorResultTest(unittest.TestCase):
         self.assertIn(
             "fetched text is formatted, never injected, and always bounded", checks)
         self.assertIn("the stage badge names the renderer that ran", checks)
+        self.assertIn(
+            "a response header re-plans the renderer, an empty one does not", checks)
 
 
 class LinkPackagesTest(unittest.TestCase):

@@ -22,7 +22,15 @@ import {
   type DetectorResult,
   type Evidence,
 } from "./result";
-import { formatText, planFor, planWord, type RenderPlan } from "./renderer";
+import {
+  formatText,
+  mimeFromContentType,
+  planFor,
+  planWord,
+  replanWithMime,
+  schemeOf,
+  type RenderPlan,
+} from "./renderer";
 
 /**
  * The companion detector's public pair, as declared by com.mypaste.link-mime.
@@ -69,6 +77,7 @@ const closeButton = one<HTMLButtonElement>("#doc-close");
 const previewSection = one<HTMLElement>("#preview");
 const previewStage = one<HTMLElement>("#preview-stage");
 const previewKind = one<HTMLElement>("#preview-kind");
+const previewSource = one<HTMLElement>("#preview-source");
 const previewNote = one<HTMLParagraphElement>("#preview-note");
 const previewReload = one<HTMLButtonElement>("#preview-reload");
 const copyLink = one<HTMLButtonElement>("#copy-link");
@@ -84,6 +93,12 @@ const MAX_FETCH_BYTES = 4 * 1024 * 1024;
  * fallback card every other failure gets.
  */
 const MEDIA_TIMEOUT_MS = 20_000;
+/**
+ * The detector reads the link text, not the server. One HEAD settles the
+ * question; a server that will not answer it must not delay the preview for
+ * long, so the probe gives up before the fetch budget does.
+ */
+const PROBE_TIMEOUT_MS = 8_000;
 
 let currentMime = "";
 let currentUrl = "";
@@ -263,14 +278,66 @@ async function fetchLinkText(url: string): Promise<FetchOutcome> {
   }
 }
 
+type Probe = { ok: true; mime: string } | { ok: false };
+
+/**
+ * Asks the server what it is about to send. A HEAD is a CORS-simple method, so
+ * it needs no preflight, and it costs one round trip with no body. It is the
+ * only way to see past a link whose path has no extension: the detector can
+ * only call such a link a web page. A server that refuses HEAD, or one the
+ * page may not read cross-origin, leaves the detector's answer in place.
+ */
+async function probeContentType(url: string): Promise<Probe> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: "HEAD",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+      signal: controller.signal,
+    });
+    if (!response.ok) return { ok: false };
+    return { ok: true, mime: mimeFromContentType(response.headers.get("content-type")) };
+  } catch {
+    return { ok: false };
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 async function renderPreview(result: DetectorResult): Promise<void> {
   const token = ++previewToken;
-  const plan = planFor(result);
+  let plan = planFor(result);
   previewSection.hidden = false;
-  previewKind.textContent = planWord(plan);
+  previewKind.textContent = "";
+  previewSource.textContent = "";
+  previewSource.hidden = true;
   previewNote.hidden = true;
   previewNote.textContent = "";
   previewStage.replaceChildren(stageNote("正在加载预览…", "正在向链接地址取内容。", "quiet"));
+  previewReload.hidden = true;
+
+  const scheme = schemeOf(result.url);
+  if (scheme === "http" || scheme === "https") {
+    const probe = await probeContentType(result.url.trim());
+    if (token !== previewToken) return;
+    if (probe.ok) {
+      const declared = (result.mime ?? "").trim().toLowerCase();
+      if (probe.mime === "") {
+        previewSource.textContent = "服务器没有声明 Content-Type";
+      } else if (probe.mime === declared) {
+        previewSource.textContent = `响应头 ${probe.mime}`;
+      } else {
+        previewSource.textContent = `响应头 ${probe.mime}，与推断不同，按它渲染`;
+      }
+      previewSource.hidden = false;
+      const replanned = replanWithMime(result, probe.mime);
+      if (replanned !== null) plan = replanned;
+    }
+  }
+
+  previewKind.textContent = planWord(plan);
   previewReload.hidden = plan.kind === "unsupported" || (plan.kind === "text" && plan.inline);
 
   if (plan.kind === "unsupported") {
@@ -301,6 +368,8 @@ function clearPreview(): void {
   previewSection.hidden = true;
   previewStage.replaceChildren();
   previewKind.textContent = "";
+  previewSource.textContent = "";
+  previewSource.hidden = true;
   previewNote.textContent = "";
   previewNote.hidden = true;
   previewReload.hidden = true;

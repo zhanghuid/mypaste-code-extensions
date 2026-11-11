@@ -53,7 +53,7 @@ export interface FormattedText {
   truncated: boolean;
 }
 
-function schemeOf(url: string): string {
+export function schemeOf(url: string): string {
   const match = /^([a-z][a-z0-9+.-]*):/i.exec(url.trim());
   return match?.[1]?.toLowerCase() ?? "";
 }
@@ -208,6 +208,29 @@ export function planFor(result: DetectorResult): RenderPlan {
     mime,
     reason: `「${mime}」${category === "" ? "" : `（${category}）`}不能在页面内渲染；没有可用的解码器。`,
   };
+}
+
+/**
+ * The MIME a response header reports, reduced to its `type/subtype`. Servers
+ * append parameters (`video/mp4; charset=utf-8`) and occasionally send nothing
+ * usable; an empty return means "no measurement", never a guess.
+ */
+export function mimeFromContentType(header: string | null | undefined): string {
+  const value = (header ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
+  return /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(value) ? value : "";
+}
+
+/**
+ * Re-plans from what the server says it is sending. The detector reads the
+ * link text alone, so an extensionless path always looks like a web page; a
+ * measured type decides instead whenever the header carries one, because it is
+ * what the server will actually send. A header with no usable type changes
+ * nothing, and the detector's plan stands.
+ */
+export function replanWithMime(result: DetectorResult, header: string): RenderPlan | null {
+  const measured = mimeFromContentType(header);
+  if (measured === "") return null;
+  return planFor({ ...result, mime: measured });
 }
 
 function mediaKind(mime: string): "image" | "video" | "audio" {

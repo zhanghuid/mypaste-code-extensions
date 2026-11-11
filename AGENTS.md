@@ -77,7 +77,9 @@ plugin protocol v3 (`docs/PLUGINS.md` in the app repository).
   the bundled script either way, and it may only talk to the host through the
   fixed bridge in its own `src/bridge.ts`. It has no database, asset,
   preference or filesystem access and must not fetch anything over the
-  network.
+  network, except a package that declares `surface.network` (official only,
+  host D-1100): that one may load remote images, media and text, and must
+  still explain every failed fetch on the page.
 - `servers/mypaste-relay/` is a standalone HTTPS relay service (own `go.mod`),
   not a plugin package; deploy it separately. The ferry↔relay wire protocol
   (`mypaste-relay-v1`) is frozen: changing it is a breaking protocol change

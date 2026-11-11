@@ -275,6 +275,14 @@
   }
   .preview-head .block-title { margin: 0; }
   .preview-head .chip { margin-left: auto; }
+  .preview-source {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 11.5px/1.4 var(--mono);
+    color: var(--muted);
+  }
   .preview-reload { flex: none; }
   .stage {
     display: flex;
@@ -451,6 +459,7 @@
           <div class="preview-head">
             <h2 class="block-title">预览</h2>
             <span class="chip chip-accent" id="preview-kind"></span>
+            <span class="preview-source" id="preview-source" hidden></span>
             <button id="preview-reload" class="action quiet preview-reload" type="button" hidden>重新加载</button>
           </div>
           <div id="preview-stage" class="stage"></div>
