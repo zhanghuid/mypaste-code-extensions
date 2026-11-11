@@ -2,9 +2,9 @@
   "manifestVersion": 3,
   "id": "com.mypaste.json",
   "name": "JSON 编辑器",
-  "version": "3.4.1",
+  "version": "3.5.0",
   "kind": "ui",
-  "description": "在页面内用 Prettier 排版 JSON：两侧都是可编辑、带行号与语法高亮的代码面板，文档头图标行的每一步结果都写在右侧。美化、压缩、折叠、XML、TypeScript 与复制齐全，折叠把嵌套对象与数组收起成一行、可再展开，行尾的「保留转义」开关决定结果里 \\uXXXX 与 \\/ 是否还原为字符；粘贴 URL 参数、XML 或 YAML 也转换后写在右侧，左侧面板可按 JavaScript 表达式过滤。Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。",
+  "description": "在页面内用 Prettier 排版 JSON：两侧都是可编辑、带行号与语法高亮的代码面板，右侧实时预览左侧，任何一侧都在出错的位置标出错误，说明写在面板下方。美化、压缩、折叠、XML、TypeScript 与复制齐全；折叠把嵌套结构收成一行、可再展开，「保留转义」开关决定结果里 \\uXXXX 与 \\/ 是否还原；粘贴 URL 参数、XML 或 YAML 转换后写在右侧。Prettier 内置于页面，不需要 Node，不联网，复制由宿主执行。",
   "capabilities": [
     "entity.read"
   ],

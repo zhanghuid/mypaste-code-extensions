@@ -46,6 +46,8 @@
     --accent: var(--mp-accent, #9a5427);
     --accent-ink: var(--mp-accent-ink, #fff8ef);
     --focus: color-mix(in srgb, var(--mp-accent, #9a5427) 35%, transparent);
+    --danger: var(--mp-danger, #b65b36);
+    --danger-ink: var(--mp-danger-ink, #9f4629);
     --editor-bg: var(--mp-code-surface, #ede5d8);
     --editor-ink: var(--mp-code-ink, #2f261e);
     --selection: color-mix(in srgb, var(--editor-ink) 22%, transparent);
@@ -74,6 +76,8 @@
     --accent: var(--mp-accent, #e2955f);
     --accent-ink: var(--mp-accent-ink, #241a12);
     --focus: color-mix(in srgb, var(--mp-accent, #e2955f) 35%, transparent);
+    --danger: var(--mp-danger, #d58a68);
+    --danger-ink: var(--mp-danger-ink, #e4a484);
     --editor-bg: var(--mp-code-surface, #171412);
     --editor-ink: var(--mp-code-ink, #f0e6d9);
     --selection: color-mix(in srgb, var(--editor-ink) 26%, transparent);
@@ -385,6 +389,17 @@
   .tok-comment { color: var(--tok-comment); }
   .tok-tag { color: var(--tok-tag); }
   .tok-type { color: var(--tok-type); }
+  /* A lint run keeps the colour of its token and gains the editor's squiggle,
+     so the document's own grammar stays readable through the error. */
+  .tok-error {
+    text-decoration: underline wavy var(--danger);
+    text-decoration-skip-ink: none;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 3px;
+  }
+  /* One line number, marked when the problem is on that line. The rest of the
+     gutter stays text, so nothing about the numbers' rhythm changes. */
+  .gutter-line.is-error { color: var(--danger-ink); font-weight: 600; }
 
   /*
    * The workbench is the entry on the left and the derived document on the
@@ -400,7 +415,8 @@
   }
   .pane {
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    /* head, code, and the lint strip when a problem needs words. */
+    grid-template-rows: auto minmax(0, 1fr) auto;
     min-width: 0;
     min-height: 0;
     overflow: hidden;
@@ -450,6 +466,24 @@
   /* The result pane starts empty: its surface appears once a conversion has
      written something into it. */
   .pane-output[data-state="empty"] .editor { display: none; }
+
+  /*
+   * A pane's lint strip: the message for the squiggle above it. It sits on the
+   * pane's own bottom edge, only while there is something to say, and the
+   * squiggle and the red line number are what point at the character.
+   */
+  .lint {
+    margin: 0;
+    padding: 5px 12px;
+    overflow: hidden;
+    border-top: 1px solid color-mix(in srgb, var(--danger) 34%, var(--line));
+    background: color-mix(in srgb, var(--danger) 7%, var(--solid));
+    color: var(--danger-ink);
+    font: 11px/1.5 var(--mono);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lint[hidden] { display: none; }
 
   /* The status bar mirrors the code editor's footer. */
   .statusbar {
@@ -617,9 +651,11 @@
         <div class="code-surface">
           <pre class="highlight" id="editor-highlight" aria-hidden="true"></pre>
           <textarea class="code-input" id="editor" spellcheck="false" autocomplete="off"
-            autocapitalize="off" wrap="off" aria-label="原始 JSON（可编辑）"></textarea>
+            autocapitalize="off" wrap="off" aria-label="原始 JSON（可编辑）"
+            aria-describedby="editor-lint"></textarea>
         </div>
       </div>
+      <p class="lint" id="editor-lint" hidden></p>
     </section>
     <section class="pane pane-output" id="output" data-state="empty" aria-label="转换结果">
       <div class="pane-head">
@@ -634,16 +670,18 @@
         </button>
       </div>
       <div class="pane-body">
-        <p class="pane-empty" id="output-empty">美化、压缩或选择一种转换后，结果显示在这里；两个面板都能直接编辑。</p>
+        <p class="pane-empty" id="output-empty">美化、压缩或选择一种转换后，结果显示在这里；左边改一个字，这里立刻跟着变。</p>
         <div class="editor">
           <pre class="gutter" id="output-gutter" aria-hidden="true"></pre>
           <div class="code-surface">
             <pre class="highlight" id="output-text" aria-hidden="true"></pre>
             <textarea class="code-input" id="output-input" spellcheck="false" autocomplete="off"
-              autocapitalize="off" wrap="off" aria-label="转换结果（可编辑）"></textarea>
+              autocapitalize="off" wrap="off" aria-label="转换结果（可编辑）"
+              aria-describedby="output-lint"></textarea>
           </div>
         </div>
       </div>
+      <p class="lint" id="output-lint" hidden></p>
     </section>
   </div>
   <footer class="statusbar">

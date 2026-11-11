@@ -4,11 +4,17 @@
  * Prettier is bundled into this document, so the page formats, minifies and
  * converts without a runtime, Node or the network. Both panes are the same
  * editable, syntax-coloured surface: the left holds the entry and the right
- * holds whatever the actions produced (beautify on open, minify, fold, XML,
- * TypeScript, filter, paste conversion), and the escape toggle re-derives the
- * result. Editing either pane re-colours only that pane. Copying is a host
- * action: the page posts `copy` and never touches the clipboard itself. Every
- * value reaches the DOM through `textContent` or `textarea.value`, never HTML.
+ * holds whatever the document head's actions last produced (beautify on open,
+ * minify, fold, XML, TypeScript, filter, paste conversion).
+ *
+ * The right pane previews the left one: editing the entry re-derives the
+ * current action after a short pause, so the result is never stale. Typing in
+ * the right pane instead makes it its own document, which the entry then
+ * leaves alone until an action is asked for again. Both panes lint what they
+ * show: the wrong token is squiggled, its line number is marked, and the
+ * message sits on the pane's own bottom edge. Copying is a host action: the
+ * page posts `copy` and never touches the clipboard itself. Every value
+ * reaches the DOM through `textContent` or `textarea.value`, never HTML.
  */
 
 import { connectSurface } from "./bridge";
@@ -18,7 +24,8 @@ import { evaluateExpression } from "./evaluate";
 import { foldJson, type FoldedDocument } from "./fold";
 import { describeJsonError, formatJson } from "./format";
 import { highlightInto, type Language } from "./highlight";
-import { parseJson, type JsonValue } from "./json";
+import { lint, positionOf, type Diagnostic } from "./lint";
+import { parseJson } from "./json";
 import { jsonToTypeScript } from "./typescript";
 import { jsonToXml } from "./xml";
 
@@ -36,6 +43,7 @@ const copyJson = one<HTMLButtonElement>("#copy-json");
 const closeDoc = one<HTMLButtonElement>("#doc-close");
 const editorGutter = one<HTMLElement>("#editor-gutter");
 const editorHighlight = one<HTMLElement>("#editor-highlight");
+const editorLint = one<HTMLElement>("#editor-lint");
 const preserveToggle = one<HTMLButtonElement>("#preserve-escapes");
 const formatButton = one<HTMLButtonElement>("#format");
 const minifyButton = one<HTMLButtonElement>("#minify");
@@ -48,11 +56,15 @@ const outputMeta = one<HTMLParagraphElement>("#output-meta");
 const outputText = one<HTMLElement>("#output-text");
 const outputGutter = one<HTMLElement>("#output-gutter");
 const outputInput = one<HTMLTextAreaElement>("#output-input");
+const outputLint = one<HTMLElement>("#output-lint");
 const copyOutput = one<HTMLButtonElement>("#copy-output");
 const filter = one<HTMLInputElement>("#filter");
 const filterRun = one<HTMLButtonElement>("#filter-run");
 
 const bridge = connectSurface();
+
+/** How long the entry rests before the result pane catches up. */
+const PREVIEW_DELAY_MS = 260;
 
 /** The text the result panel currently owns. */
 let derived = "";
@@ -60,12 +72,16 @@ let derived = "";
 let foldable: FoldedDocument | null = null;
 /** Whether the result pane is showing the folded view. */
 let folded = false;
-/** The newest delivery or paste wins; an older async job may finish later. */
-let generation = 0;
+/** The newest write wins; an older async job may finish later. */
+let writeToken = 0;
+/** The pending live-preview timer, if the entry was typed into. */
+let previewTimer: ReturnType<typeof setTimeout> | null = null;
 /** Whether the document keeps the wire spelling of escapes (see `escape.ts`). */
 let preserveEscapes = false;
-/** The action behind the result panel, so the toggle can re-derive it. */
-let view: (() => Promise<void> | void) | null = null;
+/** The action the result pane follows from the entry; `null` when it is its own. */
+let active: ActionName | null = null;
+/** The last pasted conversion, kept so the toggle can re-shape its result. */
+let pasted: { title: string; text: string; language: Language } | null = null;
 
 /**
  * Every writer passes through here, so the result's spelling never depends on
@@ -86,20 +102,6 @@ function setPreserveEscapes(next: boolean): void {
 }
 setPreserveEscapes(false);
 
-// The toggle is a spelling choice for the right-hand result, never a rewrite of
-// the original: flipping it re-derives whatever the result panel is showing.
-preserveToggle.addEventListener("click", () => {
-  const next = !preserveEscapes;
-  setPreserveEscapes(next);
-  if (view !== null) {
-    void view();
-    return;
-  }
-  setStatus(next
-    ? "已保留转义：右侧结果将使用 \\uXXXX 写法。"
-    : "已还原转义：右侧结果将还原中文与斜杠。");
-});
-
 // The host never sees a key pressed inside this frame, so Esc is the page's
 // own: it closes the surface through the bridge (D-1097).
 document.addEventListener("keydown", (event) => {
@@ -110,48 +112,104 @@ document.addEventListener("keydown", (event) => {
 
 interface CodePane {
   readonly input: HTMLTextAreaElement;
-  /** The grammar the copy is coloured with. */
+  /** The grammar the copy is coloured, and linted, with. */
   language: Language;
-  /** Repaints the line numbers and the coloured copy from the pane's text. */
+  /** Whether the text is a document to check, or a rendered view of one. */
+  check: boolean;
+  /** Repaints the coloured copy, the gutter and the lint strip. */
   render(): void;
+  /** Re-ties the copy and the gutter to the textarea's scroll position. */
+  sync(): void;
   /** Replaces the pane's text and repaints it. */
-  set(text: string, language?: Language): void;
+  set(text: string, language?: Language, check?: boolean): void;
 }
 
 /**
  * One pane is a textarea laid over its own coloured copy: the copy draws the
  * document and the textarea owns the caret, the selection and the scroll, so
  * reading and editing share one set of coordinates. The gutter follows the
- * textarea's vertical scroll, and an IME composition shows the textarea's own
- * ink for as long as the candidate window is open (see the stylesheet).
+ * textarea's vertical scroll, an IME composition shows the textarea's own ink
+ * for as long as the candidate window is open, and a lint diagnostic marks the
+ * token it names in the copy, the line number in the gutter and the strip
+ * under the pane.
  */
 function codePane(
   input: HTMLTextAreaElement,
   highlight: HTMLElement,
   gutter: HTMLElement,
+  strip: HTMLElement,
   initial: Language,
 ): CodePane {
+  function paintGutter(diagnostic: Diagnostic | null): void {
+    const lines = input.value.split("\n").length;
+    const errorLine = diagnostic === null
+      ? 0
+      : positionOf(input.value, diagnostic.start).line;
+    const fragment = document.createDocumentFragment();
+    for (let line = 1; line <= lines; line += 1) {
+      if (line > 1) fragment.append(document.createTextNode("\n"));
+      if (line !== errorLine) {
+        fragment.append(document.createTextNode(String(line)));
+        continue;
+      }
+      const marked = document.createElement("span");
+      marked.className = "gutter-line is-error";
+      marked.textContent = String(line);
+      fragment.append(marked);
+    }
+    gutter.replaceChildren(fragment);
+    gutter.scrollTop = input.scrollTop;
+  }
+
+  function report(diagnostic: Diagnostic | null): void {
+    if (diagnostic === null) {
+      strip.hidden = true;
+      strip.textContent = "";
+      strip.removeAttribute("title");
+      input.setAttribute("aria-invalid", "false");
+      return;
+    }
+    const { line, column } = positionOf(input.value, diagnostic.start);
+    const message = `第 ${line} 行第 ${column} 列 · ${diagnostic.message}`;
+    strip.hidden = false;
+    strip.textContent = message;
+    strip.setAttribute("title", message);
+    input.setAttribute("aria-invalid", "true");
+  }
+
   const pane: CodePane = {
     input,
     language: initial,
+    check: true,
     render(): void {
-      highlightInto(highlight, input.value, pane.language);
-      const lines = input.value.split("\n").length;
-      const numbers: string[] = [];
-      for (let line = 1; line <= lines; line += 1) numbers.push(String(line));
-      gutter.textContent = numbers.join("\n");
+      const diagnostic = pane.check ? lint(input.value, pane.language) : null;
+      highlightInto(
+        highlight,
+        input.value,
+        pane.language,
+        diagnostic === null ? undefined : { start: diagnostic.start, end: diagnostic.end },
+      );
+      paintGutter(diagnostic);
+      report(diagnostic);
+    },
+    sync(): void {
+      highlight.scrollTop = input.scrollTop;
+      highlight.scrollLeft = input.scrollLeft;
       gutter.scrollTop = input.scrollTop;
     },
-    set(text: string, language?: Language): void {
+    set(text: string, language?: Language, check = true): void {
       if (language !== undefined) pane.language = language;
+      pane.check = check;
       input.value = text;
+      // A new document starts at its own beginning; a live write puts the
+      // reader's scroll position back afterwards.
+      input.scrollTop = 0;
+      input.scrollLeft = 0;
       pane.render();
     },
   };
   input.addEventListener("scroll", () => {
-    highlight.scrollTop = input.scrollTop;
-    highlight.scrollLeft = input.scrollLeft;
-    gutter.scrollTop = input.scrollTop;
+    pane.sync();
   });
   input.addEventListener("compositionstart", () => {
     input.classList.add("composing");
@@ -163,8 +221,8 @@ function codePane(
   return pane;
 }
 
-const sourcePane = codePane(editor, editorHighlight, editorGutter, "json");
-const resultPane = codePane(outputInput, outputText, outputGutter, "json");
+const sourcePane = codePane(editor, editorHighlight, editorGutter, editorLint, "json");
+const resultPane = codePane(outputInput, outputText, outputGutter, outputLint, "json");
 
 function setStatus(text: string): void {
   status.textContent = text;
@@ -191,6 +249,8 @@ function updateMeta(): void {
 
 function setEditor(text: string): void {
   editor.value = text;
+  editor.scrollTop = 0;
+  editor.scrollLeft = 0;
   updateMeta();
   sourcePane.render();
 }
@@ -216,54 +276,227 @@ function updateFoldControl(): void {
   foldButton.setAttribute("aria-label", label);
 }
 
-function showOutput(title: string, text: string, language: Language = "json"): void {
-  derived = text;
-  foldable = foldJson(text);
-  folded = false;
+/** The action behind the result pane, so the toggle and the live preview agree. */
+type ActionName = "format" | "minify" | "xml" | "typescript" | "filter";
+
+interface Rendered {
+  title: string;
+  text: string;
+  language: Language;
+}
+
+const ACTION_TITLE: Record<ActionName, string> = {
+  format: "美化",
+  minify: "压缩",
+  xml: "XML",
+  typescript: "TypeScript",
+  filter: "过滤结果",
+};
+
+const ACTION_STATUS: Record<ActionName, string> = {
+  format: "已在右侧重新排版。",
+  minify: "已压缩为单行，写在右侧。",
+  xml: "已转换为 XML，写在右侧。",
+  typescript: "已生成 TypeScript interface，写在右侧。",
+  filter: "已对当前 JSON 求值，写在右侧。",
+};
+
+/** A failure that is an expected outcome, carried as its own status line. */
+class Stop extends Error {
+  constructor(readonly status: string) {
+    super(status);
+  }
+}
+
+/** The result the current action produces from the entry, as it stands now. */
+async function derive(action: ActionName): Promise<Rendered> {
+  switch (action) {
+    case "format":
+      return {
+        title: ACTION_TITLE.format,
+        text: await formatDocument(editor.value),
+        language: "json",
+      };
+    case "minify": {
+      const text = JSON.stringify(parseJson(editor.value));
+      return {
+        title: ACTION_TITLE.minify,
+        text: preserveEscapes ? escapeNonAscii(text) : text,
+        language: "json",
+      };
+    }
+    case "xml":
+      return { title: ACTION_TITLE.xml, text: jsonToXml(parseJson(editor.value)), language: "xml" };
+    case "typescript":
+      return {
+        title: ACTION_TITLE.typescript,
+        text: jsonToTypeScript(parseJson(editor.value)),
+        language: "typescript",
+      };
+    case "filter": {
+      const evaluation = evaluateExpression(filter.value, parseJson(editor.value));
+      if (evaluation.value === undefined) throw new Stop("表达式没有返回值。");
+      return {
+        title: ACTION_TITLE.filter,
+        text: resultText(evaluation.value),
+        language: typeof evaluation.value === "string" ? "plain" : "json",
+      };
+    }
+  }
+}
+
+/**
+ * Writes a rendered result into the result pane. A live write keeps the
+ * reader's folded view and scroll position: the entry is being edited, not the
+ * result, so the pane must not jump under the eye.
+ */
+function writeResult(rendered: Rendered, live: boolean): void {
+  const top = outputInput.scrollTop;
+  const left = outputInput.scrollLeft;
+  derived = rendered.text;
+  foldable = foldJson(rendered.text);
+  if (!live || foldable === null) folded = false;
   updateFoldControl();
   output.dataset.state = "filled";
-  outputTitle.textContent = title;
-  outputMeta.textContent = describe(text);
-  resultPane.set(text, language);
-  copyOutput.disabled = text === "";
+  outputTitle.textContent = rendered.title;
+  outputMeta.textContent = describe(rendered.text);
+  // A folded pane shows a rendering of the document, not the document, so it
+  // is not linted: its `…` placeholders are not JSON the reader typed.
+  resultPane.set(folded && foldable !== null ? foldable.text : rendered.text, rendered.language, !folded);
+  if (live) {
+    outputInput.scrollTop = top;
+    outputInput.scrollLeft = left;
+    resultPane.sync();
+  }
+  copyOutput.disabled = rendered.text === "";
+}
+
+/** The status line for an action that could not produce a result. */
+function failureStatus(action: ActionName, error: unknown): string {
+  if (error instanceof Stop) return error.status;
+  if (action === "format" || action === "minify") {
+    const verb = action === "format" ? "排版" : "压缩";
+    const diagnostic = lint(editor.value, "json");
+    if (diagnostic !== null) {
+      const { line, column } = positionOf(editor.value, diagnostic.start);
+      return `无法${verb}：第 ${line} 行第 ${column} 列 · ${diagnostic.message}`;
+    }
+    return `无法${verb}：${describeJsonError(error, editor.value)}`;
+  }
+  const detail = error instanceof Error ? error.message : "未知错误";
+  if (action === "filter") return `过滤失败：${detail}`;
+  return action === "xml" ? `无法转换为 XML：${detail}` : `无法生成 TypeScript interface：${detail}`;
+}
+
+/** Whether the current action last failed, so a good preview can say it works. */
+let failing = false;
+
+/**
+ * Runs one action: derives its result from the entry and makes it the thing
+ * the result pane follows. `note` replaces the action's own status line when
+ * the caller has something more specific to say (the escape toggle).
+ */
+async function applyAction(action: ActionName, note?: string): Promise<void> {
+  const token = ++writeToken;
+  active = action;
+  pasted = null;
+  cancelPreview();
+  if (action === "format") setStatus("正在排版…");
+  let rendered: Rendered;
+  try {
+    rendered = await derive(action);
+  } catch (error) {
+    if (token !== writeToken) return;
+    failing = true;
+    setStatus(failureStatus(action, error));
+    return;
+  }
+  if (token !== writeToken) return;
+  failing = false;
+  writeResult(rendered, false);
+  setStatus(note ?? ACTION_STATUS[action]);
+}
+
+function cancelPreview(): void {
+  if (previewTimer === null) return;
+  clearTimeout(previewTimer);
+  previewTimer = null;
+}
+
+/** Schedules the result pane to catch up with the entry once typing pauses. */
+function schedulePreview(): void {
+  if (active === null) return;
+  cancelPreview();
+  previewTimer = setTimeout(() => {
+    previewTimer = null;
+    void refreshPreview();
+  }, PREVIEW_DELAY_MS);
+}
+
+/**
+ * Re-derives the current action from the entry and writes it quietly: no
+ * status line, no scroll jump, no clearing. An entry that does not parse keeps
+ * the last good result, and its own pane says why.
+ */
+async function refreshPreview(): Promise<void> {
+  if (active === null) return;
+  const action = active;
+  const token = ++writeToken;
+  let rendered: Rendered;
+  try {
+    rendered = await derive(action);
+  } catch {
+    return;
+  }
+  if (token !== writeToken || active !== action) return;
+  writeResult(rendered, true);
+  if (failing) {
+    failing = false;
+    setStatus(ACTION_STATUS[action]);
+  }
 }
 
 function clearWhenEmpty(): void {
   copyJson.disabled = editor.value === "";
 }
 
-// The left pane is editable like the right one, but typing there only
-// re-colours that pane: the result keeps what the last action wrote until an
-// action is asked for again.
+// Typing in the entry re-derives the current action after a pause, so the
+// result pane is a preview of what is on the left, never a leftover.
 editor.addEventListener("input", () => {
   sourcePane.render();
   updateMeta();
   clearWhenEmpty();
+  schedulePreview();
 });
 
-// A hand-edited result becomes the document of record: folding reads the
-// edited text, and the escape toggle stops re-deriving, because re-deriving
-// would discard the edit.
+// A hand-edited result becomes its own document: folding and copying read it,
+// the entry stops previewing into it, and the escape toggle stops re-deriving,
+// because re-deriving would discard the edit.
 outputInput.addEventListener("input", () => {
+  active = null;
+  pasted = null;
+  cancelPreview();
   derived = outputInput.value;
-  view = null;
   folded = false;
   foldable = foldJson(derived);
   updateFoldControl();
   resultPane.render();
   output.dataset.state = derived === "" ? "empty" : "filled";
-  outputTitle.textContent = derived === "" ? "结果" : outputTitle.textContent;
-  outputMeta.textContent = derived === "" ? "" : describe(derived);
+  if (derived === "") {
+    outputTitle.textContent = "结果";
+    outputMeta.textContent = "";
+  } else {
+    outputMeta.textContent = describe(derived);
+  }
   copyOutput.disabled = derived === "";
 });
 
 async function load(text: string, title: string): Promise<void> {
-  const current = ++generation;
-  view = applyFormat;
   summary.textContent = title || "当前条目";
   hideOutput();
   setEditor(text);
   clearWhenEmpty();
+  active = "format";
 
   if (text.trim() === "") {
     // An entry of only whitespace has nothing to show or copy.
@@ -273,109 +506,23 @@ async function load(text: string, title: string): Promise<void> {
     return;
   }
 
-  try {
-    const formatted = await formatDocument(text);
-    if (current !== generation) return;
-    // The left pane is the entry as it arrived. The beautified document is a
-    // result, so it lands on the right like every other conversion.
-    showOutput("美化", formatted);
-  } catch (error) {
-    if (current !== generation) return;
-    setStatus(`无法排版：${describeJsonError(error, text)}`);
-  }
-  clearWhenEmpty();
-}
-
-async function applyFormat(): Promise<void> {
-  view = applyFormat;
-  const source = editor.value;
-  if (source.trim() === "") {
-    hideOutput();
-    setStatus("没有可排版的内容。");
-    return;
-  }
-  hideOutput();
-  setStatus("正在排版…");
-  try {
-    const formatted = await formatDocument(source);
-    showOutput("美化", formatted);
-    setStatus("已在右侧重新排版。");
-  } catch (error) {
-    setStatus(`无法排版：${describeJsonError(error, source)}`);
-  }
-}
-
-function currentJson(): { value: JsonValue } | null {
-  try {
-    return { value: parseJson(editor.value) };
-  } catch (error) {
-    setStatus(`当前 JSON 无法解析：${describeJsonError(error, editor.value)}`);
-    return null;
-  }
-}
-
-function applyMinify(): void {
-  view = applyMinify;
-  hideOutput();
-  const current = currentJson();
-  if (current === null) return;
-  const text = JSON.stringify(current.value);
-  showOutput("压缩", preserveEscapes ? escapeNonAscii(text) : text);
-  setStatus("已压缩为单行，写在右侧。");
+  await applyAction("format");
 }
 
 function applyFold(): void {
   if (foldable === null) return;
   folded = !folded;
-  resultPane.set(folded ? foldable.text : derived);
+  resultPane.set(folded ? foldable.text : derived, undefined, !folded);
   updateFoldControl();
   setStatus(folded
     ? `已折叠 ${foldable.count} 处嵌套结构；复制仍是完整 JSON。`
     : "已展开全部结构。");
 }
 
-function applyXml(): void {
-  view = applyXml;
-  const current = currentJson();
-  if (current === null) return;
-  try {
-    showOutput("XML", jsonToXml(current.value), "xml");
-    setStatus("已转换为 XML，写在右侧。");
-  } catch (error) {
-    setStatus(`无法转换为 XML：${error instanceof Error ? error.message : "未知错误"}`);
-  }
-}
-
-function applyTypeScript(): void {
-  view = applyTypeScript;
-  const current = currentJson();
-  if (current === null) return;
-  showOutput("TypeScript", jsonToTypeScript(current.value), "typescript");
-  setStatus("已生成 TypeScript interface，写在右侧。");
-}
-
 function resultText(value: unknown): string {
   if (typeof value === "string") return value;
   const text = JSON.stringify(value, null, 2);
   return text === undefined ? String(value) : text;
-}
-
-function applyFilter(): void {
-  view = applyFilter;
-  const current = currentJson();
-  if (current === null) return;
-  try {
-    const evaluation = evaluateExpression(filter.value, current.value);
-    if (evaluation.value === undefined) {
-      setStatus("表达式没有返回值。");
-      return;
-    }
-    const text = resultText(evaluation.value);
-    showOutput("过滤结果", text, typeof evaluation.value === "string" ? "plain" : "json");
-    setStatus("已对当前 JSON 求值，写在右侧。");
-  } catch (error) {
-    setStatus(`过滤失败：${error instanceof Error ? error.message : "未知错误"}`);
-  }
 }
 
 const KIND_LABEL: Record<PasteKind, string> = {
@@ -385,30 +532,29 @@ const KIND_LABEL: Record<PasteKind, string> = {
   yaml: "YAML",
 };
 
-/** The last pasted text, kept so the toggle can re-shape its result. */
-let pasted: { title: string; text: string; language: Language } | null = null;
-
 function shapeResult(text: string): string {
   return preserveEscapes ? escapeNonAscii(text) : decodeEscapes(text);
 }
 
 function applyPaste(): void {
   if (pasted === null) return;
-  showOutput(pasted.title, shapeResult(pasted.text), pasted.language);
+  // A paste converts clipboard text, not the entry: the result does not follow
+  // the left pane, so it is not a preview of it.
+  active = null;
+  writeResult({ title: pasted.title, text: shapeResult(pasted.text), language: pasted.language }, false);
 }
 
 // A paste into the entry pane is a conversion of clipboard text, not an edit:
 // the converted document lands on the right and the entry keeps what it had.
 // Pasting into the result pane is an ordinary edit.
 async function handlePaste(text: string): Promise<void> {
-  const current = ++generation;
+  const mine = ++writeToken;
   setStatus("正在识别粘贴内容…");
   const attempt = await convertPaste(text);
-  if (current !== generation) return;
+  if (mine !== writeToken) return;
 
   if (attempt.status === "converted") {
     pasted = { title: `粘贴 · ${KIND_LABEL[attempt.kind]}`, text: attempt.text, language: "json" };
-    view = applyPaste;
     applyPaste();
     setStatus(`已把粘贴的 ${KIND_LABEL[attempt.kind]} 转为 JSON，写在右侧。`);
     return;
@@ -418,7 +564,6 @@ async function handlePaste(text: string): Promise<void> {
     ? `识别为 ${KIND_LABEL[attempt.kind]}，但转换失败：${attempt.message}`
     : "不是可识别的 JSON、URL 参数、XML 或 YAML";
   pasted = { title: "粘贴内容", text, language: "plain" };
-  view = applyPaste;
   applyPaste();
   setStatus(`${reason}；粘贴内容原样放在右侧。`);
 }
@@ -446,26 +591,52 @@ closeDoc.addEventListener("click", () => {
   bridge.close();
 });
 formatButton.addEventListener("click", () => {
-  void applyFormat();
+  void applyAction("format");
 });
 minifyButton.addEventListener("click", () => {
-  applyMinify();
+  void applyAction("minify");
 });
 foldButton.addEventListener("click", () => {
   applyFold();
 });
 xmlButton.addEventListener("click", () => {
-  applyXml();
+  void applyAction("xml");
 });
 tsButton.addEventListener("click", () => {
-  applyTypeScript();
+  void applyAction("typescript");
 });
-filterRun.addEventListener("click", applyFilter);
+filterRun.addEventListener("click", () => {
+  void applyAction("filter");
+});
 filter.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
-    applyFilter();
+    void applyAction("filter");
   }
+});
+// The expression reads the entry, so it previews like every other action.
+filter.addEventListener("input", () => {
+  schedulePreview();
+});
+
+// The toggle is a spelling choice for the result, never a rewrite of the
+// original: flipping it re-derives whatever the result pane is showing.
+preserveToggle.addEventListener("click", () => {
+  const next = !preserveEscapes;
+  setPreserveEscapes(next);
+  const note = next
+    ? "已保留转义：右侧结果将使用 \\uXXXX 写法。"
+    : "已还原转义：右侧结果将还原中文与斜杠。";
+  if (active !== null) {
+    void applyAction(active, note);
+    return;
+  }
+  if (pasted !== null) {
+    applyPaste();
+    setStatus(note);
+    return;
+  }
+  setStatus(note);
 });
 
 hideOutput();

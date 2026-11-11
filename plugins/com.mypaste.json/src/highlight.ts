@@ -28,6 +28,12 @@ export interface Token {
   role: TokenRole | null;
 }
 
+/** The run a lint diagnostic points at, as offsets into the pane's text. */
+export interface Mark {
+  start: number;
+  end: number;
+}
+
 const ROLE_CLASS: Record<TokenRole, string> = {
   keyword: "tok-keyword",
   string: "tok-string",
@@ -337,28 +343,58 @@ function scan(source: string, language: Language): Token[] {
   }
 }
 
-function appendToken(fragment: DocumentFragment, token: Token): void {
-  if (token.role === null) {
-    fragment.append(document.createTextNode(token.text));
+function appendText(fragment: DocumentFragment, text: string, className: string): void {
+  if (text === "") return;
+  if (className === "") {
+    fragment.append(document.createTextNode(text));
     return;
   }
   const span = document.createElement("span");
-  span.className = ROLE_CLASS[token.role];
-  span.textContent = token.text;
+  span.className = className;
+  span.textContent = text;
   fragment.append(span);
 }
 
 /**
- * Repaints `target` with `source` coloured as `language`. The text is exactly
- * `source`: the pane's own text content is the document, never a rendering of
- * it, so copying from the pane and folding it both see the same bytes.
+ * One token, split where `mark` overlaps it: the marked run keeps its colour
+ * and gains `tok-error`, which the stylesheet draws as a squiggle. Splitting
+ * rather than nesting keeps one colour owner per character.
  */
-export function highlightInto(target: Element, source: string, language: Language): void {
+function appendToken(fragment: DocumentFragment, token: Token, offset: number, mark?: Mark): void {
+  const className = token.role === null ? "" : ROLE_CLASS[token.role];
+  const end = offset + token.text.length;
+  if (mark === undefined || mark.start >= end || mark.end <= offset) {
+    appendText(fragment, token.text, className);
+    return;
+  }
+  const from = Math.max(mark.start, offset) - offset;
+  const to = Math.min(mark.end, end) - offset;
+  appendText(fragment, token.text.slice(0, from), className);
+  appendText(fragment, token.text.slice(from, to), `${className} tok-error`.trim());
+  appendText(fragment, token.text.slice(to), className);
+}
+
+/**
+ * Repaints `target` with `source` coloured as `language`, and marks the run
+ * `[mark.start, mark.end)` as wrong. The text is exactly `source`: the pane's
+ * own text content is the document, never a rendering of it, so copying from
+ * the pane and folding it both see the same bytes.
+ */
+export function highlightInto(
+  target: Element,
+  source: string,
+  language: Language,
+  mark?: Mark,
+): void {
   const fragment = document.createDocumentFragment();
   if (source.length > MAX_HIGHLIGHTED_LENGTH) {
     fragment.append(document.createTextNode(source));
   } else {
-    for (const token of scan(source, language)) appendToken(fragment, token);
+    let offset = 0;
+    for (const token of scan(source, language)) {
+      appendToken(fragment, token, offset, mark);
+      offset += token.text.length;
+    }
   }
   target.replaceChildren(fragment);
 }

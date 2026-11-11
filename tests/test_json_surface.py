@@ -8,8 +8,12 @@ and what it asks the host for:
 
 - the entry arrives in the left pane, and the in-page Prettier writes its
   output to the right pane, token for token;
-- both panes are syntax-coloured and both are editable: an edit on the right
-  becomes the document fold and copy report, and the left keeps its own text;
+- both panes are syntax-coloured and both are editable: an edit on the left
+  re-derives the right pane after a pause, and an edit on the right becomes its
+  own document that copy and fold act on;
+- both panes lint what they hold: the wrong token is squiggled, its line number
+  is marked and the message sits under the pane, while a broken entry keeps the
+  last good preview instead of blanking it;
 - pasted URL parameters, XML and YAML are recognized and converted to JSON in
   the right pane; unrecognized or broken input lands there verbatim with an
   explanation, and the original stays as it arrived;
@@ -81,6 +85,7 @@ class ElementStub {
     for (const listener of this.listeners.get(type) ?? []) listener(event);
   }
   setAttribute(name, value) { this.attrs[name] = value; }
+  removeAttribute(name) { delete this.attrs[name]; }
   click() { for (const listener of this.listeners.get("click") ?? []) listener({}); }
 }
 
@@ -88,7 +93,8 @@ const IDS = ["summary", "status", "editor", "meta", "copy-json", "doc-close",
              "format", "minify", "fold", "to-xml", "to-ts", "output",
              "output-title", "output-meta", "output-text", "copy-output",
              "filter", "filter-run", "preserve-escapes", "editor-gutter",
-             "editor-highlight", "output-gutter", "output-input"];
+             "editor-highlight", "editor-lint", "output-gutter",
+             "output-input", "output-lint"];
 const PAGE = path.join(process.argv[2], "page.mjs");
 
 /** One fresh page: a surface document is delivered exactly one item. */
@@ -135,6 +141,10 @@ function boot() {
       };
       walk(elements.get(id));
       return names;
+    },
+    /** Whether a run of text inside the element carries the error marker. */
+    marked(id) {
+      return this.classes(id).some((name) => name.split(" ").includes("tok-error"));
     },
     /** Types into a pane the way a person does: value first, then `input`. */
     edit(id, text) {
@@ -187,6 +197,11 @@ async function until(check, what) {
     if (Date.now() - start > 20000) throw new Error(`timeout waiting for ${what}`);
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
+}
+
+/** Waits long enough for the page's own debounced preview to have run. */
+async function settle() {
+  await new Promise((resolve) => setTimeout(resolve, 400));
 }
 
 function json(value) {
@@ -268,15 +283,15 @@ const FORMATTED =
     '{ "msg": "\\u4efb\\u52a1 \\u5b58\\u5728", "path": "/work/demo/Job.php" }\n');
 
   page.element("minify").click();
-  assert.equal(page.text("output-title"), "压缩");
+  await until(() => page.text("output-title") === "压缩", "minified spelling");
   assert.equal(page.text("output-text"),
     '{"msg":"\\u4efb\\u52a1 \\u5b58\\u5728","path":"/work/demo/Job.php"}');
   assert.equal(page.text("status"), "已压缩为单行，写在右侧。");
 
   page.element("preserve-escapes").click();
   assert.equal(page.element("preserve-escapes").attrs["aria-pressed"], "false");
-  assert.equal(page.text("output-text"),
-    '{"msg":"任务 存在","path":"/work/demo/Job.php"}');
+  await until(() => page.text("output-text") ===
+    '{"msg":"任务 存在","path":"/work/demo/Job.php"}', "decoded spelling");
   assert.equal(page.element("editor").value, escaped, "the original is untouched");
 }
 
@@ -313,7 +328,7 @@ const FORMATTED =
   assert.equal(page.text("output-text"), FORMATTED);
 
   page.element("minify").click();
-  assert.equal(page.text("output-title"), "压缩");
+  await until(() => page.text("output-title") === "压缩", "minified result");
   assert.equal(page.text("output-text"), JSON.stringify(json(SOURCE)));
   assert.equal(page.text("status"), "已压缩为单行，写在右侧。");
   assert.equal(page.element("editor").value, SOURCE, "the original is untouched");
@@ -329,14 +344,14 @@ const FORMATTED =
   assert.equal(page.element("fold").disabled, true, "one line has nothing to fold");
 
   page.element("to-xml").click();
-  assert.equal(page.text("output-title"), "XML");
+  await until(() => page.text("output-title") === "XML", "XML result");
   assert.match(page.text("output-text"), /^<root>/);
   assert.match(page.text("output-text"), /<name>MyPaste<\/name>/);
   assert.equal(page.element("editor").value, SOURCE, "derived, not rewritten");
   assert.equal(page.element("fold").disabled, true, "XML is not JSON to fold");
 
   page.element("to-ts").click();
-  assert.equal(page.text("output-title"), "TypeScript");
+  await until(() => page.text("output-title") === "TypeScript", "TypeScript result");
   assert.match(page.text("output-text"), /^export interface Root \{/);
   assert.match(page.text("output-text"), /name: string;/);
   assert.match(page.text("output-text"), /count: number;/);
@@ -352,8 +367,8 @@ const FORMATTED =
 }
 
 // Both panes are one surface: each is coloured, each is editable, and each
-// keeps its own line numbers. A hand edit on the right becomes the document
-// that copy and fold act on; editing the left only re-colours the left.
+// keeps its own line numbers. The right pane previews the left one, and a hand
+// edit on the right makes it its own document until an action is asked again.
 {
   const page = await open();
   page.deliver({ kind: "text", title: "示例", text: SOURCE });
@@ -368,6 +383,28 @@ const FORMATTED =
   assert.equal(page.value("editor"), SOURCE);
   assert.equal(page.value("output-input"), FORMATTED);
 
+  // Editing the entry previews it: after the pause the result pane shows the
+  // new document, with no status line of its own.
+  page.edit("editor", '{"a":1,"b":[2,3]}');
+  await until(() => page.value("output-input") === '{ "a": 1, "b": [2, 3] }\n',
+    "live preview of the entry");
+  assert.equal(page.text("output-text"), '{ "a": 1, "b": [2, 3] }\n');
+  assert.equal(page.text("status"), "已在右侧重新排版。", "a preview stays quiet");
+  assert.equal(page.element("output").dataset.state, "filled");
+
+  // The preview follows the chosen action rather than resetting to beautify.
+  page.element("minify").click();
+  await until(() => page.text("output-title") === "压缩", "minified result");
+  page.edit("editor", '{"a":2}');
+  await until(() => page.value("output-input") === '{"a":2}',
+    "the minified action previews");
+
+  page.element("format").click();
+  await until(() => page.value("output-input") === '{ "a": 2 }\n',
+    "the beautified action previews");
+
+  // A hand edit on the right becomes its own document: copy and fold act on
+  // it, and the entry stops previewing into it.
   const edited = '{\n  "hand": 1,\n  "text": "edited"\n}';
   page.edit("output-input", edited);
   assert.equal(page.text("output-text"), edited);
@@ -382,18 +419,59 @@ const FORMATTED =
   page.answer(page.copyRequests()[0], { ok: true });
   await until(() => page.text("status").startsWith("已复制"), "copied edit");
 
-  // The left pane takes an edit of its own and leaves the result alone. Its
+  // The left pane takes an edit of its own and leaves the result alone; its
   // colour follows what was typed, not what arrived.
   page.edit("editor", "[1, 2, 3]");
   assert.equal(page.element("editor-gutter").textContent, "1");
   assert.ok(page.classes("editor-highlight").includes("tok-number"));
-  assert.equal(page.value("output-input"), edited);
+  await settle();
+  assert.equal(page.value("output-input"), edited, "the hand edit is not overwritten");
 
   // Emptying the right pane returns it to its empty state.
   page.edit("output-input", "");
   assert.equal(page.element("output").dataset.state, "empty");
   assert.equal(page.element("copy-output").disabled, true);
   assert.equal(page.text("output-text"), "");
+}
+
+// Lint is per pane and points at the problem: the wrong token carries the
+// squiggle, the gutter marks its line, and the message stands under the pane.
+// A broken entry keeps the last good preview while its own pane explains it.
+{
+  const page = await open();
+  page.deliver({ kind: "text", title: "示例", text: SOURCE });
+  await until(() => page.text("output-title") === "美化", "in-page formatting");
+  const good = page.text("output-text");
+
+  page.edit("editor", '{\n  "a": 1\n  b: 2\n}');
+  assert.equal(page.element("editor-lint").hidden, false, "the strip speaks");
+  assert.equal(page.text("editor-lint"),
+    "第 3 行第 3 列 · 属性值后面少了逗号，读到的是「b」");
+  assert.equal(page.element("editor").attrs["aria-invalid"], "true");
+  assert.ok(page.marked("editor-highlight"), "the token carries the squiggle");
+  assert.ok(page.classes("editor-gutter").includes("gutter-line is-error"));
+  await settle();
+  assert.equal(page.text("output-text"), good, "a broken entry keeps the last good preview");
+  assert.equal(page.text("status"), "已在右侧重新排版。", "a preview reports nothing");
+
+  page.edit("editor", '{\n  "a": 1,\n  "b": 2\n}');
+  assert.equal(page.element("editor-lint").hidden, true, "the strip goes quiet");
+  assert.equal(page.element("editor").attrs["aria-invalid"], "false");
+  // Prettier keeps the source's own line breaks, so the preview is the same
+  // document with its keys spaced, not a collapsed one-liner.
+  await until(() => page.value("output-input") === '{\n  "a": 1,\n  "b": 2\n}\n',
+    "the preview resumes");
+
+  // The right pane lints the document it holds, in its own language.
+  page.edit("output-input", '{\n  "a" 1\n}');
+  assert.equal(page.element("output-lint").hidden, false);
+  assert.equal(page.text("output-lint"), "第 2 行第 7 列 · 属性名后面少了冒号，读到的是「1」");
+  assert.equal(page.element("output-input").attrs["aria-invalid"], "true");
+  assert.ok(page.marked("output-text"), "the wrong token carries the squiggle");
+  assert.ok(page.classes("output-gutter").includes("gutter-line is-error"));
+
+  page.edit("output-input", '{"a": 1}');
+  assert.equal(page.element("output-lint").hidden, true, "a sound document is quiet");
 }
 
 // The filter bar: member access, a leading-dot array filter, a syntax error
@@ -414,7 +492,7 @@ const FORMATTED =
 
   page.element("filter").value = "data.users[0].name";
   page.element("filter-run").click();
-  assert.equal(page.text("output-title"), "过滤结果");
+  await until(() => page.text("output-title") === "过滤结果", "filtered result");
   assert.equal(page.text("output-text"), "Ada");
   assert.equal(page.text("status"), "已对当前 JSON 求值，写在右侧。");
 
@@ -422,15 +500,16 @@ const FORMATTED =
   page.element("filter").dispatch("keydown", {
     key: "Enter", preventDefault() {},
   });
+  await until(() => page.text("output-text").startsWith("["), "array filter result");
   assert.deepEqual(json(page.text("output-text")), ["Ada", "Cyd"]);
 
   page.element("filter").value = "data.users[0].";
   page.element("filter-run").click();
-  assert.match(page.text("status"), /^过滤失败：/);
+  await until(() => /^过滤失败：/.test(page.text("status")), "a broken expression");
 
   page.element("filter").value = "data.constructor";
   page.element("filter-run").click();
-  assert.match(page.text("status"), /^过滤失败：/);
+  await until(() => /^过滤失败：/.test(page.text("status")), "a dangerous key");
   assert.equal(page.element("editor").value, original, "filter never mutates");
 }
 
@@ -460,6 +539,8 @@ const FORMATTED =
   assert.ok(folded.includes('"users": [ … ]'), folded);
   assert.ok(!folded.includes("Ada"), "folded rows are hidden");
   assert.equal(page.text("status"), "已折叠 1 处嵌套结构；复制仍是完整 JSON。");
+  assert.equal(page.element("output-lint").hidden, true,
+    "the folded view is a rendering, not a document to lint");
 
   page.element("copy-output").click();
   await until(() => page.copyRequests().length === 1, "copy folded result");
@@ -564,6 +645,11 @@ class JSONSurfacePageTest(unittest.TestCase):
         for element in ('id="editor-highlight"', 'id="output-text"',
                         'id="output-input"', 'id="output-gutter"'):
             self.assertIn(element, text)
+        # Each pane reports its own problems where they are.
+        for element in ('id="editor-lint"', 'id="output-lint"',
+                        'aria-describedby="editor-lint"',
+                        'aria-describedby="output-lint"'):
+            self.assertIn(element, text)
         self.assertNotIn("readonly aria-label", text)
         # The fold glyph answers the next click; TypeScript is spelled out
         # rather than drawn as two braces.
@@ -590,7 +676,7 @@ class JSONSurfacePageTest(unittest.TestCase):
         manifest = json.loads(
             (PACKAGE / "mypaste.plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["manifestVersion"], 3)
-        self.assertEqual(manifest["version"], "3.4.1")
+        self.assertEqual(manifest["version"], "3.5.0")
         self.assertEqual(manifest["capabilities"], ["entity.read"])
         self.assertNotIn("runtime", manifest)
         self.assertNotIn("commands", manifest)

@@ -491,11 +491,16 @@ a Go module that both `com.mypaste.sql` and the code-edit runtime `replace` to
 the same source tree, so the two packages compile and ship the same analyzer,
 formatter and compressor rather than drifting apart.
 
-`com.mypaste.json` is surface-only (3.4.1): the archive is its manifest and one
+`com.mypaste.json` is surface-only (3.5.0): the archive is its manifest and one
 `preview.html`, and no process runs. The page holds the entry on the left and
 every result on the right, and both panes are the same surface: editable, with
-line numbers and syntax colour, so either side can be corrected in place while
-the other keeps its own text. Prettier's standalone build with the
+line numbers and syntax colour. The right pane previews the left one: editing
+the entry re-derives the chosen result after a short pause, and a hand edit on
+the right makes it its own document until an action is chosen again. Both panes
+lint what they hold at the position of the problem — the wrong token is
+squiggled, its line number is marked, and the message sits under the pane —
+while an entry that does not parse keeps the last good preview. Prettier's
+standalone build with the
 babel and estree plugins is bundled into
 it, so beautifying never leaves the document and needs no Node. Prettier keeps
 whatever escapes the source spelled, so the page shapes them itself: `\uXXXX`
