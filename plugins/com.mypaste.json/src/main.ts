@@ -2,10 +2,11 @@
  * The JSON page.
  *
  * Prettier is bundled into this document, so the page formats, minifies and
- * converts without a runtime, Node or the network. The left pane is the entry
- * as it arrived and never changes; every action writes its result to the right
- * pane (beautify on open, minify, fold, XML, TypeScript, filter, paste
- * conversion), and the escape toggle re-derives that result. Copying is a host
+ * converts without a runtime, Node or the network. Both panes are the same
+ * editable, syntax-coloured surface: the left holds the entry and the right
+ * holds whatever the actions produced (beautify on open, minify, fold, XML,
+ * TypeScript, filter, paste conversion), and the escape toggle re-derives the
+ * result. Editing either pane re-colours only that pane. Copying is a host
  * action: the page posts `copy` and never touches the clipboard itself. Every
  * value reaches the DOM through `textContent` or `textarea.value`, never HTML.
  */
@@ -16,6 +17,7 @@ import { decodeEscapes, escapeNonAscii } from "./escape";
 import { evaluateExpression } from "./evaluate";
 import { foldJson, type FoldedDocument } from "./fold";
 import { describeJsonError, formatJson } from "./format";
+import { highlightInto, type Language } from "./highlight";
 import { parseJson, type JsonValue } from "./json";
 import { jsonToTypeScript } from "./typescript";
 import { jsonToXml } from "./xml";
@@ -33,6 +35,7 @@ const meta = one<HTMLParagraphElement>("#meta");
 const copyJson = one<HTMLButtonElement>("#copy-json");
 const closeDoc = one<HTMLButtonElement>("#doc-close");
 const editorGutter = one<HTMLElement>("#editor-gutter");
+const editorHighlight = one<HTMLElement>("#editor-highlight");
 const preserveToggle = one<HTMLButtonElement>("#preserve-escapes");
 const formatButton = one<HTMLButtonElement>("#format");
 const minifyButton = one<HTMLButtonElement>("#minify");
@@ -43,6 +46,8 @@ const output = one<HTMLElement>("#output");
 const outputTitle = one<HTMLElement>("#output-title");
 const outputMeta = one<HTMLParagraphElement>("#output-meta");
 const outputText = one<HTMLElement>("#output-text");
+const outputGutter = one<HTMLElement>("#output-gutter");
+const outputInput = one<HTMLTextAreaElement>("#output-input");
 const copyOutput = one<HTMLButtonElement>("#copy-output");
 const filter = one<HTMLInputElement>("#filter");
 const filterRun = one<HTMLButtonElement>("#filter-run");
@@ -103,17 +108,63 @@ document.addEventListener("keydown", (event) => {
   bridge.close();
 });
 
-/** Line numbers beside the textarea, kept in step with its scroll. */
-function renderGutter(): void {
-  const lines = editor.value.split("\n").length;
-  const numbers: string[] = [];
-  for (let line = 1; line <= lines; line += 1) numbers.push(String(line));
-  editorGutter.textContent = numbers.join("\n");
+interface CodePane {
+  readonly input: HTMLTextAreaElement;
+  /** The grammar the copy is coloured with. */
+  language: Language;
+  /** Repaints the line numbers and the coloured copy from the pane's text. */
+  render(): void;
+  /** Replaces the pane's text and repaints it. */
+  set(text: string, language?: Language): void;
 }
 
-editor.addEventListener("scroll", () => {
-  editorGutter.scrollTop = editor.scrollTop;
-});
+/**
+ * One pane is a textarea laid over its own coloured copy: the copy draws the
+ * document and the textarea owns the caret, the selection and the scroll, so
+ * reading and editing share one set of coordinates. The gutter follows the
+ * textarea's vertical scroll, and an IME composition shows the textarea's own
+ * ink for as long as the candidate window is open (see the stylesheet).
+ */
+function codePane(
+  input: HTMLTextAreaElement,
+  highlight: HTMLElement,
+  gutter: HTMLElement,
+  initial: Language,
+): CodePane {
+  const pane: CodePane = {
+    input,
+    language: initial,
+    render(): void {
+      highlightInto(highlight, input.value, pane.language);
+      const lines = input.value.split("\n").length;
+      const numbers: string[] = [];
+      for (let line = 1; line <= lines; line += 1) numbers.push(String(line));
+      gutter.textContent = numbers.join("\n");
+      gutter.scrollTop = input.scrollTop;
+    },
+    set(text: string, language?: Language): void {
+      if (language !== undefined) pane.language = language;
+      input.value = text;
+      pane.render();
+    },
+  };
+  input.addEventListener("scroll", () => {
+    highlight.scrollTop = input.scrollTop;
+    highlight.scrollLeft = input.scrollLeft;
+    gutter.scrollTop = input.scrollTop;
+  });
+  input.addEventListener("compositionstart", () => {
+    input.classList.add("composing");
+  });
+  input.addEventListener("compositionend", () => {
+    input.classList.remove("composing");
+    pane.render();
+  });
+  return pane;
+}
+
+const sourcePane = codePane(editor, editorHighlight, editorGutter, "json");
+const resultPane = codePane(outputInput, outputText, outputGutter, "json");
 
 function setStatus(text: string): void {
   status.textContent = text;
@@ -141,7 +192,7 @@ function updateMeta(): void {
 function setEditor(text: string): void {
   editor.value = text;
   updateMeta();
-  renderGutter();
+  sourcePane.render();
 }
 
 function hideOutput(): void {
@@ -152,7 +203,7 @@ function hideOutput(): void {
   output.dataset.state = "empty";
   outputTitle.textContent = "结果";
   outputMeta.textContent = "";
-  outputText.textContent = "";
+  resultPane.set("");
   copyOutput.disabled = true;
 }
 
@@ -165,7 +216,7 @@ function updateFoldControl(): void {
   foldButton.setAttribute("aria-label", label);
 }
 
-function showOutput(title: string, text: string): void {
+function showOutput(title: string, text: string, language: Language = "json"): void {
   derived = text;
   foldable = foldJson(text);
   folded = false;
@@ -173,13 +224,38 @@ function showOutput(title: string, text: string): void {
   output.dataset.state = "filled";
   outputTitle.textContent = title;
   outputMeta.textContent = describe(text);
-  outputText.textContent = text;
+  resultPane.set(text, language);
   copyOutput.disabled = text === "";
 }
 
 function clearWhenEmpty(): void {
   copyJson.disabled = editor.value === "";
 }
+
+// The left pane is editable like the right one, but typing there only
+// re-colours that pane: the result keeps what the last action wrote until an
+// action is asked for again.
+editor.addEventListener("input", () => {
+  sourcePane.render();
+  updateMeta();
+  clearWhenEmpty();
+});
+
+// A hand-edited result becomes the document of record: folding reads the
+// edited text, and the escape toggle stops re-deriving, because re-deriving
+// would discard the edit.
+outputInput.addEventListener("input", () => {
+  derived = outputInput.value;
+  view = null;
+  folded = false;
+  foldable = foldJson(derived);
+  updateFoldControl();
+  resultPane.render();
+  output.dataset.state = derived === "" ? "empty" : "filled";
+  outputTitle.textContent = derived === "" ? "结果" : outputTitle.textContent;
+  outputMeta.textContent = derived === "" ? "" : describe(derived);
+  copyOutput.disabled = derived === "";
+});
 
 async function load(text: string, title: string): Promise<void> {
   const current = ++generation;
@@ -223,7 +299,7 @@ async function applyFormat(): Promise<void> {
   try {
     const formatted = await formatDocument(source);
     showOutput("美化", formatted);
-    setStatus("已在右侧排版；左侧原文未改动。");
+    setStatus("已在右侧重新排版。");
   } catch (error) {
     setStatus(`无法排版：${describeJsonError(error, source)}`);
   }
@@ -245,13 +321,13 @@ function applyMinify(): void {
   if (current === null) return;
   const text = JSON.stringify(current.value);
   showOutput("压缩", preserveEscapes ? escapeNonAscii(text) : text);
-  setStatus("已压缩为单行，写在右侧；左侧原文未改动。");
+  setStatus("已压缩为单行，写在右侧。");
 }
 
 function applyFold(): void {
   if (foldable === null) return;
   folded = !folded;
-  outputText.textContent = folded ? foldable.text : derived;
+  resultPane.set(folded ? foldable.text : derived);
   updateFoldControl();
   setStatus(folded
     ? `已折叠 ${foldable.count} 处嵌套结构；复制仍是完整 JSON。`
@@ -263,8 +339,8 @@ function applyXml(): void {
   const current = currentJson();
   if (current === null) return;
   try {
-    showOutput("XML", jsonToXml(current.value));
-    setStatus("已转换为 XML，写在右侧；左侧原文未改动。");
+    showOutput("XML", jsonToXml(current.value), "xml");
+    setStatus("已转换为 XML，写在右侧。");
   } catch (error) {
     setStatus(`无法转换为 XML：${error instanceof Error ? error.message : "未知错误"}`);
   }
@@ -274,8 +350,8 @@ function applyTypeScript(): void {
   view = applyTypeScript;
   const current = currentJson();
   if (current === null) return;
-  showOutput("TypeScript", jsonToTypeScript(current.value));
-  setStatus("已生成 TypeScript interface，写在右侧；左侧原文未改动。");
+  showOutput("TypeScript", jsonToTypeScript(current.value), "typescript");
+  setStatus("已生成 TypeScript interface，写在右侧。");
 }
 
 function resultText(value: unknown): string {
@@ -294,8 +370,9 @@ function applyFilter(): void {
       setStatus("表达式没有返回值。");
       return;
     }
-    showOutput("过滤结果", resultText(evaluation.value));
-    setStatus("已对当前 JSON 求值，写在右侧；左侧原文未改动。");
+    const text = resultText(evaluation.value);
+    showOutput("过滤结果", text, typeof evaluation.value === "string" ? "plain" : "json");
+    setStatus("已对当前 JSON 求值，写在右侧。");
   } catch (error) {
     setStatus(`过滤失败：${error instanceof Error ? error.message : "未知错误"}`);
   }
@@ -309,7 +386,7 @@ const KIND_LABEL: Record<PasteKind, string> = {
 };
 
 /** The last pasted text, kept so the toggle can re-shape its result. */
-let pasted: { title: string; text: string } | null = null;
+let pasted: { title: string; text: string; language: Language } | null = null;
 
 function shapeResult(text: string): string {
   return preserveEscapes ? escapeNonAscii(text) : decodeEscapes(text);
@@ -317,11 +394,12 @@ function shapeResult(text: string): string {
 
 function applyPaste(): void {
   if (pasted === null) return;
-  showOutput(pasted.title, shapeResult(pasted.text));
+  showOutput(pasted.title, shapeResult(pasted.text), pasted.language);
 }
 
-// A paste is a conversion of clipboard text, not an edit of the entry: the
-// converted document lands on the right, and the left pane keeps the original.
+// A paste into the entry pane is a conversion of clipboard text, not an edit:
+// the converted document lands on the right and the entry keeps what it had.
+// Pasting into the result pane is an ordinary edit.
 async function handlePaste(text: string): Promise<void> {
   const current = ++generation;
   setStatus("正在识别粘贴内容…");
@@ -329,20 +407,20 @@ async function handlePaste(text: string): Promise<void> {
   if (current !== generation) return;
 
   if (attempt.status === "converted") {
-    pasted = { title: `粘贴 · ${KIND_LABEL[attempt.kind]}`, text: attempt.text };
+    pasted = { title: `粘贴 · ${KIND_LABEL[attempt.kind]}`, text: attempt.text, language: "json" };
     view = applyPaste;
     applyPaste();
-    setStatus(`已把粘贴的 ${KIND_LABEL[attempt.kind]} 转为 JSON，写在右侧；左侧原文未改动。`);
+    setStatus(`已把粘贴的 ${KIND_LABEL[attempt.kind]} 转为 JSON，写在右侧。`);
     return;
   }
 
   const reason = attempt.status === "failed"
     ? `识别为 ${KIND_LABEL[attempt.kind]}，但转换失败：${attempt.message}`
     : "不是可识别的 JSON、URL 参数、XML 或 YAML";
-  pasted = { title: "粘贴内容", text };
+  pasted = { title: "粘贴内容", text, language: "plain" };
   view = applyPaste;
   applyPaste();
-  setStatus(`${reason}；粘贴内容原样放在右侧，左侧原文未改动。`);
+  setStatus(`${reason}；粘贴内容原样放在右侧。`);
 }
 
 editor.addEventListener("paste", (event) => {
@@ -392,7 +470,7 @@ filter.addEventListener("keydown", (event) => {
 
 hideOutput();
 updateMeta();
-renderGutter();
+sourcePane.render();
 clearWhenEmpty();
 
 bridge.onItem(({ item }) => {

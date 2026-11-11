@@ -50,6 +50,18 @@
     --editor-ink: var(--mp-code-ink, #2f261e);
     --selection: color-mix(in srgb, var(--editor-ink) 22%, transparent);
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    /*
+     * Syntax roles take the host's code palette (D-1046) and fall back to the
+     * same light-on-paper values the host uses when it forwards no code
+     * colours, so a pane reads the same whether or not the tokens arrive.
+     */
+    --tok-keyword: var(--mp-code-keyword, #9c4a15);
+    --tok-string: var(--mp-code-string, #476a2f);
+    --tok-number: var(--mp-code-number, #855715);
+    --tok-property: var(--mp-code-property, #1f6b6a);
+    --tok-comment: var(--mp-code-comment, #7d7264);
+    --tok-tag: var(--mp-code-tag, #a6471d);
+    --tok-type: var(--mp-code-type, #2d5580);
   }
   :root[data-scheme="dark"] {
     color-scheme: dark;
@@ -65,6 +77,13 @@
     --editor-bg: var(--mp-code-surface, #171412);
     --editor-ink: var(--mp-code-ink, #f0e6d9);
     --selection: color-mix(in srgb, var(--editor-ink) 26%, transparent);
+    --tok-keyword: var(--mp-code-keyword, #f0aa72);
+    --tok-string: var(--mp-code-string, #b9cf99);
+    --tok-number: var(--mp-code-number, #e1c27e);
+    --tok-property: var(--mp-code-property, #8fc9c1);
+    --tok-comment: var(--mp-code-comment, #9b8d7e);
+    --tok-tag: var(--mp-code-tag, #eaa97c);
+    --tok-type: var(--mp-code-type, #b6c9e8);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
@@ -187,6 +206,11 @@
     box-shadow: inset 0 0 0 1px var(--accent);
   }
   .doc-action:disabled { opacity: 0.4; cursor: default; }
+  /* The fold glyph answers the next click: arrows closing toward the middle
+     while the document is whole, arrows opening away once it is folded. */
+  #fold .fold-out { display: none; }
+  #fold[aria-pressed="true"] .fold-in { display: none; }
+  #fold[aria-pressed="true"] .fold-out { display: inline; }
   .doc-sep { width: 1px; height: 16px; flex: none; margin: 0 4px; background: var(--line); }
   .doc-close {
     display: inline-flex;
@@ -288,10 +312,11 @@
   .icon-button:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
 
   /*
-   * The entry as it arrived, on the code surface (D-1046): a line-number
-   * gutter beside a scrolling textarea. It is read-only, so it carries the
-   * code surface's material but not its caret or focus ring: nothing here is
-   * edited, and the selection is the reader's.
+   * Both panes are the same surface: a line-number gutter beside a code pane
+   * (D-1046), and both are edited in place. The pane is a highlighted copy of
+   * the document with a transparent-text textarea laid over it: the reader
+   * sees colour and the caret at the same coordinates, and typing repaints the
+   * copy underneath without ever moving the text.
    */
   .editor {
     display: grid;
@@ -300,7 +325,7 @@
     overflow: hidden;
     background: var(--editor-bg);
   }
-  #editor-gutter {
+  .gutter {
     height: 100%;
     margin: 0;
     padding: 14px 10px 14px 14px;
@@ -312,32 +337,59 @@
     white-space: pre;
     user-select: none;
   }
-  #editor {
-    width: 100%;
-    height: 100%;
+  .code-surface {
+    position: relative;
     min-width: 0;
     min-height: 0;
+    overflow: hidden;
+  }
+  .highlight,
+  .code-input {
+    position: absolute;
+    inset: 0;
     margin: 0;
     padding: 14px 16px;
     border: 0;
-    background: transparent;
-    color: var(--editor-ink);
-    caret-color: transparent;
     font: 12.5px/1.65 var(--mono);
     white-space: pre;
     tab-size: 2;
+  }
+  .highlight {
+    overflow: hidden;
+    color: var(--editor-ink);
+    pointer-events: none;
+  }
+  .code-input {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--editor-ink);
     resize: none;
     outline: none;
     overflow: auto;
   }
-  #editor::selection { background: var(--selection); }
-  #editor::placeholder { color: var(--muted); }
+  .code-input::selection { background: var(--selection); }
+  /* While an IME is composing, the candidate text is drawn inside the
+     textarea, so the textarea shows its own ink and the copy steps aside. */
+  .code-input.composing { color: var(--editor-ink); }
+  .code-surface:has(.code-input.composing) .highlight { visibility: hidden; }
+  /* Focus belongs to the surface, not to the invisible textarea: a hairline in
+     the accent marks which of the two documents is being edited. */
+  .code-surface:focus-within { box-shadow: inset 0 0 0 1px var(--accent); }
+
+  .tok-keyword { color: var(--tok-keyword); }
+  .tok-string { color: var(--tok-string); }
+  .tok-number { color: var(--tok-number); }
+  .tok-property { color: var(--tok-property); }
+  .tok-comment { color: var(--tok-comment); }
+  .tok-tag { color: var(--tok-tag); }
+  .tok-type { color: var(--tok-type); }
 
   /*
    * The workbench is the entry on the left and the derived document on the
-   * right, each side its own card so the two materials stay legible side by
-   * side. The original is read-only; a converted result lands in the right
-   * pane without ever covering the source.
+   * right, each side its own card so the two documents stay legible side by
+   * side and each can be edited on its own.
    */
   .workbench {
     display: grid;
@@ -382,9 +434,10 @@
     white-space: nowrap;
   }
   .pane-body {
-    display: flex;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
     min-height: 0;
-    flex-direction: column;
+    overflow: hidden;
   }
   .pane-empty {
     margin: 0;
@@ -394,18 +447,9 @@
     line-height: 1.6;
   }
   .pane-output[data-state="filled"] .pane-empty { display: none; }
-  .pane-output[data-state="empty"] #output-text { display: none; }
-  #output-text {
-    flex: 1;
-    min-height: 0;
-    margin: 0;
-    padding: 12px;
-    overflow: auto;
-    color: var(--editor-ink);
-    background: var(--editor-bg);
-    font: 12.5px/1.6 var(--mono);
-    white-space: pre;
-  }
+  /* The result pane starts empty: its surface appears once a conversion has
+     written something into it. */
+  .pane-output[data-state="empty"] .editor { display: none; }
 
   /* The status bar mirrors the code editor's footer. */
   .statusbar {
@@ -505,8 +549,18 @@
       <button type="button" class="doc-action" id="fold" title="折叠全部" aria-label="折叠全部"
         aria-pressed="false" disabled>
         <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M4 4.4 8 7.4l4-3M4 11.6 8 8.6l4 3" fill="none" stroke="currentColor"
-            stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <g class="fold-in">
+            <rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2.4" fill="none"
+              stroke="currentColor" stroke-width="1.3"/>
+            <path d="M5.2 8h5.6" fill="none" stroke="currentColor" stroke-width="1.5"
+              stroke-linecap="round"/>
+          </g>
+          <g class="fold-out">
+            <rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2.4" fill="none"
+              stroke="currentColor" stroke-width="1.3"/>
+            <path d="M5.2 8h5.6M8 5.2v5.6" fill="none" stroke="currentColor" stroke-width="1.5"
+              stroke-linecap="round"/>
+          </g>
         </svg>
       </button>
       <button type="button" class="doc-action" id="to-xml" title="转为 XML" aria-label="转为 XML">
@@ -517,10 +571,10 @@
       </button>
       <button type="button" class="doc-action" id="to-ts" title="转为 TypeScript" aria-label="转为 TypeScript">
         <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M6.4 2.8c-1.3 0-1.3 1.1-1.3 2.4S4.5 8 3.4 8c1.1 0 1.7.6 1.7 1.8s0 2.4 1.3 2.4"
-            fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M9.6 2.8c1.3 0 1.3 1.1 1.3 2.4S11.5 8 12.6 8c-1.1 0-1.7.6-1.7 1.8s0 2.4-1.3 2.4"
-            fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2.6 4.2h4.6M4.9 4.2v7.6" fill="none" stroke="currentColor"
+            stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M13 5.8C12.6 4.6 11.3 4.1 10.3 4.5 9.3 4.9 9.1 6 10 6.6 10.7 7 11.7 7 12.3 7.5 13.4 8.2 13.3 10.2 12 11.1 10.8 11.9 9.5 11.5 9 10.4"
+            fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
       </button>
       <span class="doc-sep" aria-hidden="true"></span>
@@ -559,9 +613,12 @@
         </div>
       </div>
       <div class="editor">
-        <pre id="editor-gutter" aria-hidden="true"></pre>
-        <textarea id="editor" spellcheck="false" autocomplete="off"
-          autocapitalize="off" wrap="off" readonly aria-label="条目原文（只读）"></textarea>
+        <pre class="gutter" id="editor-gutter" aria-hidden="true"></pre>
+        <div class="code-surface">
+          <pre class="highlight" id="editor-highlight" aria-hidden="true"></pre>
+          <textarea class="code-input" id="editor" spellcheck="false" autocomplete="off"
+            autocapitalize="off" wrap="off" aria-label="原始 JSON（可编辑）"></textarea>
+        </div>
       </div>
     </section>
     <section class="pane pane-output" id="output" data-state="empty" aria-label="转换结果">
@@ -577,8 +634,15 @@
         </button>
       </div>
       <div class="pane-body">
-        <p class="pane-empty" id="output-empty">美化、压缩或选择一种转换后，结果显示在这里；左侧原文始终不变。</p>
-        <pre id="output-text" tabindex="0" aria-label="转换结果"></pre>
+        <p class="pane-empty" id="output-empty">美化、压缩或选择一种转换后，结果显示在这里；两个面板都能直接编辑。</p>
+        <div class="editor">
+          <pre class="gutter" id="output-gutter" aria-hidden="true"></pre>
+          <div class="code-surface">
+            <pre class="highlight" id="output-text" aria-hidden="true"></pre>
+            <textarea class="code-input" id="output-input" spellcheck="false" autocomplete="off"
+              autocapitalize="off" wrap="off" aria-label="转换结果（可编辑）"></textarea>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -588,7 +652,7 @@
       <span id="meta"></span>
     </div>
   </footer>
-  <p class="sr-only">Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。左侧是条目原文，只读；所有操作的结果都写在右侧。过滤框只对条目原文求值。</p>
+  <p class="sr-only">Prettier 内置于页面，不需要 Node；不联网、不读取其它条目，复制由宿主执行。两个面板都能直接编辑，各自带行号与语法高亮；图标行把结果写在右侧，过滤框只对左侧原文求值。</p>
 <script>
 <!--bundle-->
 </script>
