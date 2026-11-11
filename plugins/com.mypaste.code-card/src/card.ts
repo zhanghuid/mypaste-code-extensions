@@ -7,9 +7,10 @@
  * 16 px left / 18 px right / 18 px bottom padding, a 133 % line box, a 20 px /
  * 68 px shadow and a 56 px canvas padding. The rail exposes the same knobs
  * Carbon does — window style, vertical and horizontal padding, shadow offset
- * and blur, auto width, font size, line height and line numbers. Auto width
- * follows the text as the canvas measures it, so the window is never wider than
- * the code it holds.
+ * and blur, auto width, wrapping, font size, line height and line numbers. Auto
+ * width follows the text as the canvas measures it, so the window is never wider
+ * than the code it holds; wrapping breaks a long line at the room the page has
+ * rather than widening the card past it.
  *
  * The corners come from the host's ladder (D-1099), not from Carbon's 3–5 px
  * literals: the card is a card (--radius-md) and every control lives in the
@@ -64,6 +65,8 @@ export interface CodeCardOptions {
   background: string;
   /** Keep the window on the code's own width instead of a fixed 680 px. */
   autoWidth: boolean;
+  /** Break long lines at the room the page has instead of widening the card. */
+  wrap: boolean;
   /** Export pixel density. */
   scale: CodeCardScale;
 }
@@ -101,6 +104,7 @@ export const DEFAULT_CODE_CARD_OPTIONS: CodeCardOptions = {
   shadowBlur: 68,
   background: "host",
   autoWidth: true,
+  wrap: true,
   scale: 2,
 };
 
@@ -454,36 +458,85 @@ function isWideCharacter(character: string): boolean {
  * renderer paints, so dropping the kind here would draw every card in one
  * colour.
  */
+/** One drawn character, with the kind of the token it came from and its cells. */
+interface Cell {
+  text: string;
+  kind: string;
+  width: number;
+}
+
+/** Appends a character to a line, merging it into the run of its own colour. */
+function appendCell(line: CodeToken[], cell: Cell): void {
+  const last = line[line.length - 1];
+  if (last && last.kind === cell.kind) last.text += cell.text;
+  else line.push({ text: cell.text, kind: cell.kind });
+}
+
+/**
+ * Splits tokens into drawn lines; a tab is drawn as four spaces, like Carbon.
+ * Each piece keeps the kind of the token it came from — the line is what the
+ * renderer paints, so dropping the kind here would draw every card in one
+ * colour.
+ *
+ * Past `maxChars` a line ends at its last space, so the break lands between
+ * words the way the page's own text wraps; a word longer than the whole line is
+ * the only thing cut where it runs out of room.
+ */
 export function splitTokenLines(tokens: CodeToken[], maxChars: number): CodeToken[][] {
   const lines: CodeToken[][] = [[]];
+  /** The line being filled, one character at a time. */
+  let current: Cell[] = [];
   let column = 0;
-  let buffer = "";
-  let kind = "";
-  const flush = () => {
-    if (buffer) lines[lines.length - 1]?.push({ text: buffer, kind });
-    buffer = "";
+  /** Where the next line starts if this one breaks at a space; 0 for none. */
+  let breakAfter = 0;
+
+  const reset = (): void => {
+    current = [];
+    column = 0;
+    breakAfter = 0;
   };
+  const endLine = (): void => {
+    const line = lines[lines.length - 1];
+    if (line) for (const cell of current) appendCell(line, cell);
+    reset();
+  };
+  /** Ends the line at its last space and carries the rest onto the next one. */
+  const breakAtSpace = (): void => {
+    const tail = current.slice(breakAfter);
+    current = current.slice(0, breakAfter);
+    endLine();
+    lines.push([]);
+    current = tail;
+    tail.forEach((cell, index) => {
+      column += cell.width;
+      if (cell.text === " ") breakAfter = index + 1;
+    });
+  };
+
   for (const token of tokens) {
-    kind = token.kind;
     const text = token.text.replace(/\t/g, "    ");
     for (const character of text) {
       if (character === "\n") {
-        flush();
+        endLine();
         lines.push([]);
-        column = 0;
         continue;
       }
       const width = isWideCharacter(character) ? 2 : 1;
-      if (column > 0 && column + width > maxChars) {
-        flush();
-        lines.push([]);
-        column = 0;
+      // One round of this either moves the break to a space (strictly shorter
+      // line) or closes the line outright, so it cannot spin.
+      while (column > 0 && column + width > maxChars) {
+        if (breakAfter > 0) breakAtSpace();
+        else {
+          endLine();
+          lines.push([]);
+        }
       }
-      buffer += character;
+      current.push({ text: character, kind: token.kind, width });
       column += width;
+      if (character === " ") breakAfter = current.length;
     }
-    flush();
   }
+  endLine();
   return lines;
 }
 
@@ -536,6 +589,7 @@ export function codeCardLayout(
   source: CodeCardSource,
   options: CodeCardOptions,
   measure?: LineMeasure,
+  available = 0,
 ): CodeCardLayout {
   const fontSize = clamp(Math.round(options.fontSize), MIN_FONT_SIZE, MAX_FONT_SIZE);
   const lineHeightPercent = clamp(
@@ -549,9 +603,16 @@ export function codeCardLayout(
   const lineHeight = Math.max(fontSize + 2, Math.round(fontSize * (lineHeightPercent / 100)));
   const digits = Math.max(2, String(Math.max(1, source.tokens.length)).length);
   const gutterWidth = options.lineNumbers ? Math.ceil(digits * charWidth) + 16 : 0;
+  // With wrapping on the canvas may not grow past the room it has, so the code
+  // is broken at the page's width instead of pushing the stage into a
+  // horizontal scrollbar.
+  const ceiling =
+    options.wrap && available > 0
+      ? clamp(available - paddingX * 2, MIN_CARD_WIDTH, MAX_CARD_WIDTH)
+      : MAX_CARD_WIDTH;
   const maxChars = Math.max(
     24,
-    Math.floor((MAX_CARD_WIDTH - CARD_PAD_LEFT - CARD_PAD_RIGHT - gutterWidth) / charWidth),
+    Math.floor((ceiling - CARD_PAD_LEFT - CARD_PAD_RIGHT - gutterWidth) / charWidth),
   );
   const lines = splitTokenLines(source.tokens, maxChars);
   // A line's width is the sum of its glyphs: the estimate for a plain layout,
@@ -564,8 +625,8 @@ export function codeCardLayout(
   const longest = lines.reduce((width, line) => Math.max(width, lineWidth(line)), 0);
   const measured = CARD_PAD_LEFT + gutterWidth + longest + CARD_PAD_RIGHT;
   const cardWidth = options.autoWidth
-    ? clamp(Math.ceil(measured), MIN_CARD_WIDTH, MAX_CARD_WIDTH)
-    : FIXED_CARD_WIDTH;
+    ? clamp(Math.ceil(measured), MIN_CARD_WIDTH, ceiling)
+    : Math.min(FIXED_CARD_WIDTH, ceiling);
   const cardHeight = CARD_BAR_HEIGHT + lines.length * lineHeight + CARD_PAD_BOTTOM;
   return {
     width: cardWidth + paddingX * 2,
@@ -590,6 +651,7 @@ export function drawCodeCard(
   source: CodeCardSource,
   options: CodeCardOptions,
   host: HostTheme | null = null,
+  available = 0,
 ): CodeCardLayout {
   const context = canvas.getContext("2d");
   if (!context) throw new Error("当前环境不支持 Canvas");
@@ -597,10 +659,13 @@ export function drawCodeCard(
   // to be set on the context before the layout measures anything. Sizing the
   // canvas below resets the context, which is why the font is set again before
   // the first glyph.
-  const probe = codeCardLayout(source, options);
+  const probe = codeCardLayout(source, options, undefined, available);
   context.font = `${probe.fontSize}px ${FONT_STACK}`;
-  const layout = codeCardLayout(source, options, (line) =>
-    line.reduce((width, token) => width + context.measureText(token.text).width, 0),
+  const layout = codeCardLayout(
+    source,
+    options,
+    (line) => line.reduce((width, token) => width + context.measureText(token.text).width, 0),
+    available,
   );
   const palette = resolvePalette(options.theme, host);
   const background = resolveBackground(options, palette);

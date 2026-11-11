@@ -2,11 +2,14 @@
  * 代码卡片工作台：把本次调用的文本条目画成一张卡片，另存为新条目或复制到
  * 剪贴板。卡片完全在本地绘制——没有网络请求，也没有宿主绑定。
  *
- * 页面按 carbon.now.sh 的编辑器界面组织：一条 40px 工具栏（主题、语言、设置、
- * 复制、导出、关闭），一块带留白的画布，以及 316px 的设置浮层（背景色板 +
- * 十六进制输入 +「窗口 / 编辑器」两栏）。背景只在浮层里选，工具栏不再放第二个
- * 入口。页面外观跟随宿主的主题消息（D-1042/D-1043），卡片本身默认也用同一组
- * 颜色（「跟随宿主」）。
+ * 页面按 carbon.now.sh 的编辑器界面组织：一条 40px 工具栏（主题、语言、编辑、
+ * 设置、复制、导出、关闭），一块带留白的画布，编辑时工具栏下方展开一块内容
+ * 编辑区，以及 316px 的设置浮层（背景色板 + 十六进制输入 +「窗口 / 编辑器」
+ * 两栏）。背景只在浮层里选，工具栏不再放第二个入口。页面外观跟随宿主的主题
+ * 消息（D-1042/D-1043），卡片本身默认也用同一组颜色（「跟随宿主」）。
+ *
+ * 画布按舞台真正给出的宽度排版，长行默认在那里折行，所以页面不会出现横向
+ * 滚动条；这一条与「自动换行」开关共用同一个布局入口。
  *
  * 这份文档声明 chrome: "page"（D-1097）：宿主不画自己的标题栏和底部动作条，
  * 关闭由页面的方块 X 与 Esc 经桥的 close 请求交回宿主。
@@ -84,6 +87,10 @@ const backgroundHex = one<HTMLInputElement>("#background-hex");
 const exportMenuButton = one<HTMLButtonElement>("#export-menu-button");
 const exportMenu = one<HTMLElement>("#export-menu");
 const closeButton = one<HTMLButtonElement>("#close-button");
+const editButton = one<HTMLButtonElement>("#edit-button");
+const editorPane = one<HTMLElement>("#editor-pane");
+const editor = one<HTMLTextAreaElement>("#card-editor");
+const wrapLines = one<HTMLInputElement>("#wrap-lines");
 const windowStyles = one<HTMLElement>("#window-styles");
 const paddingX = one<HTMLInputElement>("#padding-x");
 const paddingY = one<HTMLInputElement>("#padding-y");
@@ -107,6 +114,8 @@ let hostTheme: HostTheme | null = null;
 let itemText = "";
 let itemTitle = "";
 let source: CodeCardSource | null = null;
+/** The room the stage gives the canvas, in CSS pixels; 0 before the first paint. */
+let available = 0;
 let pendingFrame = 0;
 let statusTimer = 0;
 
@@ -161,6 +170,10 @@ function buildBackgrounds(): void {
 
 function draw(): void {
   pendingFrame = 0;
+  // The stage's own content box is what the card has to live in — it already
+  // excludes the scrollbar when one is showing. With wrapping on the layout
+  // breaks lines at this width, so the card never pushes the stage sideways.
+  available = Math.max(0, stage.clientWidth);
   const palette = resolvePalette(options.theme, hostTheme);
   const background = resolveBackground(options, palette);
   if (background === null) {
@@ -179,7 +192,7 @@ function draw(): void {
   }
   preview.hidden = false;
   stageEmpty.hidden = true;
-  const layout = drawCodeCard(preview, source, options, hostTheme);
+  const layout = drawCodeCard(preview, source, options, hostTheme, available);
   preview.style.width = `${layout.width}px`;
   preview.style.height = `${layout.height}px`;
 }
@@ -187,6 +200,26 @@ function draw(): void {
 function scheduleDraw(): void {
   if (pendingFrame) return;
   pendingFrame = window.requestAnimationFrame(draw);
+}
+
+/* ---------------------------------------------------------------- editing */
+
+/**
+ * The pane above the stage edits this card, not the entry: nothing is written
+ * back, so closing the surface leaves the history as it was. The card redraws
+ * on every keystroke, and the text keeps the page's language and formatting
+ * rules.
+ */
+function setEditing(open: boolean): void {
+  editorPane.hidden = !open;
+  editButton.setAttribute("aria-pressed", String(open));
+  if (!open) {
+    editor.blur();
+    return;
+  }
+  editor.value = itemText;
+  editor.focus();
+  editor.setSelectionRange(editor.value.length, editor.value.length);
 }
 
 function reflect(): void {
@@ -203,6 +236,7 @@ function reflect(): void {
   shadowBlurValue.textContent = String(options.shadowBlur);
   shadowControls.dataset.disabled = String(!options.shadow);
   autoWidth.checked = options.autoWidth;
+  wrapLines.checked = options.wrap;
   fontSize.value = String(options.fontSize);
   fontSizeValue.textContent = String(options.fontSize);
   lineHeight.value = String(options.lineHeight);
@@ -405,6 +439,45 @@ function wire(): void {
     reflect();
     scheduleDraw();
   });
+  wrapLines.addEventListener("change", () => {
+    options.wrap = wrapLines.checked;
+    reflect();
+    scheduleDraw();
+  });
+
+  editButton.addEventListener("click", () => {
+    closePopovers();
+    setEditing(editorPane.hidden);
+  });
+  editor.addEventListener("input", () => {
+    itemText = editor.value;
+    scheduleDraw();
+  });
+  editor.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      setEditing(false);
+      editButton.focus();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    // Tab indents in the editor instead of leaving it for the next control.
+    event.preventDefault();
+    editor.setRangeText("  ", editor.selectionStart, editor.selectionEnd, "end");
+    itemText = editor.value;
+    scheduleDraw();
+  });
+
+  // The card is painted to the room the stage actually has, so a resized window
+  // re-wraps instead of waiting for the next setting change. Wrapping only
+  // shortens as the room shrinks, so this settles instead of ping-ponging.
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(() => {
+      if (Math.abs(stage.clientWidth - available) < 1) return;
+      scheduleDraw();
+    }).observe(stage);
+  }
 
   for (const button of all<HTMLButtonElement>("[data-action]")) {
     button.addEventListener("click", () => {
@@ -446,6 +519,7 @@ function wire(): void {
   closeButton.addEventListener("click", () => bridge.close());
 
   bridge.onItem((item) => {
+    setEditing(false);
     itemText = item.kind === "text" ? item.text : "";
     itemTitle = item.title;
     // Each entry is read on its own terms: a language kept from the last one

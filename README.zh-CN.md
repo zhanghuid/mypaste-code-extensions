@@ -144,14 +144,14 @@ standalone 构建加 babel、estree 两个插件打进页面本身，格式化�
 `forms` 声明表面适配的实体，`role` 是以下之一：
 
 - `open`——「打开这个实体」的目标（卡片被双击、且它是默认表面时）。
-  code-card（6.1.0）、code-edit、diff-view、image-edit、json、timestamp 与
+  code-card（6.2.0）、code-edit、diff-view、image-edit、json、timestamp 与
   link-inspector 声明它。
 - `preview`——画进剪切坞的卡片预览。目前没有包声明它：code-card 一直声明它，
   6.0.0 起改为以自己的整页打开。
 
 `chrome` 可选，且只有 `open` 表面能声明 `"page"`：卡片外框整块归页面，宿主
 隐藏自己的页眉与页脚，页面经桥的 `close` 请求关闭。省略时保留宿主卡片
-（`"host"`）。code-card（6.1.0）、code-edit（3.7.1）、diff-view（3.2.1）、
+（`"host"`）。code-card（6.2.0）、code-edit（3.7.1）、diff-view（3.2.1）、
 json（3.3.1）与 link-inspector（1.0.0）声明 `"page"`；image-edit 与
 timestamp 保留宿主卡片。
 
@@ -297,6 +297,13 @@ JavaScript、TypeScript、Go、Rust、PHP、SQL 以及空白有语义的语言�
 工具栏同理：下拉的宽度跟着它最长的选项走，不再固定在 216 / 168 px 的空盒子里，
 标签不会再被一段空工具栏围住；选中一项之后也不会留下浏览器在 40 px 控件里画的
 2 px 强调色描边——聚焦只体现为抬起的底面和被点亮的图示，一个指示，没有边框。
+
+6.2.0 让长行折在页面里，而不是把页面撑宽。工作台按舞台真正给出的宽度排版，
+长行就在那里折行——有空格时断在空格处，只有整行都放不下的词才被切断——页面
+因此不再出现横向滚动条；「编辑器」栏的「自动换行」可以关掉，保留一条长行。
+同一版把内容变成可编辑：工具栏的铅笔在卡片上方展开编辑区，边打边重绘，Tab
+缩进两个空格，Esc 只收起编辑区、不关闭面板。改动只属于这一次打开——不写回
+条目，关掉之后历史保持原样。
 
 源码：
 

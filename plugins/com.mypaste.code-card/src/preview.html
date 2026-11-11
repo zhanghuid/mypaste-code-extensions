@@ -7,12 +7,12 @@
 <style>
   /*
    * Carbon's editor chrome (carbon.now.sh), rebuilt inside a workbench surface:
-   * one 40 px toolbar with the theme and language pickers, settings, copy and
-   * the split export, and the page's own close control; a padded canvas with
-   * the card; the 316 px settings popout with the background strip and the
-   * Window / Editor rail. Colours come from the host's tokens
-   * (D-1042/D-1043) and corners from the host's ladder (D-1099), so the same
-   * layout paints in either appearance.
+   * one 40 px toolbar with the theme and language pickers, edit, settings, copy
+   * and the split export, and the page's own close control; an editor pane that
+   * opens under the toolbar; a padded canvas with the card; the 316 px settings
+   * popout with the background strip and the Window / Editor rail. Colours come
+   * from the host's tokens (D-1042/D-1043) and corners from the host's ladder
+   * (D-1099), so the same layout paints in either appearance.
    */
   :root {
     color-scheme: light;
@@ -127,6 +127,9 @@
     color: var(--ui-ink);
   }
   .icon:hover, .control:hover { background: var(--ui-raised); }
+  /* The edit toggle keeps its own pressed state: the raised surface and the lit
+     glyph say the editor is open, the same material a focused picker uses. */
+  .icon[aria-pressed="true"] { background: var(--ui-raised); color: var(--ui-accent); }
   /* The page draws the card's chrome, so it draws the close control too
      (D-1097); the host paints none of its own on this document. */
   .close {
@@ -182,6 +185,39 @@
     color: var(--ui-muted);
     font-size: 13px;
   }
+  /*
+   * The editor sits above the stage rather than beside it: the card keeps the
+   * full width of the page, so what is being edited and what the export will
+   * hold are the same layout. Its focus material is the caret — the box draws no
+   * ring of its own.
+   */
+  .editor-pane {
+    flex: none;
+    height: 34%;
+    max-height: 220px;
+    min-height: 116px;
+    border-radius: var(--radius-md);
+    background: var(--ui-raised);
+    box-shadow: inset 0 0 0 1px var(--ui-line);
+    overflow: hidden;
+  }
+  .editor-pane textarea {
+    display: block;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    border: 0;
+    padding: 14px 16px;
+    background: transparent;
+    color: var(--ui-ink);
+    font: 13px/1.6 "Hack", "SF Mono", "Menlo", "PingFang SC", monospace;
+    tab-size: 2;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    resize: none;
+  }
+  .editor-pane textarea:focus,
+  .editor-pane textarea:focus-visible { outline: none; }
 
   .status {
     position: absolute;
@@ -442,6 +478,12 @@
       <select id="card-language" aria-label="语言"></select>
     </div>
     <div class="actions">
+      <button class="icon" id="edit-button" aria-label="编辑内容" aria-pressed="false">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+          <path d="M4.2 15.8l1-3.3 8.1-8.1a1.5 1.5 0 0 1 2.1 0l1.2 1.2a1.5 1.5 0 0 1 0 2.1l-8.1 8.1-3.3 1a.6.6 0 0 1-.8-.8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+          <path d="M12.2 5.6l2.2 2.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+      </button>
       <button class="icon" id="settings-button" aria-label="设置" aria-haspopup="true" aria-expanded="false">
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
           <circle cx="10" cy="10" r="2.6" stroke="currentColor" stroke-width="1.3"/>
@@ -468,6 +510,10 @@
         <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       </svg>
     </button>
+  </div>
+
+  <div class="editor-pane" id="editor-pane" hidden>
+    <textarea id="card-editor" aria-label="编辑内容" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
   </div>
 
   <div class="stage" id="stage">
@@ -588,6 +634,15 @@
             <span>行号</span>
             <span class="switch-wrap">
               <input class="switch" id="line-numbers" type="checkbox" aria-label="行号">
+              <svg class="tick" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M2.2 6.3 4.8 8.8 9.8 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </div>
+          <div class="row">
+            <span>自动换行</span>
+            <span class="switch-wrap">
+              <input class="switch" id="wrap-lines" type="checkbox" aria-label="自动换行">
               <svg class="tick" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M2.2 6.3 4.8 8.8 9.8 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>

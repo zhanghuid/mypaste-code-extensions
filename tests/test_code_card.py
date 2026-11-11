@@ -236,6 +236,41 @@ assert.ok(measuredCalls > 0);
 assert.equal(hugging.cardWidth, card.CARD_PAD_LEFT + card.CARD_PAD_RIGHT + 7 * 12);
 checks.push("auto width follows the measured glyphs and keeps a floor for the window controls");
 
+// Wrapping is the default and it is what keeps the stage from scrolling
+// sideways: the card is laid out to the room the stage reports, so a long line
+// breaks instead of widening the export past the pane. Turned off, the card
+// grows to the old ceiling again.
+assert.equal(card.DEFAULT_CODE_CARD_OPTIONS.wrap, true);
+const room = 720;
+const longish = card.cardSource("x".repeat(120), "longish", "javascript");
+const unwrapped = card.codeCardLayout(longish, { ...base, wrap: false }, undefined, room);
+assert.equal(unwrapped.lines.length, 1);
+assert.ok(unwrapped.width > room);
+const wrapped = card.codeCardLayout(longish, base, undefined, room);
+assert.ok(wrapped.lines.length > 1);
+assert.ok(wrapped.width <= room);
+assert.equal(wrapped.cardWidth, room - base.paddingX * 2);
+const drawnWrapped = card.drawCodeCard(measuring, longish, base, null, room);
+assert.ok(drawnWrapped.lines.length > 1);
+assert.ok(drawnWrapped.width <= room);
+checks.push("wrapping keeps the card inside the stage it is previewed in");
+
+// A wrapped line ends at a space when it has one, so a break lands between
+// words instead of through them — cutting at a fixed column put "Promise" over
+// two lines. Only a word longer than the whole line is broken.
+const sentences = card.cardSource("const promise = loadTemplates(root, options); ".repeat(4), "words", "javascript");
+const wordLines = card
+  .splitTokenLines(sentences.tokens, 30)
+  .map((line) => line.map((token) => token.text).join(""));
+assert.ok(wordLines.length > 1);
+assert.ok(wordLines.every((line) => line.length <= 30));
+assert.ok(wordLines.slice(0, -1).every((line) => line.endsWith(" ")));
+const unbroken = card
+  .splitTokenLines(card.cardSource("y".repeat(50), "y", "auto").tokens, 24)
+  .map((line) => line.map((token) => token.text).join(""));
+assert.deepEqual(unbroken.map((line) => line.length), [24, 24, 2]);
+checks.push("a wrapped line ends at a space, and only a word longer than the line is cut");
+
 // The canvas behind the window is the palette's ground, a chosen hex, or
 // nothing at all for a transparent export.
 const ground = card.resolvePalette("nord", null);
@@ -383,6 +418,8 @@ class CodeCardTest(unittest.TestCase):
             "the window band is constant and the shadow never moves the geometry",
             "gutter, font size, line height and padding grow the layout within the ceiling",
             "auto width follows the measured glyphs and keeps a floor for the window controls",
+            "wrapping keeps the card inside the stage it is previewed in",
+            "a wrapped line ends at a space, and only a word longer than the line is cut",
             "the background resolves to the palette, a hex, or transparent",
             "the host palette follows the host tokens and stored palettes do not",
             "every stored palette is complete",
