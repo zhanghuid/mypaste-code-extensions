@@ -115,11 +115,11 @@
     {
       "id": "com.mypaste.code-card",
       "name": "代码卡片",
-      "version": "5.0.0",
+      "version": "6.0.0",
       "kind": "ui",
-      "description": "把代码或纯文本条目渲染成一张可分享的卡片图片：工作台沿用 carbon.now.sh 的编辑器布局——主题与语言两条下拉、背景色板、设置浮层（预设色 + 窗口 / 编辑器两栏）和导出菜单。卡片默认跟随宿主主题，另有七套配色、macOS / Windows / 无窗口三种框、行号、字号、行高、留白与投影，背景可透明或任意十六进制色，导出 1× 或 2×。卡片完全在本机绘制，不联网、不读取其它条目。",
-      "fileName": "com.mypaste.code-card-5.0.0.mypaste-plugin",
-      "sha256": "ab355c7051a59974ca9d56a7f2517062291b251d282e25ad1e3e8b5cc7a60ec7",
+      "description": "把代码或纯文本条目渲染成一张可分享的卡片图片：整页工作台沿用 carbon.now.sh 的编辑器布局——主题与语言两条下拉、复制与导出、页面自己的关闭按钮，背景色板（预设色 + 十六进制）与「窗口 / 编辑器」两栏都在设置浮层里，工具栏只留一个入口。卡片默认跟随宿主主题，另有七套配色、macOS / Windows / 无窗口三种框、行号、字号、行高、留白与投影，背景可透明或任意十六进制色，导出 1× 或 2×；单行内容先按语言重新排版再绘制。卡片完全在本机绘制，不联网、不读取其它条目。",
+      "fileName": "com.mypaste.code-card-6.0.0.mypaste-plugin",
+      "sha256": "e7d75c42282f361905fcf25286b0f99e8766ba2577a394ad62ca519f5f1bf1d7",
       "runtimeProtocol": 0,
       "repository": "https://github.com/zhanghuid/mypaste-code-extensions"
     },

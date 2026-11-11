@@ -176,16 +176,17 @@ which every built page fits. The others run no process:
 `forms` names the entities the surface adapts, and `role` is one of:
 
 - `open` — the target of "open this entity" (a double-click on a card when this
-  surface is the chosen default). Code-edit, diff-view, image-edit, json,
-  timestamp and link-inspector declare it.
-- `preview` — drawn into the dock's card preview. Code-card declares it.
+  surface is the chosen default). Code-card (6.0.0), code-edit, diff-view,
+  image-edit, json, timestamp and link-inspector declare it.
+- `preview` — drawn into the dock's card preview. No package declares it today:
+  code-card drew it until 6.0.0 and now opens as a page of its own.
 
 `chrome` is optional, and only an `open` surface may set `"page"`: the page
 draws the whole card, so the host hides its own header and footer and the page
 closes through the bridge's `close` request. Omitting it keeps the host card
-(`"host"`). Code-edit (3.7.2), diff-view (3.2.2), json (3.3.1) and
-link-inspector (1.0.0) declare `"page"`; image-edit and timestamp keep the host
-card.
+(`"host"`). Code-card (6.0.0), code-edit (3.7.2), diff-view (3.2.2), json
+(3.3.1) and link-inspector (1.0.0) declare `"page"`; image-edit and timestamp
+keep the host card.
 
 ### Link type
 
@@ -231,27 +232,46 @@ show a link does.
 ### Code card
 
 Code-card draws the entry on a canvas and exports one PNG; nothing is fetched
-and the page holds no host binding. 5.0.0 rebuilds the workbench as Carbon's
-editor (carbon.now.sh): a 40 px toolbar with the theme and language dropdowns,
-the background swatch, settings and copy, and an export split button at the far
-right; a centred stage that carries the card inside its export padding; and a
-316 px settings popout — a preset strip (the host's ground, transparent and
-Carbon's eight colours, plus a hex field) over a 窗口 / 编辑器 rail. The card
-keeps Carbon's metrics: a 48 px window band, 16 / 18 / 18 px inner padding, a
-133 % line box and a 20 px / 68 px shadow, with the corners taken from the
-host's ladder. 4.0.0's host-following palette is still the default: "跟随宿主"
-reads the host's own code surface and syntax tokens, so the exported image
-matches the editor the reader is looking at, and seven stored palettes (three
-light, four dark) remain for a deliberate look. The rail selects a macOS,
-Windows or headless window, line numbers, 11–20 px type, 100–200 % line height,
-16–128 px padding per axis, shadow offset and blur, auto or fixed width and a
-transparent or hex background; an explicit language overrides detection; the
-export is 1× or 2×. The document is one page and one bundled script: no
-runtime, no network, no font download. Not taken from Carbon: SVG export (the
-card is measured and drawn once on a canvas), image or gradient backgrounds (a
-file input would add a second data path), downloaded fonts and a
-hundred-language pack (each language here is a small keyword table the page
-owns).
+and the page holds no host binding. 6.0.0 makes the page the card: it declares
+`"role": "open"` with `"chrome": "page"`, so the host paints no header and no
+bottom action row, and the page draws its own close control (a square X at the
+far right) and answers Escape — one Escape closes an open popup first, the next
+asks the bridge to close. The workbench is Carbon's editor (carbon.now.sh) from
+5.0.0: a 40 px toolbar with the theme and language dropdowns, settings and
+copy, the export split button and the close control; a centred stage that
+carries the card inside its export padding; and a 316 px settings popout — the
+background strip (the host's ground, transparent and Carbon's eight colours)
+with a hex field under it, over a 窗口 / 编辑器 rail. Background is chosen in
+that popout only; 5.0.0's second toolbar swatch repeated the same ten choices
+and is gone. The card keeps Carbon's metrics: a 48 px window band, 16 / 18 /
+18 px inner padding, a 133 % line box and a 20 px / 68 px shadow, with the
+corners taken from the host's ladder. 4.0.0's host-following palette is still
+the default: "跟随宿主" reads the host's own code surface and syntax tokens, so
+the exported image matches the editor the reader is looking at, and seven
+stored palettes (three light, four dark) remain for a deliberate look. The rail
+selects a macOS, Windows or headless window, line numbers, 11–20 px type,
+100–200 % line height, 16–128 px padding per axis, shadow offset and blur, auto
+or fixed width and a transparent or hex background; the export is 1× or 2×.
+
+6.0.0 also fixes how the text itself reaches the card. The line splitter used to
+drop every token's kind while wrapping, so the renderer painted each card in
+one colour; the kind now survives, and the palette colour of that kind is what
+reaches the canvas. A wide character (CJK, fullwidth, emoji) takes two cells
+when the line is measured and drawn, so a Chinese run no longer overlaps the
+text that follows it or wraps late. Each entry is read on its own terms: the
+language picker returns to detection when a new item arrives, instead of
+scanning it with the language chosen for the previous one. And a one-line
+source is re-indented for the drawing — JSON through its own parser, HTML and
+CSS through a conservative brace-and-tag re-indenter that refuses unbalanced
+markup and raw-text elements (`script`, `style`, `pre`, `textarea`) rather
+than repairing them; a source that already has line breaks is the author's
+layout and is drawn exactly as it arrived, and JavaScript, TypeScript, Go, Rust,
+PHP, SQL and the whitespace-sensitive languages are never re-nested. The
+document is one page and one bundled script: no runtime, no network, no font
+download. Not taken from Carbon: SVG export (the card is measured and drawn
+once on a canvas), image or gradient backgrounds (a file input would add a
+second data path), downloaded fonts and a hundred-language pack (each language
+here is a small keyword table the page owns).
 
 The host serves the page to a sandboxed frame and mediates reading this
 invocation's item, saving text or an image as a new history entry, copying text
@@ -341,8 +361,9 @@ side owns its own line numbers.
 
 Closing belongs to whichever side draws the card. Under the default host
 chrome MyPaste draws one close control and a page must not draw a second; the
-three page-chrome surfaces draw their own close control (a square X at the end
-of the tab strip) and ask the bridge to close. Escape asks the bridge too, but
+page-chrome surfaces draw their own close control (a square X at the end of
+their own toolbar or tab strip) and ask the bridge to close. Escape asks the
+bridge too, but
 first leaves the page's own mode: an open dropdown, or the comparison's editing
 pane. The pages carry the host's corner ladder (host D-1099) as their own
 `--radius-*` tokens: controls are 6px, cards, menus and list groups 10px,
@@ -359,6 +380,7 @@ plugins/com.mypaste.code-card/
   src/bridge.ts        the host bridge, as the page sees it
   src/card.ts          palettes, layout and canvas drawing
   src/tokenize.ts      the card's own tokenizer and language table
+  src/format.ts        single-line re-indent for JSON, HTML and CSS
   src/preview.html     markup, styles and the <!--bundle--> placeholder
   preview.html         GENERATED: the page the archive ships
 

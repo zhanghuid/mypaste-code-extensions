@@ -50,6 +50,7 @@ globalThis.window = {
 
 const card = await import(pathToFileURL(path.join(dir, "card.mjs")));
 const bridgeModule = await import(pathToFileURL(path.join(dir, "bridge.mjs")));
+const formatter = await import(pathToFileURL(path.join(dir, "format.mjs")));
 const checks = [];
 
 const base = { ...card.DEFAULT_CODE_CARD_OPTIONS };
@@ -71,12 +72,82 @@ assert.equal(plain.label, "文本");
 assert.equal(card.cardSource("   \n  ", "empty", "auto"), null);
 checks.push("auto detection and an explicit language both reach the card source");
 
+// A pasted one-liner is re-indented for the drawing. An author's own line
+// breaks, and any language whose whitespace or grammar this module cannot
+// recover, are returned byte for byte; malformed markup is refused, not
+// repaired.
+assert.equal(
+  formatter.formatSource('{"a":[1,2]}', "json"),
+  '{\n  "a": [\n    1,\n    2\n  ]\n}',
+);
+assert.equal(
+  formatter.formatSource("<div><p>a</p><p>b</p></div>", "html"),
+  "<div>\n  <p>a</p>\n  <p>b</p>\n</div>",
+);
+assert.equal(
+  formatter.formatSource('<span class="x">满分100</span>', "html"),
+  '<span class="x">满分100</span>',
+);
+assert.equal(formatter.formatSource("<div><p>a</p>", "html"), "<div><p>a</p>");
+assert.equal(formatter.formatSource("<script>x</script>", "html"), "<script>x</script>");
+assert.equal(
+  formatter.formatSource("a{color:red;b{}}", "css"),
+  "a {\n  color:red;\n  b {\n  }\n}",
+);
+const kept = "const a = 1;\n    const b = 2;";
+assert.equal(formatter.formatSource(kept, "javascript"), kept);
+assert.equal(formatter.formatSource("if a:\n  pass", "python"), "if a:\n  pass");
+const reformatted = card.cardSource("<div><p>a</p><p>b</p></div>", "", "auto");
+assert.equal(reformatted.language, "html");
+assert.equal(
+  reformatted.tokens.map((token) => token.text).join(""),
+  "<div>\n  <p>a</p>\n  <p>b</p>\n</div>",
+);
+checks.push("a one-line source is re-indented and the author's layout is kept");
+
 // A tab is drawn as four spaces: canvas text has no reliable tab advance, so
 // the layout and the drawn text must use the same expansion.
 const tabbed = card.cardSource("if (true) {\n\treturn;\n}", "tab", "javascript");
 const tabLine = card.splitTokenLines(tabbed.tokens, 80)[1].map((token) => token.text).join("");
 assert.ok(tabLine.startsWith("    "));
 checks.push("a tab becomes four spaces in the drawn line");
+
+// A wide character takes two cells. Counting a CJK run in single cells drew
+// the text that followed it on top of it and wrapped late.
+assert.equal(card.charColumns("满分100"), 7);
+const cjk = card.cardSource("测试".repeat(10), "cjk", "auto");
+const cjkLines = card.splitTokenLines(cjk.tokens, 10);
+assert.ok(cjkLines.every((line) => card.charColumns(line.map((token) => token.text).join("")) <= 10));
+assert.equal(cjkLines.length, 4);
+checks.push("a wide character takes two cells in the drawn line");
+
+// Highlighting survives line splitting: the pieces the renderer paints keep the
+// kind of the token they came from, and the palette colour of that kind is what
+// reaches the canvas. Every card used to be drawn in one colour because this
+// split dropped the kind.
+const styled = card.cardSource('<span class="x">hi</span>', "", "html");
+const styledLines = card.splitTokenLines(styled.tokens, 80);
+assert.deepEqual(
+  styledLines.flat().map((token) => token.kind).filter((kind) => kind !== ""),
+  ["tag", "property", "string", "tag"],
+);
+const painted = [];
+const painting = new Proxy({}, {
+  get(target, prop) {
+    if (prop === "fillText") return (text) => painted.push([target.fillStyle, text]);
+    if (prop === "measureText") return () => ({ width: 8 });
+    if (prop in target) return target[prop];
+    return () => {};
+  },
+  set(target, prop, value) { target[prop] = value; return true; },
+});
+const canvas = { width: 0, height: 0, style: {}, getContext: () => painting };
+card.drawCodeCard(canvas, styled, { ...base, theme: "nord" });
+const tagColour = card.CODE_CARD_PALETTES.nord.tokens.tag;
+const stringColour = card.CODE_CARD_PALETTES.nord.tokens.string;
+assert.ok(painted.some(([fill, text]) => fill === tagColour && text === "span"));
+assert.ok(painted.some(([fill]) => fill === stringColour));
+checks.push("line splitting keeps each token's kind and the card paints it");
 
 // A long item is bounded once; the marker is part of the drawn text.
 const long = card.cardSource("x".repeat(card.CARD_SOURCE_LIMIT + 1), "long", "javascript");
@@ -236,7 +307,7 @@ class CodeCardTest(unittest.TestCase):
             raise unittest.SkipTest("node and esbuild are needed for the card test")
         cls.temp = tempfile.TemporaryDirectory()
         work = Path(cls.temp.name)
-        for name in ("card", "bridge"):
+        for name in ("card", "bridge", "format"):
             built = subprocess.run(
                 [
                     str(ESBUILD),
@@ -275,7 +346,10 @@ class CodeCardTest(unittest.TestCase):
         checks = json.loads(self.result.stdout.strip().splitlines()[-1])
         self.assertEqual(checks, [
             "auto detection and an explicit language both reach the card source",
+            "a one-line source is re-indented and the author's layout is kept",
             "a tab becomes four spaces in the drawn line",
+            "a wide character takes two cells in the drawn line",
+            "line splitting keeps each token's kind and the card paints it",
             "the source limit truncates once and marks the cut",
             "the window band is constant and the shadow never moves the geometry",
             "gutter, font size, line height and padding grow the layout within the ceiling",

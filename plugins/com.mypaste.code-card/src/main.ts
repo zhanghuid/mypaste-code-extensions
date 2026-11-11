@@ -2,10 +2,14 @@
  * 代码卡片工作台：把本次调用的文本条目画成一张卡片，另存为新条目或复制到
  * 剪贴板。卡片完全在本地绘制——没有网络请求，也没有宿主绑定。
  *
- * 页面按 carbon.now.sh 的编辑器界面组织：一条 40px 工具栏（主题、语言、背景、
- * 设置、复制、导出），一块带留白的画布，以及 316px 的设置浮层（预设条 +
- * 「窗口 / 编辑器」两栏）。页面外观跟随宿主的主题消息（D-1042/D-1043），
- * 卡片本身默认也用同一组颜色（「跟随宿主」）。
+ * 页面按 carbon.now.sh 的编辑器界面组织：一条 40px 工具栏（主题、语言、设置、
+ * 复制、导出、关闭），一块带留白的画布，以及 316px 的设置浮层（背景色板 +
+ * 十六进制输入 +「窗口 / 编辑器」两栏）。背景只在浮层里选，工具栏不再放第二个
+ * 入口。页面外观跟随宿主的主题消息（D-1042/D-1043），卡片本身默认也用同一组
+ * 颜色（「跟随宿主」）。
+ *
+ * 这份文档声明 chrome: "page"（D-1097）：宿主不画自己的标题栏和底部动作条，
+ * 关闭由页面的方块 X 与 Esc 经桥的 close 请求交回宿主。
  */
 
 import { connectSurface } from "./bridge";
@@ -72,16 +76,14 @@ const stageEmpty = one<HTMLElement>("#stage-empty");
 const status = one<HTMLElement>("#card-status");
 const themeSelect = one<HTMLSelectElement>("#card-theme");
 const languageSelect = one<HTMLSelectElement>("#card-language");
-const backgroundButton = one<HTMLButtonElement>("#background-button");
 const settingsButton = one<HTMLButtonElement>("#settings-button");
 const settingsPopout = one<HTMLElement>("#settings-popout");
 const resetButton = one<HTMLButtonElement>("#reset-options");
 const presetRow = one<HTMLElement>("#background-presets");
-const backgroundMenu = one<HTMLElement>("#background-menu");
-const backgroundOptions = one<HTMLElement>("#background-options");
 const backgroundHex = one<HTMLInputElement>("#background-hex");
 const exportMenuButton = one<HTMLButtonElement>("#export-menu-button");
 const exportMenu = one<HTMLElement>("#export-menu");
+const closeButton = one<HTMLButtonElement>("#close-button");
 const windowStyles = one<HTMLElement>("#window-styles");
 const paddingX = one<HTMLInputElement>("#padding-x");
 const paddingY = one<HTMLInputElement>("#padding-y");
@@ -152,15 +154,6 @@ function buildBackgrounds(): void {
     if (choice.id === "transparent") preset.classList.add("is-transparent");
     else if (choice.color) preset.style.backgroundColor = choice.color;
     presetRow.append(preset);
-
-    const swatch = document.createElement("button");
-    swatch.type = "button";
-    swatch.className = "bg-choice";
-    swatch.dataset.background = choice.id;
-    swatch.setAttribute("aria-label", choice.name);
-    if (choice.id === "transparent") swatch.classList.add("is-transparent");
-    else if (choice.color) swatch.style.backgroundColor = choice.color;
-    backgroundOptions.append(swatch);
   }
 }
 
@@ -173,13 +166,9 @@ function draw(): void {
   if (background === null) {
     stage.classList.add("is-transparent");
     stage.style.backgroundColor = "";
-    backgroundButton.classList.add("is-transparent");
-    backgroundButton.style.backgroundColor = "";
   } else {
     stage.classList.remove("is-transparent");
     stage.style.backgroundColor = background;
-    backgroundButton.classList.remove("is-transparent");
-    backgroundButton.style.backgroundColor = background;
   }
 
   source = cardSource(itemText, itemTitle, options.language);
@@ -278,7 +267,6 @@ function closePopovers(except?: HTMLElement): void {
   for (const [panel, toggle] of [
     [settingsPopout, settingsButton],
     [exportMenu, exportMenuButton],
-    [backgroundMenu, backgroundButton],
   ] as const) {
     if (panel === except) continue;
     panel.hidden = true;
@@ -291,17 +279,6 @@ function togglePanel(panel: HTMLElement, toggle: HTMLElement): void {
   closePopovers(open ? panel : undefined);
   panel.hidden = !open;
   toggle.setAttribute("aria-expanded", String(open));
-}
-
-function placeBackgroundMenu(): void {
-  const appRect = app.getBoundingClientRect();
-  const buttonRect = backgroundButton.getBoundingClientRect();
-  const width = backgroundMenu.offsetWidth || 236;
-  const left = Math.max(
-    8,
-    Math.min(buttonRect.left - appRect.left, appRect.width - width - 8),
-  );
-  backgroundMenu.style.left = `${left}px`;
 }
 
 /** Carbon anchors the settings popout under the gear, with a caret pointing at it. */
@@ -351,15 +328,6 @@ function wire(): void {
     scheduleDraw();
   });
 
-  backgroundButton.addEventListener("click", () => {
-    if (backgroundMenu.hidden) placeBackgroundMenu();
-    togglePanel(backgroundMenu, backgroundButton);
-  });
-  backgroundMenu.addEventListener("click", (event) => {
-    const choice = (event.target as HTMLElement).closest<HTMLElement>("[data-background]");
-    if (!choice) return;
-    chooseBackground(choice.dataset.background ?? "host");
-  });
   backgroundHex.addEventListener("change", () => {
     const value = backgroundHex.value.trim().replace(/^#/, "");
     if (/^[0-9a-f]{6}$/i.test(value)) chooseBackground(`#${value.toLowerCase()}`);
@@ -460,22 +428,31 @@ function wire(): void {
     if (
       settingsPopout.contains(target) ||
       exportMenu.contains(target) ||
-      backgroundMenu.contains(target) ||
       settingsButton.contains(target) ||
-      exportMenuButton.contains(target) ||
-      backgroundButton.contains(target)
+      exportMenuButton.contains(target)
     ) {
       return;
     }
     closePopovers();
   });
+  // The host never sees a key pressed inside this page, and this page draws the
+  // card's chrome, so Escape is its own: an open popover closes first, and the
+  // next Escape asks the container to close the surface (D-1097).
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closePopovers();
+    if (event.key !== "Escape") return;
+    if (!settingsPopout.hidden || !exportMenu.hidden) closePopovers();
+    else bridge.close();
   });
+  closeButton.addEventListener("click", () => bridge.close());
 
   bridge.onItem((item) => {
     itemText = item.kind === "text" ? item.text : "";
     itemTitle = item.title;
+    // Each entry is read on its own terms: a language kept from the last one
+    // scans this text with the wrong token set, which is how an HTML line got
+    // drawn as plain text. The rail returns to detection for the new item.
+    options.language = "auto";
+    reflect();
     draw();
   });
   bridge.onTheme((next) => {

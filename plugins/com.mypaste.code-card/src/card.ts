@@ -25,6 +25,7 @@ import {
   type CodeLanguage,
   type CodeToken,
 } from "./tokenize";
+import { formatSource } from "./format";
 
 export type CodeCardTheme =
   | "host"
@@ -375,7 +376,8 @@ export const CARD_SOURCE_LIMIT = 6_000;
 /**
  * cardSource turns an entry into what the card draws. Detection only decides
  * when the rail says "auto"; an explicit language is also the label, so the
- * picker and the drawing cannot disagree.
+ * picker and the drawing cannot disagree. A one-line source is re-indented for
+ * the drawing (formatSource); the entry itself is never touched.
  */
 export function cardSource(
   text: string,
@@ -386,7 +388,8 @@ export function cardSource(
   if (!body) return null;
   const chosen: CodeLanguage =
     language === "auto" ? detectCodeLanguage(body) ?? "javascript" : language;
-  const tokens = tokenizeCode(body, chosen);
+  const drawn = formatSource(body, chosen);
+  const tokens = tokenizeCode(drawn, chosen);
   const title = fallbackTitle.trim() || body.split("\n", 1)[0]?.trim().slice(0, 60) || "代码";
   return {
     title,
@@ -418,16 +421,48 @@ function truncateTokens(tokens: CodeToken[], limit: number): CodeToken[] {
   return out;
 }
 
-/** Splits tokens into drawn lines; a tab is drawn as four spaces, like Carbon. */
+/**
+ * A code point's advance in cells. A monospace font draws East Asian wide and
+ * fullwidth characters two cells wide, so counting them as one — what
+ * `text.length` does — drew every CJK run on top of the text that followed it.
+ */
+export function charColumns(text: string): number {
+  let columns = 0;
+  for (const character of text) columns += isWideCharacter(character) ? 2 : 1;
+  return columns;
+}
+
+function isWideCharacter(character: string): boolean {
+  const code = character.codePointAt(0) ?? 0;
+  return (
+    (code >= 0x1100 && code <= 0x115f) ||
+    (code >= 0x2e80 && code <= 0xa4cf) ||
+    (code >= 0xac00 && code <= 0xd7a3) ||
+    (code >= 0xf900 && code <= 0xfaff) ||
+    (code >= 0xfe30 && code <= 0xfe4f) ||
+    (code >= 0xff00 && code <= 0xff60) ||
+    (code >= 0xffe0 && code <= 0xffe6) ||
+    code >= 0x1f300
+  );
+}
+
+/**
+ * Splits tokens into drawn lines; a tab is drawn as four spaces, like Carbon.
+ * Each piece keeps the kind of the token it came from — the line is what the
+ * renderer paints, so dropping the kind here would draw every card in one
+ * colour.
+ */
 export function splitTokenLines(tokens: CodeToken[], maxChars: number): CodeToken[][] {
   const lines: CodeToken[][] = [[]];
   let column = 0;
   let buffer = "";
+  let kind = "";
   const flush = () => {
-    if (buffer) lines[lines.length - 1]?.push({ text: buffer, kind: "" });
+    if (buffer) lines[lines.length - 1]?.push({ text: buffer, kind });
     buffer = "";
   };
   for (const token of tokens) {
+    kind = token.kind;
     const text = token.text.replace(/\t/g, "    ");
     for (const character of text) {
       if (character === "\n") {
@@ -436,13 +471,14 @@ export function splitTokenLines(tokens: CodeToken[], maxChars: number): CodeToke
         column = 0;
         continue;
       }
-      if (column >= maxChars) {
+      const width = isWideCharacter(character) ? 2 : 1;
+      if (column > 0 && column + width > maxChars) {
         flush();
         lines.push([]);
         column = 0;
       }
       buffer += character;
-      column += 1;
+      column += width;
     }
     flush();
   }
@@ -508,7 +544,7 @@ export function codeCardLayout(
   );
   const lines = splitTokenLines(source.tokens, maxChars);
   const longest = lines.reduce(
-    (width, line) => Math.max(width, line.reduce((sum, token) => sum + token.text.length, 0)),
+    (width, line) => Math.max(width, line.reduce((sum, token) => sum + charColumns(token.text), 0)),
     0,
   );
   const measured =
@@ -607,7 +643,7 @@ export function drawCodeCard(
     for (const token of line) {
       context.fillStyle = palette.tokens[token.kind] ?? palette.ink;
       context.fillText(token.text, lineX, lineY);
-      lineX += token.text.length * layout.charWidth;
+      lineX += charColumns(token.text) * layout.charWidth;
     }
   });
 

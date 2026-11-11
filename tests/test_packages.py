@@ -565,7 +565,7 @@ class PackageTests(unittest.TestCase):
         index = json.loads((DIST / "index.json").read_text(encoding="utf-8"))
         by_id = {entry["id"]: entry for entry in index["packages"]}
         roles = {
-            "com.mypaste.code-card": "preview",
+            "com.mypaste.code-card": "open",
             "com.mypaste.diff-view": "open",
             "com.mypaste.image-edit": "open",
         }
