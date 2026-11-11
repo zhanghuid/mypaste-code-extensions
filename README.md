@@ -159,7 +159,7 @@ document with no Node and no runtime. Its workbench is two columns: the entry as
 it arrived sits read-only on the left, and every result (beautify on open,
 minify, escape, XML, TypeScript, a filter result, a paste conversion) lands in
 the right pane, so the original is never rewritten and never covered by its own
-result. Calculator (1.0.0) is surface-only too: the entry seeds a scratch sheet,
+result. Calculator (1.0.1) is surface-only too: the entry seeds a scratch sheet,
 every row is evaluated in order in the document (see "Calculator" below), and
 copying or saving the sheet still goes through the host.
 Link-inspector is surface-only too: it invokes `com.mypaste.link-mime`
@@ -194,7 +194,7 @@ keep the host card.
 
 ### Calculator
 
-`com.mypaste.calculator` (1.0.0) opens a text entry as a calculation scratch
+`com.mypaste.calculator` (1.0.1) opens a text entry as a calculation scratch
 sheet. It is surface-only: `src/evaluate.ts` is the whole engine, bundled into
 `preview.html` beside `src/main.ts`, so no process, no network and no other
 entry are involved.

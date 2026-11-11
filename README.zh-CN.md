@@ -130,7 +130,7 @@
 standalone 构建加 babel、estree 两个插件打进页面本身，格式化、转换与过滤都在
 文档内完成，不需要 Node，也没有 runtime。工作区是两列：左侧只读显示条目原文，
 右侧接收全部结果（打开时的美化、压缩、转义、XML、TypeScript、过滤结果与粘贴
-转换），原文既不会被改写，也不会被自己的结果盖住。calculator（1.0.0）同样是
+转换），原文既不会被改写，也不会被自己的结果盖住。calculator（1.0.1）同样是
 纯表面包：被打开的文本成为一张稿纸，每一行都在文档里按顺序求值（见下文
 「计算稿纸」），复制与保存仍经宿主。link-inspector 同样是纯表面
 包：它经注册表调用 `com.mypaste.link-mime`，再按 MIME 选渲染器把链接显示出来
@@ -233,7 +233,7 @@ title}` 与 `{v: 1, type: "copy", requestId, text}`）；宿主对文本再校�
 
 ### 计算稿纸
 
-`com.mypaste.calculator`（1.0.0）把一条文本条目当作计算稿纸打开。它是纯表面包：
+`com.mypaste.calculator`（1.0.1）把一条文本条目当作计算稿纸打开。它是纯表面包：
 `src/evaluate.ts` 就是全部引擎，与 `src/main.ts` 一起打进 `preview.html`，没有
 进程、没有网络，也不读其它条目。
 
