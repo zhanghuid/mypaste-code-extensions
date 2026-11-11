@@ -97,10 +97,23 @@
     background-repeat: no-repeat;
     background-position: right 10px center;
   }
-  .control.theme { width: 216px; }
-  .control.language { width: 168px; }
-  .control.theme select { width: 176px; }
-  .control.language select { width: 128px; }
+  /*
+   * A picker is as wide as the labels it can show, not a fixed box: the select
+   * sizes to its widest option, so it hugs its text and still cannot jump when
+   * another option is chosen.
+   */
+  .control select { max-width: 240px; }
+  /*
+   * A focused picker shows that in its material, never in a ring: WebKit keeps
+   * :focus-visible on a <select> after a choice, and the 2 px accent outline
+   * then sits inside the 40 px control as an unexplained border. The page's
+   * focus material is the raised surface and the lit glyph; the chevron and the
+   * label stay as they are (D-1056: one indicator owns focus).
+   */
+  .control select:focus,
+  .control select:focus-visible { outline: none; }
+  .control:focus-within { background: var(--ui-raised); }
+  .control:focus-within .glyph { color: var(--ui-accent); }
 
   .actions { display: flex; align-items: center; gap: 8px; }
   .icon {

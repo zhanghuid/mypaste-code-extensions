@@ -207,6 +207,35 @@ const wide = card.cardSource("x".repeat(5000), "wide", "javascript");
 assert.ok(card.codeCardLayout(wide, base).cardWidth <= card.MAX_CARD_WIDTH);
 checks.push("gutter, font size, line height and padding grow the layout within the ceiling");
 
+// Auto width is the drawn text, not an estimate of it. A measure handed to the
+// layout sets the window exactly, and the drawn card asks the canvas for that
+// measurement, so the right padding stays 18 px whatever font the page resolves
+// — the estimate left a wide band of card beside a short line. Very short code
+// still keeps the floor the window's own controls need.
+const exact = card.codeCardLayout(source, base, () => 300);
+assert.equal(exact.cardWidth, card.CARD_PAD_LEFT + card.CARD_PAD_RIGHT + 300);
+const tiny = card.codeCardLayout(card.cardSource("x", "tiny", "auto"), base);
+assert.equal(tiny.cardWidth, card.MIN_CARD_WIDTH);
+let measuredCalls = 0;
+const measuring = {
+  width: 0, height: 0, style: {},
+  getContext: () => new Proxy({}, {
+    get(target, prop) {
+      if (prop === "measureText") {
+        return (text) => { measuredCalls += 1; return { width: text.length * 7 }; };
+      }
+      if (prop in target) return target[prop];
+      return () => {};
+    },
+    set(target, prop, value) { target[prop] = value; return true; },
+  }),
+};
+const single = card.cardSource("const x = 1;", "one", "javascript");
+const hugging = card.drawCodeCard(measuring, single, base);
+assert.ok(measuredCalls > 0);
+assert.equal(hugging.cardWidth, card.CARD_PAD_LEFT + card.CARD_PAD_RIGHT + 7 * 12);
+checks.push("auto width follows the measured glyphs and keeps a floor for the window controls");
+
 // The canvas behind the window is the palette's ground, a chosen hex, or
 // nothing at all for a transparent export.
 const ground = card.resolvePalette("nord", null);
@@ -353,6 +382,7 @@ class CodeCardTest(unittest.TestCase):
             "the source limit truncates once and marks the cut",
             "the window band is constant and the shadow never moves the geometry",
             "gutter, font size, line height and padding grow the layout within the ceiling",
+            "auto width follows the measured glyphs and keeps a floor for the window controls",
             "the background resolves to the palette, a hex, or transparent",
             "the host palette follows the host tokens and stored palettes do not",
             "every stored palette is complete",

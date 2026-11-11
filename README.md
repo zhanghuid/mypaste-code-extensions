@@ -176,7 +176,7 @@ which every built page fits. The others run no process:
 `forms` names the entities the surface adapts, and `role` is one of:
 
 - `open` — the target of "open this entity" (a double-click on a card when this
-  surface is the chosen default). Code-card (6.0.0), code-edit, diff-view,
+  surface is the chosen default). Code-card (6.1.0), code-edit, diff-view,
   image-edit, json, timestamp and link-inspector declare it.
 - `preview` — drawn into the dock's card preview. No package declares it today:
   code-card drew it until 6.0.0 and now opens as a page of its own.
@@ -184,7 +184,7 @@ which every built page fits. The others run no process:
 `chrome` is optional, and only an `open` surface may set `"page"`: the page
 draws the whole card, so the host hides its own header and footer and the page
 closes through the bridge's `close` request. Omitting it keeps the host card
-(`"host"`). Code-card (6.0.0), code-edit (3.7.2), diff-view (3.2.2), json
+(`"host"`). Code-card (6.1.0), code-edit (3.7.2), diff-view (3.2.2), json
 (3.3.1) and link-inspector (1.0.0) declare `"page"`; image-edit and timestamp
 keep the host card.
 
@@ -272,6 +272,19 @@ download. Not taken from Carbon: SVG export (the card is measured and drawn
 once on a canvas), image or gradient backgrounds (a file input would add a
 second data path), downloaded fonts and a hundred-language pack (each language
 here is a small keyword table the page owns).
+
+6.1.0 sizes the window from the glyphs it paints. Auto width used to multiply
+the character count by a fixed 0.602 em advance, so a card was wider than its
+code whenever the resolved font was narrower than that and the right padding
+could shrink when it was wider; the layout now takes the canvas's own
+`measureText` per token and draws each token forward by that same measurement, so
+the card is the text plus its 16 / 18 px padding, and a very short source keeps
+only the 96 px floor the window's own controls need. The toolbar follows the
+same rule: a picker is as wide as its widest option instead of a fixed 216 / 168
+px box, so its label no longer sits in a band of empty chrome, and choosing an
+option no longer leaves the browser's 2 px accent ring inside the 40 px control
+— a focused picker shows a raised surface and a lit glyph, one indicator and no
+border.
 
 The host serves the page to a sandboxed frame and mediates reading this
 invocation's item, saving text or an image as a new history entry, copying text

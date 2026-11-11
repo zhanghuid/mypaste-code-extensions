@@ -7,7 +7,9 @@
  * 16 px left / 18 px right / 18 px bottom padding, a 133 % line box, a 20 px /
  * 68 px shadow and a 56 px canvas padding. The rail exposes the same knobs
  * Carbon does — window style, vertical and horizontal padding, shadow offset
- * and blur, auto width, font size, line height and line numbers.
+ * and blur, auto width, font size, line height and line numbers. Auto width
+ * follows the text as the canvas measures it, so the window is never wider than
+ * the code it holds.
  *
  * The corners come from the host's ladder (D-1099), not from Carbon's 3–5 px
  * literals: the card is a card (--radius-md) and every control lives in the
@@ -512,7 +514,8 @@ export const CARD_PAD_BOTTOM = 18;
 export const CARD_RADIUS = 10;
 export const FIXED_CARD_WIDTH = 680;
 export const MAX_CARD_WIDTH = 1_600;
-export const MIN_CARD_WIDTH = 220;
+/** Floor wide enough for the window's controls (the mac dots end at 68 px). */
+export const MIN_CARD_WIDTH = 96;
 export const MIN_FONT_SIZE = 11;
 export const MAX_FONT_SIZE = 20;
 export const MIN_LINE_HEIGHT = 100;
@@ -522,9 +525,17 @@ export const MAX_PADDING = 128;
 
 const FONT_STACK = '"Hack", "SF Mono", "Menlo", "PingFang SC", monospace';
 
+/**
+ * A drawn line's width in CSS pixels. The layout's default is the monospace
+ * estimate it wraps by; the renderer passes the canvas's own measurement so the
+ * window is exactly as wide as the glyphs it paints.
+ */
+export type LineMeasure = (line: CodeToken[]) => number;
+
 export function codeCardLayout(
   source: CodeCardSource,
   options: CodeCardOptions,
+  measure?: LineMeasure,
 ): CodeCardLayout {
   const fontSize = clamp(Math.round(options.fontSize), MIN_FONT_SIZE, MAX_FONT_SIZE);
   const lineHeightPercent = clamp(
@@ -543,12 +554,15 @@ export function codeCardLayout(
     Math.floor((MAX_CARD_WIDTH - CARD_PAD_LEFT - CARD_PAD_RIGHT - gutterWidth) / charWidth),
   );
   const lines = splitTokenLines(source.tokens, maxChars);
-  const longest = lines.reduce(
-    (width, line) => Math.max(width, line.reduce((sum, token) => sum + charColumns(token.text), 0)),
-    0,
-  );
-  const measured =
-    CARD_PAD_LEFT + gutterWidth + longest * charWidth + CARD_PAD_RIGHT;
+  // A line's width is the sum of its glyphs: the estimate for a plain layout,
+  // the canvas's measurement at draw time. Taking the estimate here instead
+  // left the window wider than the code it held.
+  const lineWidth = (line: CodeToken[]): number =>
+    measure
+      ? measure(line)
+      : line.reduce((sum, token) => sum + charColumns(token.text), 0) * charWidth;
+  const longest = lines.reduce((width, line) => Math.max(width, lineWidth(line)), 0);
+  const measured = CARD_PAD_LEFT + gutterWidth + longest + CARD_PAD_RIGHT;
   const cardWidth = options.autoWidth
     ? clamp(Math.ceil(measured), MIN_CARD_WIDTH, MAX_CARD_WIDTH)
     : FIXED_CARD_WIDTH;
@@ -577,14 +591,22 @@ export function drawCodeCard(
   options: CodeCardOptions,
   host: HostTheme | null = null,
 ): CodeCardLayout {
-  const layout = codeCardLayout(source, options);
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("当前环境不支持 Canvas");
+  // The window is sized from the glyphs the canvas will paint, so the font has
+  // to be set on the context before the layout measures anything. Sizing the
+  // canvas below resets the context, which is why the font is set again before
+  // the first glyph.
+  const probe = codeCardLayout(source, options);
+  context.font = `${probe.fontSize}px ${FONT_STACK}`;
+  const layout = codeCardLayout(source, options, (line) =>
+    line.reduce((width, token) => width + context.measureText(token.text).width, 0),
+  );
   const palette = resolvePalette(options.theme, host);
   const background = resolveBackground(options, palette);
   const ratio = options.scale;
   canvas.width = Math.round(layout.width * ratio);
   canvas.height = Math.round(layout.height * ratio);
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("当前环境不支持 Canvas");
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, layout.width, layout.height);
 
@@ -643,7 +665,9 @@ export function drawCodeCard(
     for (const token of line) {
       context.fillStyle = palette.tokens[token.kind] ?? palette.ink;
       context.fillText(token.text, lineX, lineY);
-      lineX += charColumns(token.text) * layout.charWidth;
+      // Advance by the glyphs just painted, the same measurement the window
+      // width came from, so the two cannot disagree.
+      lineX += context.measureText(token.text).width;
     }
   });
 

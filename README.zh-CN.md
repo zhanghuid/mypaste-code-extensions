@@ -144,14 +144,14 @@ standalone 构建加 babel、estree 两个插件打进页面本身，格式化�
 `forms` 声明表面适配的实体，`role` 是以下之一：
 
 - `open`——「打开这个实体」的目标（卡片被双击、且它是默认表面时）。
-  code-card（6.0.0）、code-edit、diff-view、image-edit、json、timestamp 与
+  code-card（6.1.0）、code-edit、diff-view、image-edit、json、timestamp 与
   link-inspector 声明它。
 - `preview`——画进剪切坞的卡片预览。目前没有包声明它：code-card 一直声明它，
   6.0.0 起改为以自己的整页打开。
 
 `chrome` 可选，且只有 `open` 表面能声明 `"page"`：卡片外框整块归页面，宿主
 隐藏自己的页眉与页脚，页面经桥的 `close` 请求关闭。省略时保留宿主卡片
-（`"host"`）。code-card（6.0.0）、code-edit（3.7.1）、diff-view（3.2.1）、
+（`"host"`）。code-card（6.1.0）、code-edit（3.7.1）、diff-view（3.2.1）、
 json（3.3.1）与 link-inspector（1.0.0）声明 `"page"`；image-edit 与
 timestamp 保留宿主卡片。
 
@@ -289,6 +289,14 @@ JavaScript、TypeScript、Go、Rust、PHP、SQL 以及空白有语义的语言�
 没有照搬 Carbon 的部分：SVG 导出（卡片只在 canvas 上量一次、画一次）、图片或
 渐变背景（文件输入会多出一条数据路径）、下载字体与上百种语言包（每种语言都是
 页面自己持有的一张小关键字表）。
+
+6.1.0 让窗口按真正画出的字形定宽。自适应宽度以前把字符数乘以固定的 0.602 em
+字宽，字体比它窄时卡片右边就会空出一条，比它宽时右侧内边距又会被吃掉；现在
+布局向画布要每个词元的 `measureText`，绘制也按同一份量值推进，所以卡片就是
+文本本身加 16 / 18 px 内边距，极短的源码只保留窗口控件所需的 96 px 下限。
+工具栏同理：下拉的宽度跟着它最长的选项走，不再固定在 216 / 168 px 的空盒子里，
+标签不会再被一段空工具栏围住；选中一项之后也不会留下浏览器在 40 px 控件里画的
+2 px 强调色描边——聚焦只体现为抬起的底面和被点亮的图示，一个指示，没有边框。
 
 源码：
 
